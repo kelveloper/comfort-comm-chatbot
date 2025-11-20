@@ -88,6 +88,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-anthropic-api.ph
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-azure-openai-api.php';      // Azure OpenAI API - Ver 2.2.6
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-azure-api-assistant.php';   // Azure OpenAI Assistants API - Ver 2.2.6
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-deepseek-api.php';          // ChatGPT API - Ver 2.2.2
+require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-gemini-api.php';            // Gemini API - Ver 2.3.7
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-kognetiks-api-mc.php';      // Kognetiks - Markov Chain API - Ver 2.1.6
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-kognetiks-api-tm.php';      // Kognetiks - Transformer Model API - Ver 2.2.0
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-local-api.php';             // Local API - Ver 2.2.6
@@ -136,6 +137,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-azure-assistants.php';     // Azure Assistants - Ver 2.2.6
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-azure.php';                // Azure - Ver 2.2.6
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-deepseek.php';             // DeepSeek
+require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-gemini.php';              // Gemini
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-nvidia.php';               // NVIDIA
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-local.php';                // Local Server - Ver 2.2.6
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-mistral-agents.php';       // Mistral Agents - Ver 2.3.0
@@ -280,9 +282,12 @@ switch ($chatbot_ai_platform_choice) {
         $chatbot_deepseek_api_enabled = 'No';
         update_option('chatbot_deepseek_api_enabled', 'No');
 
+        $chatbot_gemini_api_enabled = 'No';
+        update_option('chatbot_gemini_api_enabled', 'No');
+
         $chatbot_markov_chain_api_enabled = 'No';
         update_option('chatbot_markov_chain_api_enabled', 'No');
-    
+
         $chatbot_transformer_model_api_enabled = 'No';
         update_option('chatbot_transformer_model_api_enabled', 'No');
 
@@ -291,7 +296,7 @@ switch ($chatbot_ai_platform_choice) {
 
         $chatbot_mistral_api_enabled = 'No';
         update_option('chatbot_mistral_api_enabled', 'No');
-        
+
         // Model choice - Ver 1.9.4
         if (esc_attr(get_option('chatbot_chatgpt_model_choice')) === null) {
             $model = 'gpt-4-1106-preview';
@@ -301,7 +306,7 @@ switch ($chatbot_ai_platform_choice) {
         } elseif (empty($model)) {
             $model = 'gpt-4-1106-preview';
         }
-    
+
         // Voice choice - Ver 1.9.5
         if (esc_attr(get_option('chatbot_chatgpt_voice_option')) === null) {
             $voice = 'alloy';
@@ -331,9 +336,12 @@ switch ($chatbot_ai_platform_choice) {
         $chatbot_deepseek_api_enabled = 'No';
         update_option('chatbot_deepseek_api_enabled', 'No');
 
+        $chatbot_gemini_api_enabled = 'No';
+        update_option('chatbot_gemini_api_enabled', 'No');
+
         $chatbot_markov_chain_api_enabled = 'No';
         update_option('chatbot_markov_chain_api_enabled', 'No');
-    
+
         $chatbot_transformer_model_api_enabled = 'No';
         update_option('chatbot_transformer_model_api_enabled', 'No');
 
@@ -342,7 +350,7 @@ switch ($chatbot_ai_platform_choice) {
 
         $chatbot_mistral_api_enabled = 'No';
         update_option('chatbot_mistral_api_enabled', 'No');
-        
+
         // Model choice - Ver 1.9.4
         if (esc_attr(get_option('chatbot_azure_model_choice')) === null) {
             $model = 'gpt-4-1106-preview';
@@ -384,6 +392,9 @@ switch ($chatbot_ai_platform_choice) {
 
         $chatbot_deepseek_api_enabled = 'No';
         update_option('chatbot_deepseek_api_enabled', 'No');
+
+        $chatbot_gemini_api_enabled = 'No';
+        update_option('chatbot_gemini_api_enabled', 'No');
 
         $chatbot_markov_chain_api_enabled = 'No';
         update_option('chatbot_markov_chain_api_enabled', 'No');
@@ -435,6 +446,9 @@ switch ($chatbot_ai_platform_choice) {
         $chatbot_deepseek_api_enabled = 'No';
         update_option('chatbot_deepseek_api_enabled', 'No');
 
+        $chatbot_gemini_api_enabled = 'No';
+        update_option('chatbot_gemini_api_enabled', 'No');
+
         $chatbot_markov_chain_api_enabled = 'No';
         update_option('chatbot_markov_chain_api_enabled', 'No');
 
@@ -446,7 +460,7 @@ switch ($chatbot_ai_platform_choice) {
 
         $chatbot_mistral_api_enabled = 'No';
         update_option('chatbot_mistral_api_enabled', 'No');
-        
+
         // Model choice - Ver 2.2.1
         if (esc_attr(get_option('chatbot_anthropic_model_choice')) === null) {
             $model = 'claude-3-5-sonnet-latest';
@@ -485,18 +499,21 @@ switch ($chatbot_ai_platform_choice) {
         $chatbot_deepseek_api_enabled = 'Yes';
         update_option('chatbot_deepseek_api_enabled', 'Yes');
 
+        $chatbot_gemini_api_enabled = 'No';
+        update_option('chatbot_gemini_api_enabled', 'No');
+
         $chatbot_markov_chain_api_enabled = 'No';
         update_option('chatbot_markov_chain_api_enabled', 'No');
 
         $chatbot_transformer_model_api_enabled = 'No';
         update_option('chatbot_transformer_model_api_enabled', 'No');
-        
+
         $chatbot_local_api_enabled = 'No';
         update_option('chatbot_local_api_enabled', 'No');
 
         $chatbot_mistral_api_enabled = 'No';
         update_option('chatbot_mistral_api_enabled', 'No');
-        
+
         // Model choice - Ver 2.2.1
         if (esc_attr(get_option('chatbot_deepseek_model_choice')) === null) {
             $model = 'deepseek-chat';
@@ -512,6 +529,57 @@ switch ($chatbot_ai_platform_choice) {
         // Disable File Uploads - Ver 2.2.1
         update_option('chatbot_chatgpt_allow_file_uploads', 'No');
         // Disable MP3 Uploads - Ver 2.2.1
+        update_option('chatbot_chatgpt_allow_mp3_uploads', 'No');
+
+        break;
+
+    case 'Gemini':
+
+        update_option('chatbot_ai_platform_choice', 'Gemini');
+
+        $chatbot_chatgpt_api_enabled = 'No';
+        update_option('chatbot_chatgpt_api_enabled', 'No');
+
+        $chatbot_azure_api_enabled = 'No';
+        update_option('chatbot_azure_api_enabled', 'No');
+
+        $chatbot_nvidia_api_enabled = 'No';
+        update_option('chatbot_nvidia_api_enabled', 'No');
+
+        $chatbot_anthropic_api_enabled = 'No';
+        update_option('chatbot_anthropic_api_enabled', 'No');
+
+        $chatbot_deepseek_api_enabled = 'No';
+        update_option('chatbot_deepseek_api_enabled', 'No');
+
+        $chatbot_gemini_api_enabled = 'Yes';
+        update_option('chatbot_gemini_api_enabled', 'Yes');
+
+        $chatbot_markov_chain_api_enabled = 'No';
+        update_option('chatbot_markov_chain_api_enabled', 'No');
+
+        $chatbot_transformer_model_api_enabled = 'No';
+        update_option('chatbot_transformer_model_api_enabled', 'No');
+
+        $chatbot_local_api_enabled = 'No';
+        update_option('chatbot_local_api_enabled', 'No');
+
+        $chatbot_mistral_api_enabled = 'No';
+        update_option('chatbot_mistral_api_enabled', 'No');
+
+        // Model choice - Ver 2.3.7
+        if (esc_attr(get_option('chatbot_gemini_model_choice')) === null) {
+            $model = 'gemini-1.5-flash';
+            update_option('chatbot_gemini_model_choice', $model);
+        } elseif (empty($model)) {
+            $model = 'gemini-1.5-flash';
+        }
+
+        // Disable Read Aloud - Ver 2.3.7
+        update_option('chatbot_chatgpt_read_aloud_option', 'no');
+        // Disable File Uploads - Ver 2.3.7
+        update_option('chatbot_chatgpt_allow_file_uploads', 'No');
+        // Disable MP3 Uploads - Ver 2.3.7
         update_option('chatbot_chatgpt_allow_mp3_uploads', 'No');
 
         break;
@@ -534,6 +602,9 @@ switch ($chatbot_ai_platform_choice) {
 
         $chatbot_deepseek_api_enabled = 'No';
         update_option('chatbot_deepseek_api_enabled', 'No');
+
+        $chatbot_gemini_api_enabled = 'No';
+        update_option('chatbot_gemini_api_enabled', 'No');
 
         $chatbot_markov_chain_api_enabled = 'No';
         update_option('chatbot_markov_chain_api_enabled', 'No');
@@ -1243,6 +1314,11 @@ function chatbot_chatgpt_process_queued_message($message_data) {
             $api_key = chatbot_chatgpt_decrypt_api_key($api_key);
             $model = esc_attr(get_option('chatbot_deepseek_model_choice', 'deepseek-chat'));
             break;
+        case 'Gemini':
+            $api_key = esc_attr(get_option('chatbot_gemini_api_key'));
+            $api_key = chatbot_chatgpt_decrypt_api_key($api_key);
+            $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-1.5-flash'));
+            break;
         case 'Markov Chain':
             $api_key = esc_attr(get_option('chatbot_markov_chain_api_key', 'NOT REQUIRED'));
             $model = esc_attr(get_option('chatbot_markov_chain_model_choice', 'markov-chain-flask'));
@@ -1461,7 +1537,11 @@ function chatbot_chatgpt_process_queued_message($message_data) {
             case 'DeepSeek':
                 $response = chatbot_call_deepseek_api($api_key, $message);
                 break;
-                
+
+            case 'Gemini':
+                $response = chatbot_call_gemini_api($api_key, $message);
+                break;
+
             case 'Markov Chain':
                 $response = chatbot_chatgpt_call_markov_chain_api($message);
                 break;
@@ -2329,6 +2409,16 @@ function chatbot_chatgpt_send_message() {
                 // back_trace( 'NOTICE', 'Calling DeepSeek API');
                 // Send message to DeepSeek API - Ver 2.2.2
                 $response = chatbot_call_deepseek_api($api_key, $message);
+
+                break;
+
+            case 'Gemini':
+
+                $kchat_settings['model'] = $model;
+                // DIAG - Diagnostics - Ver 2.3.7
+                // back_trace( 'NOTICE', 'Calling Gemini API');
+                // Send message to Gemini API - Ver 2.3.7
+                $response = chatbot_call_gemini_api($api_key, $message);
 
                 break;
 

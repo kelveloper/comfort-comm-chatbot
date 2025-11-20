@@ -62,6 +62,7 @@ function chatbot_ai_platform_choice_callback($args) {
         <option value="NVIDIA" <?php selected( $chatbot_ai_platform_choice, 'NVIDIA' ); ?>><?php echo esc_html( 'NVIDIA' ); ?></option>
         <option value="Anthropic" <?php selected( $chatbot_ai_platform_choice, 'Anthropic' ); ?>><?php echo esc_html( 'Anthropic' ); ?></option>
         <option value="DeepSeek" <?php selected( $chatbot_ai_platform_choice, 'DeepSeek' ); ?>><?php echo esc_html( 'DeepSeek' ); ?></option>
+        <option value="Gemini" <?php selected( $chatbot_ai_platform_choice, 'Gemini' ); ?>><?php echo esc_html( 'Gemini' ); ?></option>
         <option value="Mistral" <?php selected( $chatbot_ai_platform_choice, 'Mistral' ); ?>><?php echo esc_html( 'Mistral' ); ?></option>
         <option value="Local Server" <?php selected( $chatbot_ai_platform_choice, 'Local Server' ); ?>><?php echo esc_html( 'Local Server' ); ?></option>
         <?php
