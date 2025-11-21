@@ -45,6 +45,22 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     // Lock check removed - main send function handles locking
     set_transient($duplicate_key, true, 300); // 5 minutes to prevent duplicates
 
+    // FAQ Search - Check for matching FAQ before calling API - Ver 2.3.7
+    $faq_context = '';
+    if (function_exists('chatbot_faq_search')) {
+        $faq_match = chatbot_faq_search($message);
+        if ($faq_match && !empty($faq_match['answer'])) {
+            // Log the FAQ match
+            prod_trace('NOTICE', 'FAQ match found for: ' . $message);
+
+            // Build FAQ context for Gemini to rephrase naturally
+            $faq_context = "\n\nIMPORTANT: Answer the user's question using ONLY this information from our FAQ:\n" .
+                           "Question: " . $faq_match['question'] . "\n" .
+                           "Answer: " . $faq_match['answer'] . "\n\n" .
+                           "Rephrase this answer in a friendly, conversational tone. Do not add information beyond what's provided.";
+        }
+    }
+
     // Google Gemini API Documentation
     // https://ai.google.dev/gemini-api/docs
 
@@ -160,7 +176,7 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
                 'role' => 'user',
                 'parts' => array(
                     array(
-                        'text' => $context . "\n\nUser: " . $message
+                        'text' => $context . $faq_context . "\n\nUser: " . $message
                     )
                 )
             )

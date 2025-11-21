@@ -576,6 +576,10 @@ function chatbot_chatgpt_settings_page() {
                 do_settings_sections('chatbot_chatgpt_kn_analysis');
                 echo '</div>';
 
+                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
+                do_settings_sections('chatbot_chatgpt_faq_import');
+                echo '</div>';
+
             } elseif ($active_tab == 'reporting') {
 
                 settings_fields('chatbot_chatgpt_reporting');

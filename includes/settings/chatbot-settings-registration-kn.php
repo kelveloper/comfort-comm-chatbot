@@ -191,5 +191,121 @@ function chatbot_chatgpt_kn_settings_init() {
         'chatbot_chatgpt_kn_analysis_section'
     );
 
+    // FAQ Import Section - Ver 2.3.7
+    add_settings_section(
+        'chatbot_chatgpt_faq_import_section',
+        'FAQ Import',
+        'chatbot_chatgpt_faq_import_section_callback',
+        'chatbot_chatgpt_faq_import'
+    );
+
 }
 add_action('admin_init', 'chatbot_chatgpt_kn_settings_init');
+
+// FAQ Import Section Callback - Ver 2.3.7
+function chatbot_chatgpt_faq_import_section_callback() {
+    // Get FAQ count
+    $faq_count = function_exists('chatbot_faq_get_count') ? chatbot_faq_get_count() : 0;
+
+    // Display any import messages from transient
+    $import_message = get_transient('chatbot_faq_import_message');
+    if ($import_message) {
+        delete_transient('chatbot_faq_import_message');
+        $class = $import_message['type'] === 'success' ? 'notice-success' : 'notice-error';
+        echo '<div class="notice ' . esc_attr($class) . ' is-dismissible"><p>' . esc_html($import_message['message']) . '</p></div>';
+    }
+
+    ?>
+    </form><!-- Close parent settings form to prevent nesting -->
+
+    <div class="wrap">
+        <p>Import FAQ entries from a CSV file. The chatbot will use these to answer customer questions naturally.</p>
+
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <strong>Current FAQ Entries:</strong> <?php echo esc_html($faq_count); ?>
+            <?php if ($faq_count > 0): ?>
+                <span style="color: #155724;"> ✓ Ready to use</span>
+            <?php else: ?>
+                <span style="color: #856404;"> - Upload a CSV to get started</span>
+            <?php endif; ?>
+        </div>
+
+        <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <strong>How to import:</strong>
+            <ol style="margin: 10px 0 0 20px;">
+                <li>Download the template CSV below</li>
+                <li>Fill in your questions and answers</li>
+                <li>Choose your CSV file</li>
+                <li>Click "Upload & Import FAQs"</li>
+            </ol>
+        </div>
+
+        <h3>Step 1: Download Template</h3>
+        <p>Get the sample CSV format:</p>
+        <a href="<?php echo esc_url(admin_url('admin-post.php?action=chatbot_faq_download_template')); ?>" class="button button-secondary">
+            Download Template CSV
+        </a>
+
+        <hr style="margin: 20px 0;">
+
+        <h3>Step 2: Upload Your FAQs</h3>
+        <p>CSV format: <code>question,answer,category</code> (category is optional)</p>
+
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" enctype="multipart/form-data" style="background: #f8f9fa; padding: 20px; border-radius: 5px; border: 1px solid #dee2e6;">
+            <?php wp_nonce_field('chatbot_faq_import', 'chatbot_faq_import_nonce'); ?>
+            <input type="hidden" name="action" value="chatbot_faq_import_csv">
+
+            <p style="margin-bottom: 15px;">
+                <label><strong>Choose CSV File:</strong></label><br>
+                <input type="file" name="faq_csv_file" accept=".csv" required style="margin-top: 5px;">
+            </p>
+
+            <p style="margin-bottom: 15px;">
+                <label>
+                    <input type="checkbox" name="clear_existing" value="1">
+                    Replace all existing FAQs (uncheck to add to existing)
+                </label>
+            </p>
+
+            <button type="submit" class="button button-primary button-large" style="background: #0073aa; border-color: #0073aa;">
+                Upload & Import FAQs
+            </button>
+        </form>
+
+        <?php
+        // Show existing FAQs if any
+        if ($faq_count > 0 && function_exists('chatbot_faq_get_all')) {
+            $faqs = chatbot_faq_get_all();
+            if (!empty($faqs)) {
+                ?>
+                <hr style="margin: 20px 0;">
+                <h3>Current FAQ Entries</h3>
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th>Question</th>
+                            <th>Answer</th>
+                            <th>Category</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($faqs as $faq) : ?>
+                        <tr>
+                            <td><?php echo esc_html(wp_trim_words($faq->question, 10)); ?></td>
+                            <td><?php echo esc_html(wp_trim_words($faq->answer, 15)); ?></td>
+                            <td><?php echo esc_html($faq->category); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <?php
+            }
+        }
+        ?>
+    </div>
+
+    <!-- Reopen parent settings form -->
+    <form method="post" action="options.php">
+    <?php settings_fields('chatbot_chatgpt_knowledge_navigator'); ?>
+    <?php
+}

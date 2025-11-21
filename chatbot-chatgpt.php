@@ -120,6 +120,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-k
 require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-kn-enhance-response.php';    // Knowledge Navigator - TD-IDF Response Enhancement - Ver 1.6.9
 require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-kn-scheduler.php';           // Knowledge Navigator - Scheduler - Ver 1.6.3
 require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-kn-settings.php';            // Knowledge Navigator - Settings - Ver 1.6.1
+require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-kn-faq-import.php';          // Knowledge Navigator - FAQ Import - Ver 2.3.7
 
 // Include necessary files - Markov Chain - Ver 2.1.9
 require_once plugin_dir_path(__FILE__) . 'includes/markov-chain/chatbot-markov-chain-decode.php';           // Functions - Ver 2.1.9

@@ -1,0 +1,82 @@
+[
+    {
+        "id": "69209ad5cfc38",
+        "question": "What is the sign-up process?",
+        "answer": "You would need to provide us with information such as your name, business name (for business), phone number, address, email. Some internet providers may need you to provide your SSN or EIN (for business accounts only).",
+        "category": "Account Setup",
+        "keywords": "signup process",
+        "created_at": "2025-11-21 17:01:09"
+    },
+    {
+        "id": "69209ad5d0020",
+        "question": "How do I check my bill?",
+        "answer": "Spectrum offers plans This depends on the internet provider you have, but for Spectrum, you can go to spectrum.net or spectrumbusiness.net and click on “Sign In”. Then click on “Forgot Username or Password?” if you don’t know your log-in information and choose an option such as the phone number or email that you have access to. After entering the information, it will prompt you to verify your identity by either sending a verification code to your email or phone number and you would provide that after clicking on the option of choice. Once logged in, look for a tab called “Billing” and click on it. Look for where it says “Internet” and click on it. Then look for the month in which you want to check your bill.starting at $49.99\/month with speeds up to 300 Mbps.",
+        "category": "Billing",
+        "keywords": "check bill",
+        "created_at": "2025-11-21 17:01:09"
+    },
+    {
+        "id": "69209ad5d0408",
+        "question": "Why is there an activation fee on my bill?",
+        "answer": "Some internet providers have this fee for new customers when signing up for their services.",
+        "category": "Billing",
+        "keywords": "there activation fee bill",
+        "created_at": "2025-11-21 17:01:09"
+    },
+    {
+        "id": "69209ad5d07f0",
+        "question": "Why is there an installation fee?",
+        "answer": "Some internet providers have this fee for new customers when signing up for their services. If you believe this to be an error, please contact us at 347-519-9999.",
+        "category": "Billing",
+        "keywords": "there installation fee",
+        "created_at": "2025-11-21 17:01:09"
+    },
+    {
+        "id": "69209ad5d0bd8",
+        "question": "Is my auto-pay set up?",
+        "answer": "You can check by going into your account. Go to spectrum.net or spectrumbusiness.net and click on “Sign In”. Then click on “Forgot Username or Password?” if you don’t know your log-in information and choose an option such as the phone number or email that you have access to. After entering the information, it will prompt you to verify your identity by either sending a verification code to your email or phone number and you would provide that after clicking on the option of choice. Once logged in, look for a tab called “Billing” and click on it. Click on “Auto Pay” and see if there is a payment method there. If not, you can set it up yourself using a bank account (ACH) or credit\/debit card.",
+        "category": "Billing",
+        "keywords": "autopay set",
+        "created_at": "2025-11-21 17:01:09"
+    },
+    {
+        "id": "69209ad5d0fc0",
+        "question": "Will I get a physical bill or is it paperless?",
+        "answer": "Go to spectrum.net or spectrumbusiness.net and click on “Sign In”. Then click on “Forgot Username or Password?” if you don’t know your log-in information and choose an option such as the phone number or email that you have access to. After entering the information, it will prompt you to verify your identity by either sending a verification code to your email or phone number and you would provide that after clicking on the option of choice. Once logged in, look for a tab called “More” > “Settings” > “Notifications”. You will then see “Paperless Billing”. See if it toggled on or off and change as you see fit.",
+        "category": "Billing",
+        "keywords": "will get physical bill paperless",
+        "created_at": "2025-11-21 17:01:09"
+    },
+    {
+        "id": "69209ad5d13a8",
+        "question": "My price increased, why?",
+        "answer": "Your price package is usually discounted for the first few years of service with the internet provider. Your billing cycle is now outside of that discount period.",
+        "category": "Billing",
+        "keywords": "price increased",
+        "created_at": "2025-11-21 17:01:09"
+    },
+    {
+        "id": "69209ad5d1790",
+        "question": "How do I make an account?",
+        "answer": "Go to spectrum.net or spectrumbusiness.net and click on “Sign In”. Then click on “Create a Username” and choose an option such as the phone number or email that you have access to. After entering the information, it will prompt you to verify your identity by either sending a verification code to your email or phone number and you would provide that after clicking on the option of choice. Continue to fill out the information for your account and set up a password and security question and answer.",
+        "category": "Account Setup",
+        "keywords": "make account",
+        "created_at": "2025-11-21 17:01:09"
+    },
+    {
+        "id": "69209ad5d1b78",
+        "question": "Why is my internet slow?",
+        "answer": "The connection between your modem and router might have dropped. Try rebooting both pieces of equipment. If that doesn’t work, you may have a connection issue. We can help you look into that once you have tried rebooting your equipment. Please contact us at 347-519-9999 and we will help you look into it further.",
+        "category": "Troubleshooting",
+        "keywords": "internet slow",
+        "created_at": "2025-11-21 17:01:09"
+    },
+    {
+        "id": "69209ad5d1f60",
+        "question": "Why is my internet not working?",
+        "answer": "You may be in an outage or the connection to your modem may have dropped. Please try rebooting your modem and router. If the problem persists, please contact us at 347-519-9999 and we will help you look into it further.",
+        "category": "Troubleshooting",
+        "keywords": "internet not working",
+        "created_at": "2025-11-21 17:01:09"
+    }
+]
