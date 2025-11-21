@@ -1750,7 +1750,19 @@ function chatbot_chatgpt_send_message() {
             // DIAG - Diagnostics - Ver 2.2.2
             // back_trace( 'NOTICE', '$model: ' . $model);
             break;
-        
+
+        case 'Gemini':
+
+            $api_key = esc_attr(get_option('chatbot_gemini_api_key'));
+            // Decrypt the API key - Ver 2.3.7
+            $api_key = chatbot_chatgpt_decrypt_api_key($api_key);
+            $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-1.5-flash'));
+            $kchat_settings['chatbot_chatgpt_model'] = $model;
+            $kchat_settings['model'] = $model;
+            // DIAG - Diagnostics - Ver 2.3.7
+            // back_trace( 'NOTICE', '$model: ' . $model);
+            break;
+
         case 'Markov Chain':
 
             $api_key = esc_attr(get_option('chatbot_markov_chain_api_key', 'NOT REQUIRED'));
