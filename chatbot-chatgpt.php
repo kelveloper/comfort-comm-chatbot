@@ -2645,6 +2645,7 @@ add_action('wp_ajax_nopriv_chatbot_chatgpt_erase_conversation', 'chatbot_chatgpt
 
 // Add action to unlock conversation - Ver 2.3.0 (Security: Authentication required)
 add_action('wp_ajax_chatbot_chatgpt_unlock_conversation', 'chatbot_chatgpt_unlock_conversation_handler');
+add_action('wp_ajax_nopriv_chatbot_chatgpt_unlock_conversation', 'chatbot_chatgpt_unlock_conversation_handler');
 
 // Add action to reset all locks (Security: Authentication required)
 add_action('wp_ajax_chatbot_chatgpt_reset_all_locks', 'chatbot_chatgpt_reset_all_locks_handler');

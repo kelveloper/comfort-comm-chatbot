@@ -65,6 +65,15 @@ if ( ! defined( 'WPINC' ) ) {
         $model = esc_attr(get_option('chatbot_deepseek_model_choice', 'deepseek-chat'));
         $updated_status = kchat_fetch_api_status($api_key, $model);
         update_option('chatbot_deepseek_api_status', $updated_status);
+    } elseif ($chatbot_chatbot_ai_platform_choice == 'Gemini') {
+        update_option('chatbot_gemini_api_status', 'API Error Type: Status Unknown');
+        $api_key = esc_attr(get_option('chatbot_gemini_api_key', 'NOT SET'));
+        // Decrypt the API key - Ver 2.2.6
+        $api_key = chatbot_chatgpt_decrypt_api_key($api_key);
+        // Model and message for testing
+        $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-1.5-flash'));
+        $updated_status = kchat_fetch_api_status($api_key, $model);
+        update_option('chatbot_gemini_api_status', $updated_status);
     } elseif ($chatbot_chatbot_ai_platform_choice == 'Markov Chain') {
         $updated_status = 'API Testing Not Required';
         update_option('chatbot_markov_chain_api_status', 'API Error Type: Status Unknown');
@@ -702,6 +711,72 @@ function kchat_fetch_api_status($api_key, $model) {
             }
             
             update_option('chatbot_mistral_api_status', $updated_status);
+
+            return $updated_status;
+
+            break;
+
+        case 'Gemini':
+
+            update_option('chatbot_gemini_api_status', 'API Error Type: Status Unknown');
+            $api_key = esc_attr(get_option('chatbot_gemini_api_key', 'NOT SET'));
+            // Decrypt the API key - Ver 2.2.6
+            $api_key = chatbot_chatgpt_decrypt_api_key($api_key);
+
+            // Model and message for testing
+            $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-1.5-flash'));
+
+            // Build the Gemini API URL with API key as query parameter
+            $base_url = esc_attr(get_option('chatbot_gemini_base_url', 'https://generativelanguage.googleapis.com/v1beta'));
+            $api_url = $base_url . '/models/' . $model . ':generateContent?key=' . $api_key;
+
+            $headers = array(
+                'Content-Type' => 'application/json',
+            );
+
+            // Gemini uses a different body format
+            $body = array(
+                'contents' => array(
+                    array(
+                        'parts' => array(
+                            array('text' => $test_message)
+                        )
+                    )
+                ),
+                'generationConfig' => array(
+                    'maxOutputTokens' => 100,
+                    'temperature' => 0.5,
+                )
+            );
+
+            $args = array(
+                'headers' => $headers,
+                'body' => json_encode($body),
+                'method' => 'POST',
+                'data_format' => 'body',
+                'timeout' => 50,
+            );
+
+            $response = wp_remote_post($api_url, $args);
+
+            if (is_wp_error($response)) {
+                return 'WP_Error: ' . $response->get_error_message() . '. Please check Settings for a valid API key or your Gemini account for additional information.';
+            }
+
+            $response_body = json_decode(wp_remote_retrieve_body($response), true);
+
+            // Check for API-specific errors
+            if (isset($response_body['error'])) {
+                $error_message = $response_body['error']['message'] ?? 'Unknown error';
+                $updated_status = 'API Error: ' . $error_message;
+            } elseif (isset($response_body['candidates'][0]['content']['parts'][0]['text'])) {
+                // Handle successful response
+                $updated_status = 'Success: Connection to the Gemini API was successful!';
+            } else {
+                $updated_status = 'Error: Unexpected response format from the Gemini API. Please check Settings for a valid API key or your Gemini account for additional information.';
+            }
+
+            update_option('chatbot_gemini_api_status', $updated_status);
 
             return $updated_status;
 

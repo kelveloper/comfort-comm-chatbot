@@ -44,7 +44,7 @@ function chatbot_ai_platform_choice_callback($args) {
 
     $chatbot_ai_platform_choice = esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI'));
 
-    $platforms = ['OpenAI', 'Azure OpenAI', 'NVIDIA', 'Markov Chain', 'Transformer', 'Anthropic', 'DeepSeek', 'Mistral', 'Local Server'];
+    $platforms = ['OpenAI', 'Azure OpenAI', 'NVIDIA', 'Markov Chain', 'Transformer', 'Anthropic', 'DeepSeek', 'Gemini', 'Mistral', 'Local Server'];
     if (!in_array($chatbot_ai_platform_choice, $platforms)) {
         $chatbot_ai_platform_choice = 'OpenAI';
     }

@@ -1089,6 +1089,7 @@ window.resetAllLocks = resetAllLocks;
         // Variable to track if this is a "still working" message
         let isStillWorkingMessage = false;
         let ajaxResponse = null; // Store response for use in complete handler
+        let botResponse = ''; // Store bot response for use in complete handler
 
         $.ajax({
             url: kchat_settings.ajax_url,
@@ -1317,7 +1318,7 @@ window.resetAllLocks = resetAllLocks;
                                         if (botResponse) {
                                             appendMessage(botResponse, 'bot');
                                             // Execute any custom JavaScript in the response
-                                            executeCustomJavaScript();
+                                            // executeCustomJavaScript(); // Function not defined - removed
                                         }
                                         submitButton.prop('disabled', false);
                                     }
