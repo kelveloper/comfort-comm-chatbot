@@ -6,6 +6,10 @@ Tracking features for future development beyond MVP.
 
 ## P2+ Features (Post-MVP)
 
+### UI & Branding
+- [ ] **Knowledge Navigator → Knowledge Base** - Rename throughout the plugin (tabs, sections, descriptions)
+- [ ] **Kognetiks → [Your Brand Name]** - Rebrand plugin to your own name (TBD)
+
 ### Learning & Improvement
 - [ ] **Learning Suggestions** - Re-enable TF-IDF learning suggestions to improve bot responses over time
 - [ ] **Feedback Loop** - Learn from conversations and improve answers

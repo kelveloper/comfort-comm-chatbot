@@ -277,7 +277,7 @@ function chatbot_mistral_api_settings_init() {
     // Setting to adjust the conversation context
     add_settings_field(
         'chatbot_mistral_conversation_context',
-        'Conversation Context',
+        'System Prompt',
         'chatbot_mistral_conversation_context_callback',
         'chatbot_mistral_api_model_chat_settings',
         'chatbot_mistral_api_model_chat_settings_section'

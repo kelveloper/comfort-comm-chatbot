@@ -106,7 +106,7 @@ function chatbot_chatgpt_api_settings_init() {
     // Setting to adjust the conversation context - Ver 1.4.2
     add_settings_field(
         'chatbot_chatgpt_conversation_context',
-        'Conversation Context',
+        'System Prompt',
         'chatbot_chatgpt_conversation_context_callback',
         'chatbot_chatgpt_api_chatgpt_chat',
         'chatbot_chatgpt_api_chatgpt_chat_section'

@@ -274,7 +274,7 @@ function chatbot_deepseek_api_settings_init() {
     // Setting to adjust the conversation context
     add_settings_field(
         'chatbot_deepseek_conversation_context',
-        'Conversation Context',
+        'System Prompt',
         'chatbot_deepseek_conversation_context_callback',
         'chatbot_deepseek_api_model_chat_settings',
         'chatbot_deepseek_api_model_chat_settings_section'

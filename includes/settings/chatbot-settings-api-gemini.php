@@ -266,10 +266,10 @@ function chatbot_gemini_api_settings_init() {
         'chatbot_gemini_api_model_chat_settings_section'
     );
 
-    // Setting to adjust the conversation context
+    // Setting to adjust the system prompt
     add_settings_field(
         'chatbot_gemini_conversation_context',
-        'Conversation Context',
+        'System Prompt',
         'chatbot_gemini_conversation_context_callback',
         'chatbot_gemini_api_model_chat_settings',
         'chatbot_gemini_api_model_chat_settings_section'
