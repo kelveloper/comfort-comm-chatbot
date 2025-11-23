@@ -86,8 +86,8 @@ function chatbot_gemini_chat_model_choice_callback($args) {
 // Max Tokens choice
 function chatbot_gemini_max_tokens_setting_callback($args) {
 
-    // Get the saved chatbot_gemini_max_tokens_setting or default to 1024
-    $max_tokens = esc_attr(get_option('chatbot_gemini_max_tokens_setting', '1024'));
+    // Get the saved chatbot_gemini_max_tokens_setting or default to 2048
+    $max_tokens = esc_attr(get_option('chatbot_gemini_max_tokens_setting', '2048'));
     // Allow for a range of tokens between 100 and 10000 in 100-step increments
     ?>
     <select id="chatbot_gemini_max_tokens_setting" name="chatbot_gemini_max_tokens_setting">

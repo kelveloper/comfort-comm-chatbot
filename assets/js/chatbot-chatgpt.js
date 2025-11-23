@@ -130,6 +130,12 @@ window.resetAllLocks = resetAllLocks;
     // Convert the timeout setting to milliseconds
     let timeout_setting = (parseInt(kchat_settings.chatbot_chatgpt_timeout_setting) || 240) * 1000;
 
+    // Idle timeout settings - 2 minutes for warning, 2 more minutes to close
+    let idleWarningTimer = null;
+    let idleCloseTimer = null;
+    const IDLE_WARNING_TIMEOUT = 2 * 60 * 1000; // 2 minutes
+    const IDLE_CLOSE_TIMEOUT = 2 * 60 * 1000; // 2 more minutes after warning
+
     plugins_url = kchat_settings['plugins_url'];
 
     // Get an open icon for the chatbot - Ver 1.8.6
@@ -489,7 +495,7 @@ window.resetAllLocks = resetAllLocks;
 
             appendMessage(initialGreeting, 'bot', 'initial-greeting');
             localStorage.setItem('chatbot_chatgpt_opened', 'true');
-            sessionStorage.setItem('chatbot_chatgpt_conversation' + '_' + assistant_id, conversation.html());         
+            sessionStorage.setItem('chatbot_chatgpt_conversation' + '_' + assistant_id, conversation.html());
 
         } else {
 
@@ -651,8 +657,73 @@ window.resetAllLocks = resetAllLocks;
         chatEl.style.setProperty('height', newHeight + 'px', 'important');
     }
 
+    // Idle timeout functions
+    function resetIdleTimer() {
+        // Clear existing timers
+        if (idleWarningTimer) {
+            clearTimeout(idleWarningTimer);
+            idleWarningTimer = null;
+        }
+        if (idleCloseTimer) {
+            clearTimeout(idleCloseTimer);
+            idleCloseTimer = null;
+        }
+
+        // Only start idle timer if chatbot is open
+        let chatbotElement = document.getElementById('chatbot-chatgpt');
+        if (!chatbotElement) return;
+
+        // Check if chatbot is visible
+        let isOpen = chatbot_chatgpt_Elements.is(':visible');
+        if (!isOpen) return;
+
+        // Start warning timer
+        idleWarningTimer = setTimeout(function() {
+            showIdleWarning();
+        }, IDLE_WARNING_TIMEOUT);
+    }
+
+    function showIdleWarning() {
+        // Show idle warning message
+        appendMessage("It seems you've been away. Do you have any further questions? If not, this session will close in 2 minutes.", 'bot', 'idle-warning');
+
+        // Start close timer
+        idleCloseTimer = setTimeout(function() {
+            closeIdleSession();
+        }, IDLE_CLOSE_TIMEOUT);
+    }
+
+    function closeIdleSession() {
+        // Show closing message
+        appendMessage("Session closed due to inactivity. Feel free to start a new conversation anytime!", 'bot', 'session-closed');
+
+        // Clear timers
+        if (idleWarningTimer) {
+            clearTimeout(idleWarningTimer);
+            idleWarningTimer = null;
+        }
+        if (idleCloseTimer) {
+            clearTimeout(idleCloseTimer);
+            idleCloseTimer = null;
+        }
+
+        // Close the chatbot after a short delay
+        setTimeout(function() {
+            // Trigger the collapse/close button
+            let collapseBtn = document.querySelector('.chatbot-collapse-btn');
+            if (collapseBtn) {
+                collapseBtn.click();
+            }
+        }, 3000); // 3 second delay to let user read the message
+    }
+
     // Function to append message to the conversation
     function appendMessage(message, sender, cssClass) {
+
+        // Reset idle timer on any message activity (except idle system messages)
+        if (cssClass !== 'idle-warning' && cssClass !== 'session-closed') {
+            resetIdleTimer();
+        }
 
         let user_id = kchat_settings.user_id;
         let page_id = kchat_settings.page_id;
@@ -992,6 +1063,9 @@ window.resetAllLocks = resetAllLocks;
         if (!message) {
             return;
         }
+
+        // Reset idle timer on user activity
+        resetIdleTimer();
 
         // Get current date and time
         let now = new Date();
@@ -1438,6 +1512,11 @@ window.resetAllLocks = resetAllLocks;
                 submitButton.trigger('click');
             }
         }
+    });
+
+    // Reset idle timer when user types in the input field
+    messageInput.on('input', function () {
+        resetIdleTimer();
     });
 
     // Add the keydown event listener to the upload file button - Ver 1.7.6
@@ -2067,6 +2146,15 @@ window.resetAllLocks = resetAllLocks;
             chatbot_chatgpt_Elements.hide();
             chatGptOpenButton.show();
             localStorage.setItem('chatbot_chatgpt_start_status', 'closed');
+            // Clear idle timers when chatbot closes
+            if (idleWarningTimer) {
+                clearTimeout(idleWarningTimer);
+                idleWarningTimer = null;
+            }
+            if (idleCloseTimer) {
+                clearTimeout(idleCloseTimer);
+                idleCloseTimer = null;
+            }
         } else {
             if (chatbot_chatgpt_display_style === 'floating') {
                 if (chatbot_chatgpt_width_setting === 'Wide') {
@@ -2085,6 +2173,8 @@ window.resetAllLocks = resetAllLocks;
             // Removed in Ver 1.9.3
             loadConversation();
             scrollToBottom();
+            // Start idle timer when chatbot opens
+            resetIdleTimer();
         }
     }
 

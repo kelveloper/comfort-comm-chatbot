@@ -72,7 +72,7 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     $api_url = $base_url . '/models/' . $model . ':generateContent?key=' . $api_key;
 
     // Max tokens
-    $max_tokens = intval(esc_attr(get_option('chatbot_gemini_max_tokens_setting', '1024')));
+    $max_tokens = intval(esc_attr(get_option('chatbot_gemini_max_tokens_setting', '2048')));
 
     // Temperature
     $temperature = floatval(esc_attr(get_option('chatbot_gemini_temperature', '0.7')));
