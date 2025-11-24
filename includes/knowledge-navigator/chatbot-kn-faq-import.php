@@ -288,6 +288,88 @@ function chatbot_faq_delete($id) {
     return chatbot_faq_save(array_values($faqs));
 }
 
+// Get top N categories by FAQ count
+function chatbot_faq_get_top_categories($limit = 4) {
+    $faqs = chatbot_faq_load();
+
+    if (empty($faqs)) {
+        return [];
+    }
+
+    // Count FAQs per category
+    $category_counts = [];
+    foreach ($faqs as $faq) {
+        $category = !empty($faq['category']) ? $faq['category'] : 'General';
+        if (!isset($category_counts[$category])) {
+            $category_counts[$category] = 0;
+        }
+        $category_counts[$category]++;
+    }
+
+    // Sort by count descending
+    arsort($category_counts);
+
+    // Get top N categories
+    $top_categories = array_slice($category_counts, 0, $limit, true);
+
+    // Format as array with name and count
+    $result = [];
+    foreach ($top_categories as $name => $count) {
+        $result[] = [
+            'name' => $name,
+            'count' => $count
+        ];
+    }
+
+    return $result;
+}
+
+// Get top N questions for a specific category
+function chatbot_faq_get_category_questions($category, $limit = 3) {
+    $faqs = chatbot_faq_load();
+
+    if (empty($faqs)) {
+        return [];
+    }
+
+    // Filter by category
+    $category_faqs = array_filter($faqs, function($faq) use ($category) {
+        $faq_category = !empty($faq['category']) ? $faq['category'] : 'General';
+        return $faq_category === $category;
+    });
+
+    // Get top N questions
+    $category_faqs = array_slice($category_faqs, 0, $limit);
+
+    // Return just question and answer
+    $result = [];
+    foreach ($category_faqs as $faq) {
+        $result[] = [
+            'question' => $faq['question'],
+            'answer' => $faq['answer']
+        ];
+    }
+
+    return $result;
+}
+
+// Get category buttons data for frontend
+function chatbot_faq_get_buttons_data() {
+    $categories = chatbot_faq_get_top_categories(4);
+
+    $buttons_data = [];
+    foreach ($categories as $category) {
+        $questions = chatbot_faq_get_category_questions($category['name'], 3);
+        $buttons_data[] = [
+            'name' => $category['name'],
+            'count' => $category['count'],
+            'questions' => $questions
+        ];
+    }
+
+    return $buttons_data;
+}
+
 // Download sample CSV template
 function chatbot_faq_download_template() {
     // Security check

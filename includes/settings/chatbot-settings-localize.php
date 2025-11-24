@@ -99,5 +99,11 @@ function chatbot_chatgpt_localize(){
         // back_trace( 'NOTICE', 'Key: ' . $key . ', Value: ' . $kchat_settings[$key]);
     }
 
+    // Add FAQ category buttons data
+    if (function_exists('chatbot_faq_get_buttons_data')) {
+        $kchat_settings['faq_category_buttons'] = chatbot_faq_get_buttons_data();
+    } else {
+        $kchat_settings['faq_category_buttons'] = [];
+    }
 
 }

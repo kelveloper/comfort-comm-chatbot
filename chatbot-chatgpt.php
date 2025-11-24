@@ -1021,7 +1021,12 @@ function chatbot_chatgpt_enqueue_scripts() {
         'chatbot_chatgpt_force_page_reload' => esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'No')),
         'chatbot_chatgpt_custom_error_message' => esc_attr(get_option('chatbot_chatgpt_custom_error_message', 'Your custom error message goes here.')),
     ));
-    
+
+    // Add FAQ category buttons data
+    if (function_exists('chatbot_faq_get_buttons_data')) {
+        $kchat_settings['faq_category_buttons'] = chatbot_faq_get_buttons_data();
+    }
+
     $kchat_settings_json = wp_json_encode($kchat_settings);
 
     // Enqueue the main chatbot script - CHANGED TO LOAD ORDER IN V2.1.2

@@ -123,6 +123,10 @@ window.resetAllLocks = resetAllLocks;
 
     let initialGreeting = kchat_settings.chatbot_chatgpt_initial_greeting || 'Hello! How can I help you today?';
     let subsequentGreeting = kchat_settings.chatbot_chatgpt_subsequent_greeting || 'Hello again! How can I help you?';
+    let faqCategoryButtons = kchat_settings.faq_category_buttons || [];
+
+    // Debug: Log FAQ buttons data
+    console.log('Chatbot: faq_category_buttons:', faqCategoryButtons);
 
     let chatbot_chatgpt_start_status = kchat_settings.chatbot_chatgpt_start_status || 'closed';
     let chatbot_chatgpt_start_status_new_visitor = kchat_settings.chatbot_chatgpt_start_status_new_visitor || 'closed';
@@ -494,6 +498,7 @@ window.resetAllLocks = resetAllLocks;
             }
 
             appendMessage(initialGreeting, 'bot', 'initial-greeting');
+            renderCategoryButtons();
             localStorage.setItem('chatbot_chatgpt_opened', 'true');
             sessionStorage.setItem('chatbot_chatgpt_conversation' + '_' + assistant_id, conversation.html());
 
@@ -515,6 +520,7 @@ window.resetAllLocks = resetAllLocks;
             }
     
             appendMessage(initialGreeting, 'bot', 'initial-greeting');
+            renderCategoryButtons();
             localStorage.setItem('chatbot_chatgpt_opened', 'true');
 
         }
@@ -694,9 +700,6 @@ window.resetAllLocks = resetAllLocks;
     }
 
     function closeIdleSession() {
-        // Show closing message
-        appendMessage("Session closed due to inactivity. Feel free to start a new conversation anytime!", 'bot', 'session-closed');
-
         // Clear timers
         if (idleWarningTimer) {
             clearTimeout(idleWarningTimer);
@@ -707,14 +710,130 @@ window.resetAllLocks = resetAllLocks;
             idleCloseTimer = null;
         }
 
-        // Close the chatbot after a short delay
+        // Clear conversation history from sessionStorage to reduce LLM context
+        let assistant_id = kchat_settings.assistant_id || 'default';
+        sessionStorage.removeItem('chatbot_chatgpt_conversation' + '_' + assistant_id);
+
+        // Clear the conversation display
+        conversation.empty();
+
+        // Show closing message
+        appendMessage("Session closed due to inactivity. Starting a new conversation...", 'bot', 'session-closed');
+
+        // After 10 seconds, clear everything and close
         setTimeout(function() {
-            // Trigger the collapse/close button
+            // Clear conversation completely
+            conversation.empty();
+
+            // Clear sessionStorage again to ensure clean slate
+            sessionStorage.removeItem('chatbot_chatgpt_conversation' + '_' + assistant_id);
+
+            // Mark as closed so next open starts fresh
+            localStorage.removeItem('chatbot_chatgpt_opened');
+
+            // Close the chatbot
             let collapseBtn = document.querySelector('.chatbot-collapse-btn');
             if (collapseBtn) {
                 collapseBtn.click();
             }
-        }, 3000); // 3 second delay to let user read the message
+        }, 10000); // 10 second delay to let user read the message
+    }
+
+    // Function to render FAQ category buttons
+    function renderCategoryButtons() {
+        if (!faqCategoryButtons || faqCategoryButtons.length === 0) {
+            return;
+        }
+
+        // Remove any existing button containers
+        $('.faq-buttons-container').remove();
+
+        // Create container for category buttons
+        let buttonContainer = $('<div></div>').addClass('faq-buttons-container faq-category-buttons');
+
+        faqCategoryButtons.forEach(function(category) {
+            let button = $('<button></button>')
+                .addClass('faq-category-button')
+                .text(category.name)
+                .data('category', category)
+                .on('click', function() {
+                    let categoryData = $(this).data('category');
+                    showCategoryQuestions(categoryData);
+                });
+            buttonContainer.append(button);
+        });
+
+        // Add "Or type below" hint
+        let hint = $('<div></div>')
+            .addClass('faq-hint')
+            .text('Or type your question below...');
+        buttonContainer.append(hint);
+
+        // Append to conversation
+        conversation.append(buttonContainer);
+        conversation.scrollTop(conversation[0].scrollHeight);
+    }
+
+    // Function to show questions for a specific category
+    function showCategoryQuestions(category) {
+        // Remove existing button containers
+        $('.faq-buttons-container').remove();
+
+        // Create container for question buttons
+        let buttonContainer = $('<div></div>').addClass('faq-buttons-container faq-question-buttons');
+
+        // Add category header
+        let header = $('<div></div>')
+            .addClass('faq-category-header')
+            .text(category.name);
+        buttonContainer.append(header);
+
+        // Add question buttons
+        category.questions.forEach(function(faq) {
+            let button = $('<button></button>')
+                .addClass('faq-question-button')
+                .text(faq.question)
+                .data('answer', faq.answer)
+                .on('click', function() {
+                    let question = faq.question;
+                    let answer = $(this).data('answer');
+
+                    // Remove button container
+                    $('.faq-buttons-container').remove();
+
+                    // Show user's question
+                    appendMessage(question, 'user');
+
+                    // Show answer
+                    appendMessage(answer, 'bot');
+
+                    // Show category buttons again after answer
+                    setTimeout(function() {
+                        renderCategoryButtons();
+                    }, 500);
+                });
+            buttonContainer.append(button);
+        });
+
+        // Add "Or type below" hint
+        let hint = $('<div></div>')
+            .addClass('faq-hint')
+            .text('Or type your question below...');
+        buttonContainer.append(hint);
+
+        // Add back button
+        let backButton = $('<button></button>')
+            .addClass('faq-back-button')
+            .text('← Back to topics')
+            .on('click', function() {
+                $('.faq-buttons-container').remove();
+                renderCategoryButtons();
+            });
+        buttonContainer.append(backButton);
+
+        // Append to conversation
+        conversation.append(buttonContainer);
+        conversation.scrollTop(conversation[0].scrollHeight);
     }
 
     // Function to append message to the conversation
