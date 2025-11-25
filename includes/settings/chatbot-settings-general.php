@@ -247,13 +247,6 @@ function chatbot_chatgpt_initial_greeting_callback($args) {
     <?php
 }
 
-function chatbot_chatgpt_subsequent_greeting_callback($args) {
-    $subsequent_greeting = esc_attr(get_option('chatbot_chatgpt_subsequent_greeting', 'Hello again! How can I help you?'));
-    ?>
-    <textarea id="chatbot_chatgpt_subsequent_greeting" name="chatbot_chatgpt_subsequent_greeting" rows="2" cols="50"><?php echo esc_textarea( $subsequent_greeting ); ?></textarea>
-    <?php
-}
-
 // Option to allow downloading transcripts - Ver 2.0.3
 function chatbot_chatgpt_allow_download_transcript_callback($args) {
     $chatbot_chatgpt_allow_download_transcript = esc_attr(get_option('chatbot_chatgpt_allow_download_transcript', 'Yes'));
@@ -369,7 +362,6 @@ function chatbot_chatgpt_settings_setup_init() {
     register_setting('chatbot_chatgpt_settings', 'chatbot_chatgpt_start_status_new_visitor');
     register_setting('chatbot_chatgpt_settings', 'chatbot_chatgpt_bot_prompt');
     register_setting('chatbot_chatgpt_settings', 'chatbot_chatgpt_initial_greeting');
-    register_setting('chatbot_chatgpt_settings', 'chatbot_chatgpt_subsequent_greeting');
     register_setting('chatbot_chatgpt_settings', 'chatbot_chatgpt_allow_download_transcript');
     register_setting('chatbot_chatgpt_settings', 'chatbot_chatgpt_force_page_reload');
     register_setting('chatbot_chatgpt_settings', 'chatbot_chatgpt_conversation_continuation');
@@ -501,14 +493,6 @@ function chatbot_chatgpt_settings_setup_init() {
         'chatbot_chatgpt_initial_greeting',
         'Initial Greeting',
         'chatbot_chatgpt_initial_greeting_callback',
-        'chatbot_chatgpt_greetings_settings',
-        'chatbot_chatgpt_greetings_section'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_subsequent_greeting',
-        'Subsequent Greeting',
-        'chatbot_chatgpt_subsequent_greeting_callback',
         'chatbot_chatgpt_greetings_settings',
         'chatbot_chatgpt_greetings_section'
     );

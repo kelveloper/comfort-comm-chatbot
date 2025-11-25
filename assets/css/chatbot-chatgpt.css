@@ -321,12 +321,20 @@
 
 .chatbot-user-text {
     display: inline-block;
-    background-color: #007bff;
-    color: #ffffff;
-    padding: 5px 10px;
+    background-color: #fffbeb;
+    color: #1e3a8a !important;
+    padding: 10px 14px;
     border-radius: 12px 12px 0 12px;
     overflow-wrap: anywhere;
-    font: inherit;
+    font-size: 0.85rem !important;
+    line-height: 1.5;
+    border: 1px solid #fde68a;
+}
+
+/* Force visibility of user text */
+.chatbot-user-text * {
+    color: #1e3a8a !important;
+    font-size: 0.85rem !important;
 }
 
 .bot-message {
@@ -335,13 +343,14 @@
 
 .chatbot-bot-text {
     display: inline-block;
-    /* font-weight: bold; */
-    background-color: #5BC236;
-    color: #ffffff;
-    padding: 5px 10px;
+    background-color: #f1f5f9;
+    color: #1e3a8a;
+    padding: 10px 14px;
     border-radius: 12px 12px 12px 0;
     overflow-wrap: anywhere;
-    font: inherit;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    border: 1px solid #e2e8f0;
 }
 
 .error-message {
@@ -359,93 +368,162 @@
     font: inherit;
 }
 
-/* FAQ Category Buttons */
+/* CSAT Feedback Buttons */
+.chatbot-csat-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.chatbot-csat-text {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-right: 4px;
+}
+
+.chatbot-csat-btn {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border: 1px solid #e2e8f0;
+    background-color: #ffffff;
+    color: #475569;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chatbot-csat-btn:hover:not(:disabled) {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+}
+
+.chatbot-csat-yes:hover:not(:disabled) {
+    background-color: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.chatbot-csat-no:hover:not(:disabled) {
+    background-color: #fee2e2;
+    border-color: #fca5a5;
+    color: #991b1b;
+}
+
+.chatbot-csat-btn:disabled {
+    cursor: not-allowed;
+}
+
+/* FAQ Category Buttons - Comfort Business Theme */
 .faq-buttons-container {
-    padding: 10px 5px;
-    margin: 5px;
+    padding: 12px 8px;
+    margin: 8px 0;
 }
 
 .faq-category-buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
+    justify-content: center;
 }
 
 .faq-category-button {
-    background-color: #007bff;
+    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
     color: #ffffff;
     border: none;
-    border-radius: 18px;
-    padding: 10px 18px;
-    font-size: 0.9em;
+    border-radius: 9999px;
+    padding: 12px 24px;
+    font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font: inherit;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: inherit;
+    box-shadow: 0 4px 6px -1px rgba(30, 64, 175, 0.3), 0 2px 4px -1px rgba(30, 64, 175, 0.2);
+    letter-spacing: 0.025em;
 }
 
 .faq-category-button:hover {
-    background-color: #0056b3;
-    transform: scale(1.02);
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(30, 64, 175, 0.4), 0 4px 6px -2px rgba(30, 64, 175, 0.3);
+}
+
+.faq-category-button:active {
+    transform: translateY(0);
 }
 
 .faq-question-buttons {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .faq-category-header {
-    font-weight: bold;
-    font-size: 0.95em;
-    color: #333;
-    margin-bottom: 8px;
-    padding-left: 5px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #1e40af;
+    margin-bottom: 10px;
+    padding-left: 4px;
+    letter-spacing: 0.025em;
 }
 
 .faq-question-button {
-    background-color: #f0f0f0;
-    color: #333333;
-    border: 1px solid #007bff;
+    background-color: #f8fafc;
+    color: #1e3a8a;
+    border: 2px solid #e2e8f0;
     border-radius: 12px;
-    padding: 10px 15px;
-    font-size: 0.85em;
+    padding: 12px 16px;
+    font-size: 0.8rem;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font: inherit;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: inherit;
     text-align: left;
     white-space: normal;
-    line-height: 1.3;
+    line-height: 1.4;
+    font-weight: 400;
 }
 
 .faq-question-button:hover {
-    background-color: #007bff;
+    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
     color: #ffffff;
+    border-color: transparent;
+    transform: translateX(4px);
+    box-shadow: 0 4px 6px -1px rgba(30, 64, 175, 0.3);
 }
 
 .faq-back-button {
     background-color: transparent;
-    color: #666;
-    border: 1px solid #ccc;
-    border-radius: 12px;
-    padding: 8px 15px;
-    font-size: 0.8em;
+    color: #64748b;
+    border: 2px solid #e2e8f0;
+    border-radius: 9999px;
+    padding: 8px 16px;
+    font-size: 0.75rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font: inherit;
-    margin-top: 5px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: inherit;
+    margin-top: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .faq-back-button:hover {
-    background-color: #f0f0f0;
-    border-color: #999;
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #1e40af;
 }
 
 .faq-hint {
-    font-size: 0.75em;
-    color: #888;
-    margin-top: 10px;
-    font-style: italic;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin-top: 12px;
+    font-style: normal;
     text-align: center;
+    letter-spacing: 0.025em;
 }
 
 .message-space {
@@ -544,9 +622,10 @@
 .chatbot-typing-indicator {
     display: inline-flex;
     justify-content: flex-start;
-    background-color: #5BC236;
-    padding: 5px 10px;
+    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+    padding: 10px 14px;
     border-radius: 12px 12px 12px 0;
+    box-shadow: 0 2px 4px rgba(30, 64, 175, 0.2);
 }
 
 .chatbot-typing-dot {

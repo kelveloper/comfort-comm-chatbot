@@ -61,6 +61,43 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
         }
     }
 
+    // Current Page Context - Inject current page content so bot knows what page user is viewing
+    $page_context = '';
+    if (!empty($page_id) && $page_id !== '999999') {
+        $current_page = get_post($page_id);
+        if ($current_page && $current_page->post_status === 'publish') {
+            $page_title = $current_page->post_title;
+            $page_url = get_permalink($page_id);
+
+            // Strip HTML tags and shortcodes from page content
+            $page_content = wp_strip_all_tags($current_page->post_content);
+            $page_content = strip_shortcodes($page_content);
+
+            // Remove extra whitespace
+            $page_content = preg_replace('/\s+/', ' ', $page_content);
+            $page_content = trim($page_content);
+
+            // Limit to first 800 words to avoid token limits
+            $page_content_words = explode(' ', $page_content);
+            if (count($page_content_words) > 800) {
+                $page_content = implode(' ', array_slice($page_content_words, 0, 800)) . '...';
+            }
+
+            // Build page context for Gemini
+            if (!empty($page_content)) {
+                $page_context = "\n\nCURRENT PAGE CONTEXT:\n" .
+                               "The user is currently viewing the page titled: \"$page_title\"\n" .
+                               "Page URL: $page_url\n\n" .
+                               "Page Content:\n$page_content\n\n" .
+                               "When answering questions, you can reference information from this page by saying things like 'On this page...' or 'According to the current page...'. " .
+                               "If the user asks what page they're on, tell them they're viewing the \"$page_title\" page.";
+
+                // Log for diagnostics
+                prod_trace('NOTICE', 'Page context added for page: ' . $page_title . ' (ID: ' . $page_id . ')');
+            }
+        }
+    }
+
     // Google Gemini API Documentation
     // https://ai.google.dev/gemini-api/docs
 
@@ -176,7 +213,7 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
                 'role' => 'user',
                 'parts' => array(
                     array(
-                        'text' => $context . $faq_context . "\n\nUser: " . $message
+                        'text' => $context . $page_context . $faq_context . "\n\nUser: " . $message
                     )
                 )
             )

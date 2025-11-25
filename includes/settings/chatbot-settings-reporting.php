@@ -118,8 +118,117 @@ add_action('admin_init', 'chatbot_chatgpt_reporting_settings_init');
 
 // Reporting section callback - Ver 1.6.3
 function chatbot_chatgpt_reporting_overview_section_callback($args) {
+    // Get CSAT stats
+    $csat_stats = chatbot_chatgpt_get_csat_stats();
+    $csat_score = $csat_stats['csat_score'];
+    $total = $csat_stats['total_responses'];
+    $helpful = $csat_stats['helpful_count'];
+    $not_helpful = $csat_stats['not_helpful_count'];
+    $target_met = $csat_stats['target_met'];
+
+    $score_color = $target_met ? '#10b981' : '#ef4444'; // Green if >70%, red otherwise
+    $status_text = $target_met ? '✓ Target Met (>70%)' : '⚠ Below Target (<70%)';
+    $status_color = $target_met ? '#10b981' : '#f59e0b';
     ?>
     <div>
+        <!-- CSAT Metrics Dashboard -->
+        <div style="background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #1e293b;">📊 CSAT (Customer Satisfaction) Metrics</h3>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                <!-- CSAT Score -->
+                <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid <?php echo $score_color; ?>;">
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">CSAT Score</div>
+                    <div style="font-size: 32px; font-weight: bold; color: <?php echo $score_color; ?>;"><?php echo $csat_score; ?>%</div>
+                </div>
+
+                <!-- Total Responses -->
+                <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #3b82f6;">
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Total Responses</div>
+                    <div style="font-size: 32px; font-weight: bold; color: #1e293b;"><?php echo $total; ?></div>
+                </div>
+
+                <!-- Helpful -->
+                <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #10b981;">
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">👍 Helpful</div>
+                    <div style="font-size: 32px; font-weight: bold; color: #10b981;"><?php echo $helpful; ?></div>
+                </div>
+
+                <!-- Not Helpful -->
+                <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #ef4444;">
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">👎 Not Helpful</div>
+                    <div style="font-size: 32px; font-weight: bold; color: #ef4444;"><?php echo $not_helpful; ?></div>
+                </div>
+            </div>
+
+            <!-- Status Badge -->
+            <div style="background-color: <?php echo $status_color; ?>15; border: 1px solid <?php echo $status_color; ?>; border-radius: 4px; padding: 10px; text-align: center;">
+                <span style="color: <?php echo $status_color; ?>; font-weight: 600;"><?php echo $status_text; ?></span>
+            </div>
+
+            <p style="margin-top: 15px; margin-bottom: 0; font-size: 12px; color: #64748b;">
+                <b>P0 Success Metric:</b> CSAT Score >70% |
+                <b>Calculation:</b> (Helpful / Total) × 100 = (<?php echo $helpful; ?> / <?php echo $total; ?>) × 100
+            </p>
+        </div>
+
+        <?php
+        // Display recent CSAT feedback with Q&A details
+        $csat_data = get_option('chatbot_chatgpt_csat_data', array('responses' => array()));
+        $responses = array_reverse($csat_data['responses']); // Most recent first
+        $recent_responses = array_slice($responses, 0, 20); // Limit to 20 most recent
+
+        if (!empty($recent_responses)) {
+        ?>
+        <!-- Recent CSAT Feedback Table -->
+        <div style="background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #1e293b;">📋 Recent Feedback Details</h3>
+            <p style="font-size: 12px; color: #64748b; margin-bottom: 15px;">Showing the most recent <?php echo count($recent_responses); ?> CSAT responses with question and answer details</p>
+
+            <table class="widefat striped" style="border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #f1f5f9;">
+                        <th style="padding: 10px; width: 120px;">Date/Time</th>
+                        <th style="padding: 10px; width: 80px;">Feedback</th>
+                        <th style="padding: 10px;">Question Asked</th>
+                        <th style="padding: 10px;">Answer Given</th>
+                        <th style="padding: 10px; width: 100px;">Session ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($recent_responses as $response) :
+                        $feedback_icon = $response['feedback'] === 'yes' ? '👍' : '👎';
+                        $feedback_color = $response['feedback'] === 'yes' ? '#10b981' : '#ef4444';
+                        $question = isset($response['question']) ? esc_html($response['question']) : 'N/A';
+                        $answer = isset($response['answer']) ? esc_html($response['answer']) : 'N/A';
+
+                        // Truncate long text for display
+                        $question_display = strlen($question) > 150 ? substr($question, 0, 150) . '...' : $question;
+                        $answer_display = strlen($answer) > 200 ? substr($answer, 0, 200) . '...' : $answer;
+                    ?>
+                    <tr>
+                        <td style="padding: 8px; font-size: 11px;">
+                            <?php echo date('Y-m-d H:i', strtotime($response['timestamp'])); ?>
+                        </td>
+                        <td style="padding: 8px; text-align: center;">
+                            <span style="font-size: 20px; color: <?php echo $feedback_color; ?>;"><?php echo $feedback_icon; ?></span>
+                        </td>
+                        <td style="padding: 8px; font-size: 12px; max-width: 300px;">
+                            <?php echo $question_display; ?>
+                        </td>
+                        <td style="padding: 8px; font-size: 12px; max-width: 400px;">
+                            <?php echo $answer_display; ?>
+                        </td>
+                        <td style="padding: 8px; font-size: 11px; color: #64748b;">
+                            <?php echo substr($response['session_id'], 0, 8); ?>...
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php } ?>
+
         <p>Use these setting to select the reporting period for Visitor and User Interactions.</p>
         <p>Please review the section <b>Conversation Logging Overview</b> on the <a href="?page=chatbot-chatgpt&tab=support&dir=support&file=conversation-logging-and-history.md">Support</a> tab of this plugin for more details.</p>
         <p><b><i>Don't forget to click </i><code>Save Settings</code><i> to save any changes your might make.</i></b></p>

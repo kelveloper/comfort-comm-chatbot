@@ -122,7 +122,6 @@ window.resetAllLocks = resetAllLocks;
     let chatbot_chatgpt_width_setting = kchat_settings.chatbot_chatgpt_width_setting || 'Narrow';
 
     let initialGreeting = kchat_settings.chatbot_chatgpt_initial_greeting || 'Hello! How can I help you today?';
-    let subsequentGreeting = kchat_settings.chatbot_chatgpt_subsequent_greeting || 'Hello again! How can I help you?';
     let faqCategoryButtons = kchat_settings.faq_category_buttons || [];
 
     // Debug: Log FAQ buttons data
@@ -493,9 +492,10 @@ window.resetAllLocks = resetAllLocks;
 
             lastMessage = conversation.children().last().text();
 
-            if (lastMessage === subsequentGreeting) {
-                return;
-            }
+            // Subsequent greeting check removed - variable not defined
+            // if (lastMessage === subsequentGreeting) {
+            //     return;
+            // }
 
             appendMessage(initialGreeting, 'bot', 'initial-greeting');
             renderCategoryButtons();
@@ -504,21 +504,11 @@ window.resetAllLocks = resetAllLocks;
 
         } else {
 
-            let storedGreeting = kchat_settings['chatbot_chatgpt_subsequent_greeting'];
-            // initialGreeting = storedGreeting !== null ? storedGreeting : 'Hello again! How can I help you?';
-            if (storedGreeting != null) {
-                initialGreeting = storedGreeting;
-                // console.log('Chatbot: NOTICE: chatbot-chatgpt.js - Greeting: was not null: ' + storedGreeting);
-                // console.log('Chatbot: NOTICE: chatbot-chatgpt.js - Greeting: ' + initialGreeting);
-            } else {
-                initialGreeting = 'Hello again! How can I help you?';
-                // console.log('Chatbot: NOTICE: chatbot-chatgpt.js - Greeting: ' + initialGreeting);
-            }
-
+            // Use the same initial greeting for returning visitors
             if (conversation.text().includes(initialGreeting)) {
                 return;
             }
-    
+
             appendMessage(initialGreeting, 'bot', 'initial-greeting');
             renderCategoryButtons();
             localStorage.setItem('chatbot_chatgpt_opened', 'true');
@@ -922,6 +912,38 @@ window.resetAllLocks = resetAllLocks;
         }
 
         messageElement.append(textElement);
+
+        // Add CSAT prompt for bot messages (not for errors or initial greeting)
+        if (sender === 'bot' && cssClass !== 'initial-greeting' && !message.startsWith('Error') && !message.startsWith('Oops')) {
+            // Get the previous user message (question)
+            let userQuestion = '';
+            let userMessages = conversation.find('.user-message');
+            if (userMessages.length > 0) {
+                userQuestion = userMessages.last().text().trim();
+            }
+
+            console.log('DEBUG CSAT - Captured question:', userQuestion);
+            console.log('DEBUG CSAT - Captured answer:', message);
+
+            let csatContainer = $('<div></div>')
+                .addClass('chatbot-csat-container')
+                .attr('data-question', userQuestion)
+                .attr('data-answer', message);
+
+            let csatText = $('<span></span>').addClass('chatbot-csat-text').text('Was this helpful?');
+            let csatYesBtn = $('<button></button>')
+                .addClass('chatbot-csat-btn chatbot-csat-yes')
+                .html('👍 Yes')
+                .attr('data-feedback', 'yes');
+            let csatNoBtn = $('<button></button>')
+                .addClass('chatbot-csat-btn chatbot-csat-no')
+                .html('👎 No')
+                .attr('data-feedback', 'no');
+
+            csatContainer.append(csatText).append(csatYesBtn).append(csatNoBtn);
+            messageElement.append(csatContainer);
+        }
+
         conversation.append(messageElement);
 
         // Add space between user input and bot response
@@ -961,6 +983,47 @@ window.resetAllLocks = resetAllLocks;
         }
 
     }
+
+    // CSAT feedback handler - Event delegation for dynamically added buttons
+    conversation.on('click', '.chatbot-csat-btn', function() {
+        let feedback = $(this).attr('data-feedback');
+        let csatContainer = $(this).closest('.chatbot-csat-container');
+
+        // Get question and answer from data attributes
+        let question = csatContainer.attr('data-question') || '';
+        let answer = csatContainer.attr('data-answer') || '';
+
+        console.log('DEBUG CSAT - Sending question:', question);
+        console.log('DEBUG CSAT - Sending answer:', answer);
+
+        // Disable buttons and show thank you
+        csatContainer.find('.chatbot-csat-btn').prop('disabled', true).css('opacity', '0.5');
+        csatContainer.find('.chatbot-csat-text').text(feedback === 'yes' ? '✓ Thank you!' : 'Thanks for your feedback!');
+
+        // Send CSAT feedback to backend
+        $.ajax({
+            url: kchat_settings.ajax_url,
+            method: 'POST',
+            data: {
+                action: 'chatbot_chatgpt_submit_csat',
+                feedback: feedback,
+                question: question,
+                answer: answer,
+                user_id: kchat_settings.user_id,
+                session_id: kchat_settings.session_id,
+                page_id: kchat_settings.page_id,
+                chatbot_nonce: kchat_settings.chatbot_message_nonce
+            },
+            success: function(response) {
+                console.log('CSAT AJAX Response:', response);
+                console.log('CSAT feedback saved:', feedback);
+            },
+            error: function(xhr, status, error) {
+                console.error('CSAT AJAX Error:', status, error);
+                console.error('CSAT Response:', xhr.responseText);
+            }
+        });
+    });
 
     function showTypingIndicator() {
         typingIndicator = $('<div></div>').addClass('chatbot-typing-indicator');
@@ -1259,6 +1322,7 @@ window.resetAllLocks = resetAllLocks;
           
         messageInput.val('');
         if (input_type === 'user') {
+            console.log('DEBUG: Appending user message:', message);
             appendMessage(message, 'user');
         } else {
             // DO NOTHING
