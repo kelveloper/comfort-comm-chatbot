@@ -478,3 +478,285 @@ See `future_iteration.md` for:
 - Firefox 88+
 - Safari 14+
 - Edge 90+
+
+---
+
+## 10. AI-Powered Feedback Loop System (Nov 26, 2024)
+
+### 10.1 Overview
+**Purpose:** Automatically improve FAQ knowledge base based on user feedback
+**Trigger:** Thumbs-down feedback with optional user comments
+**Output:** AI-generated suggestions to improve/create FAQs
+**Result:** Self-improving chatbot accuracy over time
+
+### 10.2 Architecture
+
+#### Components
+1. **Feedback Collection** (`includes/chatbot-csat.php`)
+   - Captures thumbs up/down with optional comment
+   - Stores: question, answer, comment, confidence_score, timestamp
+   - Storage: WordPress options table (`chatbot_chatgpt_csat_data`)
+
+2. **Analysis Engine** (`includes/chatbot-feedback-analysis.php`)
+   - Filters feedback by time period (weekly/monthly/quarterly/yearly/all)
+   - Sends thumbs-down feedback to Gemini 2.5 Flash
+   - Generates actionable improvement suggestions
+   - Returns: improve existing FAQ OR create new FAQ
+
+3. **FAQ Management** (AJAX handlers)
+   - `chatbot_ajax_add_faq` - Adds new FAQ to JSON
+   - `chatbot_ajax_edit_faq` - Appends keywords to existing FAQ
+   - Direct JSON file manipulation with auto-ID generation
+
+### 10.3 Time-Based Filtering
+
+**Time Periods:**
+- Weekly: Last 7 days (`-7 days`)
+- Monthly: Last 30 days (`-30 days`)
+- Quarterly: Last 90 days (`-90 days`)
+- Yearly: Last 365 days (`-365 days`)
+- All Time: No filter
+
+**Implementation:**
+```php
+$cutoff_date = date('Y-m-d H:i:s', strtotime('-7 days'));
+$filtered = array_filter($responses, function($r) use ($cutoff_date) {
+    return $r['timestamp'] >= $cutoff_date;
+});
+```
+
+### 10.4 Confidence Score Tracking
+
+**Storage:** Added to CSAT feedback data
+```php
+$confidence_score = chatbot_faq_search($question)['confidence'];
+// Values: 'very_high', 'high', 'medium', 'low', 'unknown'
+```
+
+**Display:** Color-coded badges in feedback table
+- Very High (80%+): Green `#10b981`
+- High (60-80%): Blue `#3b82f6`
+- Medium (40-60%): Orange `#f59e0b`
+- Low (20-40%): Red `#ef4444`
+- Unknown: Gray `#94a3b8`
+
+**AI Usage:** Helps prioritize improvements
+- Low confidence → Suggest adding keywords
+- Unknown → Suggest creating new FAQ
+
+### 10.5 AI Analysis Process
+
+#### Step 1: Filter Feedback
+```php
+// Get thumbs-down only
+$thumbs_down = array_filter($all_responses, function($r) {
+    return $r['feedback'] === 'no';
+});
+
+// Prioritize feedback with comments
+$with_comments = array_filter($thumbs_down, function($r) {
+    return !empty($r['comment']);
+});
+
+// Take up to 10 items (comments first)
+$to_analyze = array_slice($with_comments, 0, 10);
+```
+
+#### Step 2: Build AI Prompt
+```php
+$prompt = "Analyze customer feedback for FAQ system...
+
+EXISTING FAQ DATABASE:
+cc001: Where is your store located? [location address...]
+cc002: What are your business hours? [hours open...]
+...
+
+NEGATIVE FEEDBACK:
+1. Question: How much does Spectrum cost?
+   Answer: Spectrum starts at $40/month...
+   Confidence Score: medium
+   User Comment: Need info about contract terms
+   Feedback: 👎 Thumbs Down
+
+Suggest improvements: IMPROVE existing FAQ or CREATE new FAQ
+Respond with JSON array..."
+```
+
+#### Step 3: Gemini API Call
+```php
+$url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+$response = wp_remote_post($url, [
+    'body' => json_encode([
+        'contents' => [['parts' => [['text' => $prompt]]]],
+        'generationConfig' => [
+            'temperature' => 0.3,
+            'maxOutputTokens' => 4096
+        ]
+    ]),
+    'timeout' => 45
+]);
+```
+
+#### Step 4: Parse AI Response
+```json
+[
+  {
+    "feedback_number": 1,
+    "action_type": "improve",
+    "existing_faq_id": "cc006",
+    "suggested_keywords": ["contract", "monthly", "terms"],
+    "reasoning": "User feedback indicates missing pricing details"
+  },
+  {
+    "feedback_number": 2,
+    "action_type": "create",
+    "suggested_faq": {
+      "question": "Are there any contract requirements?",
+      "answer": "Contract requirements vary by carrier...",
+      "keywords": "contract no-contract commitment term"
+    },
+    "reasoning": "Multiple users asked but no FAQ exists"
+  }
+]
+```
+
+### 10.6 FAQ Management
+
+#### Add New FAQ
+```php
+function chatbot_ajax_add_faq() {
+    // Load existing FAQs
+    $faqs = json_decode(file_get_contents($faq_file), true);
+
+    // Generate new ID (auto-increment)
+    $last_id = end($faqs)['id']; // e.g., "cc063"
+    $id_num = intval(substr($last_id, 2)) + 1;
+    $new_id = 'cc' . str_pad($id_num, 3, '0', STR_PAD_LEFT); // "cc064"
+
+    // Create new FAQ
+    $new_faq = [
+        'id' => $new_id,
+        'question' => $faq_data['question'],
+        'answer' => $faq_data['answer'],
+        'category' => $faq_data['category'] ?? 'General',
+        'keywords' => $faq_data['keywords'] ?? '',
+        'created_at' => current_time('mysql')
+    ];
+
+    // Save to JSON
+    $faqs[] = $new_faq;
+    file_put_contents($faq_file, json_encode($faqs, JSON_PRETTY_PRINT));
+}
+```
+
+#### Edit Existing FAQ
+```php
+function chatbot_ajax_edit_faq() {
+    foreach ($faqs as &$faq) {
+        if ($faq['id'] === $faq_id) {
+            // Append new keywords
+            $existing = $faq['keywords'] ?? '';
+            $faq['keywords'] = trim($existing . ' ' . $new_keywords);
+            break;
+        }
+    }
+    file_put_contents($faq_file, json_encode($faqs, JSON_PRETTY_PRINT));
+}
+```
+
+### 10.7 UI Components
+
+#### Time Period Selector
+```html
+<select id="feedback-period">
+    <option value="weekly">Weekly (Last 7 days)</option>
+    <option value="monthly">Monthly (Last 30 days)</option>
+    <option value="quarterly">Quarterly (Last 90 days)</option>
+    <option value="yearly">Yearly (Last 365 days)</option>
+    <option value="all">All Time</option>
+</select>
+```
+
+#### Action Buttons
+```html
+<!-- For improvements -->
+<button onclick='chatbotEditFAQ(...)'>Edit FAQ</button>
+
+<!-- For new FAQs -->
+<button onclick='chatbotAddFAQ(...)'>Add to Knowledge Base</button>
+```
+
+#### Clear Data Button
+```html
+<button onclick="chatbotClearFeedback()"
+        style="background: #ef4444; color: white;">
+    Clear Feedback Data
+</button>
+```
+
+### 10.8 Complete Workflow
+
+1. **User Experience:**
+   - User asks question → Gets answer
+   - Clicks 👎 thumbs down
+   - Modal popup: "Help us improve! (optional comment)"
+   - Submits feedback with/without comment
+
+2. **Admin Experience:**
+   - Navigate to Reporting Overview
+   - See CSAT metrics + Recent Feedback table (with confidence scores)
+   - Select time period (e.g., "Weekly")
+   - Click "Analyze Feedback" button
+   - AI shows suggestions:
+     - 🔧 Improve FAQ cc006: Add keywords "contract, terms"
+     - ✨ Create FAQ: "Are there contract requirements?"
+   - Click "Edit FAQ" or "Add to Knowledge Base"
+   - JSON updated instantly
+
+3. **Result:**
+   - Better FAQ matching
+   - Higher confidence scores
+   - Fewer thumbs-down responses
+   - Self-improving chatbot
+
+### 10.9 Files Modified/Added
+
+#### New Files
+- `includes/chatbot-feedback-analysis.php` (302 lines)
+  - `chatbot_ajax_analyze_feedback()` - Main analysis handler
+  - `chatbot_analyze_feedback_with_ai()` - Gemini API call
+  - `chatbot_generate_suggestions_html()` - UI generation
+  - `chatbot_ajax_clear_feedback()` - Reset data
+  - `chatbot_ajax_add_faq()` - Add new FAQ
+  - `chatbot_ajax_edit_faq()` - Edit existing FAQ
+
+#### Modified Files
+- `includes/chatbot-csat.php` - Added confidence score capture
+- `includes/settings/chatbot-settings-reporting.php` - Added UI controls
+- `assets/js/chatbot-chatgpt.js` - Fixed markdown rendering
+- `assets/css/chatbot-chatgpt.css` - Fixed text overflow
+- `data/comfort-comm-faqs.json` - Now 66 FAQs (up from 55)
+
+### 10.10 Security
+
+- Nonce verification: `chatbot_feedback_analysis`, `chatbot_clear_feedback`, `chatbot_faq_management`
+- Capability check: `current_user_can('manage_options')`
+- Input sanitization: `sanitize_text_field()`, `sanitize_textarea_field()`
+- File permissions: JSON file write access required
+- Confirmation dialogs: Clear data, Add FAQ, Edit FAQ
+
+### 10.11 Performance
+
+- AI Analysis: ~5-10 seconds (depends on feedback count)
+- FAQ Add/Edit: <1 second (JSON write)
+- Clear Data: <1 second (option update)
+- Time Filtering: In-memory array filter (negligible)
+
+### 10.12 Future Enhancements
+
+- Auto-schedule weekly analysis (WordPress cron)
+- Email admin with analysis summary
+- FAQ version history
+- A/B testing for FAQ variations
+- Bulk FAQ import/export
+- Category-based filtering

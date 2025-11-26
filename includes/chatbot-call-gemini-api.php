@@ -50,6 +50,41 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
 
     // PRE-PROCESSING RULES - Guaranteed escalations (no AI needed, $0 cost) - Ver 2.3.7
     $message_lower = strtolower($message);
+
+    // OFF-TOPIC FILTER - Block questions unrelated to telecommunications - Ver 2.4.4
+    $off_topic_keywords = [
+        // Cryptocurrency
+        'bitcoin', 'crypto', 'cryptocurrency', 'ethereum', 'blockchain', 'nft', 'dogecoin',
+        // Finance (non-telecom)
+        'stock', 'stocks', 'forex', 'trading', 'investment', 'invest in',
+        // Weather
+        'weather', 'forecast', 'temperature', 'rain', 'snow', 'sunny',
+        // Sports
+        'football', 'basketball', 'baseball', 'soccer', 'nfl', 'nba', 'super bowl', 'world cup',
+        // Politics
+        'president', 'election', 'vote', 'congress', 'senate', 'political',
+        // Religion
+        'god', 'jesus', 'allah', 'buddha', 'bible', 'quran', 'church', 'mosque', 'temple',
+        // Entertainment
+        'movie', 'actor', 'actress', 'celebrity', 'netflix', 'spotify',
+        // General knowledge (that's clearly not telecom)
+        'recipe', 'cooking', 'restaurant', 'hotel', 'flight', 'vacation',
+        // Health
+        'doctor', 'hospital', 'medicine', 'sick', 'disease', 'covid',
+        // Education (non-telecom)
+        'homework', 'essay', 'school assignment', 'university application',
+    ];
+
+    foreach ($off_topic_keywords as $keyword) {
+        if (strpos($message_lower, $keyword) !== false) {
+            error_log('🚫 OFF-TOPIC QUESTION BLOCKED: ' . $message . ' (keyword: ' . $keyword . ')');
+            return "I'm here to help with internet, phone, and TV services from Comfort Comm. " .
+                   "For questions about other topics, I'd recommend searching online. " .
+                   "How can I assist you with your telecommunications needs today? " .
+                   "Call us at (347) 519-9999 for personalized help!";
+        }
+    }
+
     $escalation_patterns = [
         'billing' => ['billing', 'bill', 'payment', 'pay my', 'invoice', 'charge', 'refund', 'overcharge'],
         'account' => ['account balance', 'my account', 'account number', 'account info', 'account detail'],
@@ -84,7 +119,7 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     if (function_exists('chatbot_faq_search')) {
         error_log('CHATBOT DEBUG: chatbot_faq_search function EXISTS - calling it now');
         prod_trace('NOTICE', 'chatbot_faq_search function exists - calling it now');
-        $faq_result = chatbot_faq_search($message, true); // Get match with confidence score
+        $faq_result = chatbot_faq_search($message, true, $session_id, $user_id, $page_id); // Get match with confidence score - Ver 2.4.3 - Added params for gap analysis
         error_log('CHATBOT DEBUG: FAQ search result: ' . print_r($faq_result, true));
         prod_trace('NOTICE', 'FAQ search result: ' . print_r($faq_result, true));
 

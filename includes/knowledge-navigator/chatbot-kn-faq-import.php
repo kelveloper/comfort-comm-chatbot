@@ -23,7 +23,8 @@ function chatbot_faq_get_data_path() {
         wp_mkdir_p($data_dir);
     }
 
-    return $data_dir . 'faqs.json';
+    // Use comfort-comm-faqs.json as the source of truth
+    return $data_dir . 'comfort-comm-faqs.json';
 }
 
 // Load FAQs from JSON file
@@ -216,10 +217,12 @@ function chatbot_faq_generate_keywords($text) {
 }
 
 // Search FAQs for matching answer
-function chatbot_faq_search($query, $return_score = false) {
+function chatbot_faq_search($query, $return_score = false, $session_id = null, $user_id = null, $page_id = null) {
     $faqs = chatbot_faq_load();
 
     if (empty($faqs)) {
+        // Log as gap question - no FAQs available
+        chatbot_log_gap_question($query, null, 0, 'none', $session_id, $user_id, $page_id);
         return $return_score ? ['match' => null, 'score' => 0, 'confidence' => 'none'] : null;
     }
 
@@ -318,6 +321,8 @@ function chatbot_faq_search($query, $return_score = false) {
 
     // Only return matches above minimum threshold (20%)
     if ($best_score < 0.2) {
+        // Log as gap question - score too low
+        chatbot_log_gap_question($query, null, 0, 'none', $session_id, $user_id, $page_id);
         return $return_score ? ['match' => null, 'score' => 0, 'confidence' => 'none'] : null;
     }
 
@@ -331,6 +336,19 @@ function chatbot_faq_search($query, $return_score = false) {
         $confidence = 'medium'; // 40-60% = use AI with context
     } else {
         $confidence = 'low'; // 20-40% = mostly AI
+    }
+
+    // Track FAQ usage and gap questions - Ver 2.4.2
+    $faq_id = isset($best_match['id']) ? $best_match['id'] : null;
+
+    // Track FAQ usage if match found
+    if ($faq_id) {
+        chatbot_track_faq_usage($faq_id, $best_score);
+    }
+
+    // Log as gap question if confidence is low or medium (< 60%)
+    if ($best_score < 0.6) {
+        chatbot_log_gap_question($query, $faq_id, $best_score, $confidence, $session_id, $user_id, $page_id);
     }
 
     if ($return_score) {
@@ -640,3 +658,160 @@ function chatbot_faq_ajax_get() {
     }
 }
 add_action('wp_ajax_chatbot_faq_get', 'chatbot_faq_ajax_get');
+
+// Log gap question - Ver 2.4.2
+function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $confidence_level, $session_id = null, $user_id = null, $page_id = null) {
+    global $wpdb;
+
+    error_log('🔍 GAP QUESTION LOGGER CALLED: ' . $question);
+    error_log('   Confidence: ' . $confidence_score . ' (' . $confidence_level . ')');
+    error_log('   Session: ' . ($session_id ?? 'NULL') . ', User: ' . ($user_id ?? 'NULL') . ', Page: ' . ($page_id ?? 'NULL'));
+
+    // Skip if question is empty or too short
+    if (empty($question) || strlen(trim($question)) < 3) {
+        error_log('   ❌ SKIPPED: Question too short');
+        return false;
+    }
+
+    $table_name = $wpdb->prefix . 'chatbot_gap_questions';
+
+    // Check if table exists (it should if plugin is activated properly)
+    if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) !== $table_name) {
+        error_log('[Chatbot] Gap questions table does not exist. Run plugin activation.');
+        return false;
+    }
+
+    // Insert gap question
+    $result = $wpdb->insert(
+        $table_name,
+        array(
+            'question_text' => sanitize_text_field($question),
+            'session_id' => $session_id,
+            'user_id' => $user_id ? intval($user_id) : null,
+            'page_id' => $page_id ? intval($page_id) : null,
+            'faq_confidence' => floatval($confidence_score),
+            'faq_match_id' => $faq_match_id,
+            'asked_date' => current_time('mysql')
+        ),
+        array('%s', '%s', '%d', '%d', '%f', '%s', '%s')
+    );
+
+    if ($result === false) {
+        error_log('[Chatbot] Failed to log gap question: ' . $wpdb->last_error);
+        return false;
+    }
+
+    return true;
+}
+
+// Track FAQ usage - Ver 2.4.2
+function chatbot_track_faq_usage($faq_id, $confidence_score) {
+    global $wpdb;
+
+    if (empty($faq_id)) {
+        return false;
+    }
+
+    $table_name = $wpdb->prefix . 'chatbot_faq_usage';
+
+    // Check if table exists
+    if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) !== $table_name) {
+        error_log('[Chatbot] FAQ usage table does not exist. Run plugin activation.');
+        return false;
+    }
+
+    // Check if FAQ already has a record
+    $existing = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE faq_id = %s", $faq_id), ARRAY_A);
+
+    if ($existing) {
+        // Update existing record
+        $new_hit_count = intval($existing['hit_count']) + 1;
+
+        // Calculate new average confidence (running average)
+        $old_avg = floatval($existing['avg_confidence']);
+        $old_count = intval($existing['hit_count']);
+        $new_avg = (($old_avg * $old_count) + floatval($confidence_score)) / $new_hit_count;
+
+        $result = $wpdb->update(
+            $table_name,
+            array(
+                'hit_count' => $new_hit_count,
+                'last_asked' => current_time('mysql'),
+                'avg_confidence' => $new_avg,
+                'updated_at' => current_time('mysql')
+            ),
+            array('faq_id' => $faq_id),
+            array('%d', '%s', '%f', '%s'),
+            array('%s')
+        );
+    } else {
+        // Insert new record
+        $result = $wpdb->insert(
+            $table_name,
+            array(
+                'faq_id' => $faq_id,
+                'hit_count' => 1,
+                'last_asked' => current_time('mysql'),
+                'avg_confidence' => floatval($confidence_score),
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ),
+            array('%s', '%d', '%s', '%f', '%s', '%s')
+        );
+    }
+
+    if ($result === false) {
+        error_log('[Chatbot] Failed to track FAQ usage: ' . $wpdb->last_error);
+        return false;
+    }
+
+    return true;
+}
+
+// AJAX: Refresh Knowledge Base - Ver 2.4.2
+function chatbot_ajax_faq_refresh_knowledge_base() {
+    check_ajax_referer('chatbot_faq_manage', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(array('message' => 'Unauthorized'));
+    }
+
+    // Path to the comfort-comm-faqs.json file (source file)
+    $source_file = plugin_dir_path(dirname(dirname(__FILE__))) . 'data/comfort-comm-faqs.json';
+
+    // Path to the runtime FAQ file
+    $runtime_file = chatbot_faq_get_data_path();
+
+    if (!file_exists($source_file)) {
+        wp_send_json_error(array('message' => 'Source FAQ file not found'));
+    }
+
+    // Read source JSON file
+    $json_content = file_get_contents($source_file);
+    $faqs = json_decode($json_content, true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        wp_send_json_error(array('message' => 'Invalid JSON file: ' . json_last_error_msg()));
+    }
+
+    if (empty($faqs)) {
+        wp_send_json_error(array('message' => 'No FAQs found in source file'));
+    }
+
+    error_log('🔄 Refreshing knowledge base: copying ' . count($faqs) . ' FAQs from comfort-comm-faqs.json');
+
+    // Save to runtime FAQ file
+    $result = chatbot_faq_save($faqs);
+
+    if ($result) {
+        error_log("✓ Knowledge base refreshed successfully with " . count($faqs) . " FAQs");
+        wp_send_json_success(array(
+            'message' => "Knowledge base refreshed successfully!\n\n" . count($faqs) . " FAQs loaded from comfort-comm-faqs.json",
+            'total' => count($faqs)
+        ));
+    } else {
+        error_log("❌ Failed to refresh knowledge base");
+        wp_send_json_error(array('message' => 'Failed to save FAQs to runtime file'));
+    }
+}
+add_action('wp_ajax_chatbot_faq_refresh_knowledge_base', 'chatbot_ajax_faq_refresh_knowledge_base');

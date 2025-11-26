@@ -1068,6 +1068,66 @@ window.resetAllLocks = resetAllLocks;
         console.log('DEBUG CSAT - Sending question:', question);
         console.log('DEBUG CSAT - Sending answer:', answer);
 
+        // If thumbs down, show comment popup
+        if (feedback === 'no') {
+            chatbotShowCommentPopup(feedback, question, answer, csatContainer);
+        } else {
+            // Thumbs up - send immediately
+            chatbotSubmitFeedback(feedback, question, answer, '', csatContainer);
+        }
+    });
+
+    // Show comment popup for thumbs down
+    function chatbotShowCommentPopup(feedback, question, answer, csatContainer) {
+        // Create modal HTML
+        let modalHTML = `
+            <div id="chatbot-comment-modal" style="display: none; position: fixed; z-index: 100000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px);">
+                <div style="background-color: #ffffff; margin: 10% auto; padding: 0; border-radius: 12px; width: 90%; max-width: 500px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+                        <h3 style="margin: 0; font-size: 20px; font-weight: 600;">Help us improve</h3>
+                        <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.95;">What went wrong with this answer?</p>
+                    </div>
+                    <div style="padding: 24px;">
+                        <textarea id="chatbot-feedback-comment" placeholder="Tell us what could be better... (optional)" style="width: 100%; height: 100px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box;" maxlength="500"></textarea>
+                        <div style="margin-top: 8px; font-size: 12px; color: #64748b; text-align: right;">
+                            <span id="chatbot-comment-counter">0</span>/500 characters
+                        </div>
+                        <div style="margin-top: 20px; display: flex; justify-content: center;">
+                            <button id="chatbot-comment-submit" style="padding: 12px 40px; border: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3); transition: all 0.2s;">
+                                Submit
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove existing modal if any
+        $('#chatbot-comment-modal').remove();
+
+        // Append modal to body
+        $('body').append(modalHTML);
+
+        // Show modal with fade in
+        $('#chatbot-comment-modal').fadeIn(200);
+
+        // Character counter
+        $('#chatbot-feedback-comment').on('input', function() {
+            $('#chatbot-comment-counter').text($(this).val().length);
+        });
+
+        // Submit button (can submit empty comment)
+        $('#chatbot-comment-submit').on('click', function() {
+            let comment = $('#chatbot-feedback-comment').val().trim();
+            $('#chatbot-comment-modal').fadeOut(200, function() {
+                $(this).remove();
+            });
+            chatbotSubmitFeedback(feedback, question, answer, comment, csatContainer);
+        });
+    }
+
+    // Submit feedback to backend
+    function chatbotSubmitFeedback(feedback, question, answer, comment, csatContainer) {
         // Disable buttons and show thank you
         csatContainer.find('.chatbot-csat-btn').prop('disabled', true).css('opacity', '0.5');
         csatContainer.find('.chatbot-csat-text').text(feedback === 'yes' ? '✓ Thank you!' : 'Thanks for your feedback!');
@@ -1081,6 +1141,7 @@ window.resetAllLocks = resetAllLocks;
                 feedback: feedback,
                 question: question,
                 answer: answer,
+                comment: comment,
                 user_id: kchat_settings.user_id,
                 session_id: kchat_settings.session_id,
                 page_id: kchat_settings.page_id,
@@ -1095,7 +1156,7 @@ window.resetAllLocks = resetAllLocks;
                 console.error('CSAT Response:', xhr.responseText);
             }
         });
-    });
+    }
 
     function showTypingIndicator() {
         typingIndicator = $('<div></div>').addClass('chatbot-typing-indicator');
@@ -1163,34 +1224,36 @@ window.resetAllLocks = resetAllLocks;
                         .replace(/^### (.*)$/gim, '<h3>$1</h3>')
                         .replace(/^## (.*)$/gim, '<h2>$1</h2>')
                         .replace(/^# (.*)$/gim, '<h1>$1</h1>');
-    
-        // Step 6: Bold, Italic, Strikethrough
+
+        // Step 6: Bold and Strikethrough - Process ** BEFORE lists to handle bold in bullets
         markdown = markdown.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
                         .replace(/\~\~(.*?)\~\~/g, '<del>$1</del>');
-    
-        // Step 7: Multi-line code blocks
+
+        // Step 7: Lists - Process after ** but before single *
+        markdown = markdown.replace(/^\*\s+(.+)$/gim, '<li>$1</li>');
+        // Wrap consecutive list items in <ul> tags
+        markdown = markdown.replace(/(<li>.*?<\/li>\s*)+/gs, '<ul>$&</ul>');
+
+        // Step 8: Italic - Process AFTER lists to avoid conflict with list asterisks
+        markdown = markdown.replace(/\*([^\*\n]+?)\*/g, '<em>$1</em>');
+
+        // Step 9: Multi-line code blocks
         markdown = markdown.replace(/```([\s\S]*?)```/gm, '<pre><code>$1</code></pre>');
-    
-        // Step 8: Inline code - after handling multi-line to prevent conflicts
+
+        // Step 10: Inline code - after handling multi-line to prevent conflicts
         markdown = markdown.replace(/`([^`]+)`/g, '<code>$1</code>');
-    
-        // Step 9: Lists - Improved handling for nested lists and spacing
-        markdown = markdown.replace(/^\*\s(.+)$/gim, '<li>$1</li>')
-                        .replace(/<\/li>\s*<li>/g, '</li>\n<li>')
-                        .replace(/<li>(.*?)<\/li>/gs, '<ul>$&</ul>');
-    
-        // Step 10: Improved blockquote handling
+
+        // Step 11: Improved blockquote handling
         markdown = markdown.replace(/^(>+\s?)(.*)$/gm, (match, p1, p2) => {
             return `<blockquote>${p2}</blockquote>`;
         });
-    
-        // Step 11: Consolidate line breaks and remove extra spaces
+
+        // Step 12: Consolidate line breaks and remove extra spaces
         markdown = markdown.replace(/\n{2,}/g, '\n').split(/\n/g).map((line, index) => {
             return line.match(/^<h|<p|<ul|<pre|<blockquote/) ? line : line.trim() ? `<p>${line}</p>` : '';
         }).filter(line => line.trim() !== '').join('\n');
-   
-        // Step 12: Reinsert LaTeX expressions - Ver 2.1.5 MathJax Fix
+
+        // Step 13: Reinsert LaTeX expressions - Ver 2.1.5 MathJax Fix
         markdown = markdown.replace(/{{LATEX_DISPLAY_(\d+)}}/g, (match, index) => {
             return latexExpressions[parseInt(index)];
         });
@@ -1198,7 +1261,7 @@ window.resetAllLocks = resetAllLocks;
             return latexExpressions[parseInt(index)];
         });
 
-        // Step 13: Reinsert predefined HTML tags
+        // Step 14: Reinsert predefined HTML tags
         markdown = markdown.replace(/{{HTML_TAG_(\d+)}}/g, (match, index) => {
             return predefinedHtml[parseInt(index)];
         });

@@ -399,13 +399,23 @@ register_deactivation_hook(plugin_dir_path(dirname(__FILE__)) . 'chatbot-chatgpt
 function chatbot_chatgpt_activate_db() {
     // Create the interaction tracking table
     create_chatbot_chatgpt_interactions_table();
-    
+
     // Create the conversation logging table
     create_conversation_logging_table();
-    
+
+    // Create gap analysis tables - Ver 2.4.2
+    create_chatbot_gap_questions_table();
+    create_chatbot_gap_clusters_table();
+    create_chatbot_faq_usage_table();
+
     // Schedule the cleanup cron job
     if (!wp_next_scheduled('chatbot_chatgpt_conversation_log_cleanup_event')) {
         wp_schedule_event(time(), 'daily', 'chatbot_chatgpt_conversation_log_cleanup_event');
+    }
+
+    // Schedule weekly gap analysis
+    if (!wp_next_scheduled('chatbot_gap_analysis_event')) {
+        wp_schedule_event(time(), 'weekly', 'chatbot_gap_analysis_event');
     }
 }
 
@@ -440,11 +450,140 @@ function chatbot_chatgpt_add_sentiment_score_column() {
     return true;
 }
 
+// Create gap questions table - Ver 2.4.2
+function create_chatbot_gap_questions_table() {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'chatbot_gap_questions';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    // Fallback cascade for invalid or unsupported character sets
+    if (empty($charset_collate) || strpos($charset_collate, 'utf8mb4') === false) {
+        if (strpos($charset_collate, 'utf8') === false) {
+            $charset_collate = "CHARACTER SET utf8 COLLATE utf8_general_ci";
+        }
+    }
+
+    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+        id BIGINT(20) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        question_text TEXT NOT NULL,
+        session_id VARCHAR(255),
+        user_id BIGINT(20),
+        page_id BIGINT(20),
+        faq_confidence FLOAT,
+        faq_match_id VARCHAR(50),
+        asked_date DATETIME NOT NULL,
+        is_clustered BOOLEAN DEFAULT 0,
+        cluster_id INT,
+        is_resolved BOOLEAN DEFAULT 0,
+        INDEX session_id_index (session_id),
+        INDEX asked_date_index (asked_date),
+        INDEX is_resolved_index (is_resolved)
+    ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+
+    if ($wpdb->last_error) {
+        error_log('[Chatbot] [chatbot-db-management.php] Failed to create table: ' . $table_name);
+        error_log('[Chatbot] [chatbot-db-management.php] Error: ' . $wpdb->last_error);
+        return false;
+    }
+
+    return true;
+}
+
+// Create gap clusters table - Ver 2.4.2
+function create_chatbot_gap_clusters_table() {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'chatbot_gap_clusters';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    // Fallback cascade for invalid or unsupported character sets
+    if (empty($charset_collate) || strpos($charset_collate, 'utf8mb4') === false) {
+        if (strpos($charset_collate, 'utf8') === false) {
+            $charset_collate = "CHARACTER SET utf8 COLLATE utf8_general_ci";
+        }
+    }
+
+    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        cluster_name VARCHAR(255),
+        cluster_description TEXT,
+        question_count INT DEFAULT 0,
+        sample_questions TEXT,
+        suggested_faq TEXT,
+        action_type ENUM('create', 'improve') DEFAULT 'create',
+        existing_faq_id VARCHAR(50),
+        suggested_keywords TEXT,
+        priority_score FLOAT,
+        status ENUM('new', 'reviewed', 'faq_created', 'dismissed') DEFAULT 'new',
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        INDEX status_index (status),
+        INDEX priority_index (priority_score),
+        INDEX action_type_index (action_type)
+    ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+
+    if ($wpdb->last_error) {
+        error_log('[Chatbot] [chatbot-db-management.php] Failed to create table: ' . $table_name);
+        error_log('[Chatbot] [chatbot-db-management.php] Error: ' . $wpdb->last_error);
+        return false;
+    }
+
+    return true;
+}
+
+// Create FAQ usage tracking table - Ver 2.4.2
+function create_chatbot_faq_usage_table() {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'chatbot_faq_usage';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    // Fallback cascade for invalid or unsupported character sets
+    if (empty($charset_collate) || strpos($charset_collate, 'utf8mb4') === false) {
+        if (strpos($charset_collate, 'utf8') === false) {
+            $charset_collate = "CHARACTER SET utf8 COLLATE utf8_general_ci";
+        }
+    }
+
+    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+        id BIGINT(20) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        faq_id VARCHAR(50) NOT NULL UNIQUE,
+        hit_count INT DEFAULT 1,
+        last_asked DATETIME,
+        avg_confidence FLOAT,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        INDEX faq_id_index (faq_id),
+        INDEX hit_count_index (hit_count)
+    ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+
+    if ($wpdb->last_error) {
+        error_log('[Chatbot] [chatbot-db-management.php] Failed to create table: ' . $table_name);
+        error_log('[Chatbot] [chatbot-db-management.php] Error: ' . $wpdb->last_error);
+        return false;
+    }
+
+    return true;
+}
+
 // Function to handle cleanup on deactivation
 function chatbot_chatgpt_deactivate_db() {
     // Clear the scheduled cleanup event
     wp_clear_scheduled_hook('chatbot_chatgpt_conversation_log_cleanup_event');
-    
+
+    // Clear gap analysis event
+    wp_clear_scheduled_hook('chatbot_gap_analysis_event');
+
     // Clean up any expired transients
     clean_specific_expired_transients();
 }

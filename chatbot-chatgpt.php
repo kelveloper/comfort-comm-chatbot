@@ -3,7 +3,7 @@
  * Plugin Name: Kognetiks Chatbot
  * Plugin URI:  https://github.com/kognetiks/kognetiks-chatbot
  * Description: This simple plugin adds an AI powered chatbot to your WordPress website.
- * Version:     2.4.2
+ * Version:     2.4.6
  * Author:      Kognetiks.com
  * Author URI:  https://www.kognetiks.com
  * License:     GPLv3 or later
@@ -32,7 +32,7 @@ ob_start();
 
 // Plugin version
 global $chatbot_chatgpt_plugin_version;
-$chatbot_chatgpt_plugin_version = '2.4.2';
+$chatbot_chatgpt_plugin_version = '2.4.6';
 
 // Plugin directory path
 global $chatbot_chatgpt_plugin_dir_path;
@@ -105,6 +105,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-openai-api-tts-a
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-globals.php';                    // Globals - Ver 1.6.5
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-shortcode.php';                  // Shortcode - Ver 1.6.5
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-csat.php';                       // CSAT Feedback - P0
+require_once plugin_dir_path(__FILE__) . 'includes/chatbot-feedback-analysis.php';      // AI Feedback Analysis - P0
 
 // Include necessary files - Appearance - Ver 1.8.1
 require_once plugin_dir_path(__FILE__) . 'includes/appearance/chatbot-settings-appearance-body.php';
@@ -177,6 +178,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/utilities/chatbot-conversatio
 require_once plugin_dir_path(__FILE__) . 'includes/utilities/chatbot-content-search.php';               // Functions - Ver 2.2.4
 require_once plugin_dir_path(__FILE__) . 'includes/dashboard/chatbot-chatgpt-dashboard-widget.php';     // Dashboard Widget - Ver 2.2.7
 require_once plugin_dir_path(__FILE__) . 'includes/utilities/chatbot-db-management.php';                // Database Management for Reporting - Ver 1.6.3
+require_once plugin_dir_path(__FILE__) . 'includes/utilities/chatbot-gap-analysis.php';                 // Gap Question Analysis - Ver 2.4.2
 require_once plugin_dir_path(__FILE__) . 'includes/utilities/chatbot-deactivate.php';                   // Deactivation - Ver 1.9.9
 require_once plugin_dir_path(__FILE__) . 'includes/utilities/chatbot-download-transcript.php';          // Functions - Ver 1.9.9
 require_once plugin_dir_path(__FILE__) . 'includes/utilities/chatbot-erase-conversation.php';           // Functions - Ver 1.8.6
@@ -204,6 +206,7 @@ require_once plugin_dir_path(__FILE__) . 'tools/chatbot-manage-error-logs.php';
 require_once plugin_dir_path(__FILE__) . 'tools/chatbot-options-exporter.php';
 require_once plugin_dir_path(__FILE__) . 'tools/chatbot-shortcode-tester.php';
 require_once plugin_dir_path(__FILE__) . 'tools/chatbot-shortcode-tester-tool.php';
+require_once plugin_dir_path(__FILE__) . 'tools/chatbot-test-gap-analysis.php';  // Gap Analysis Test Tool - Ver 2.4.3
 
 // Include necessary files - Analytics - Ver 2.3.6
 require_once plugin_dir_path(__FILE__) . 'includes/analytics/analytics-settings.php';

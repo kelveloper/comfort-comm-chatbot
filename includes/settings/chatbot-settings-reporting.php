@@ -112,7 +112,23 @@ function chatbot_chatgpt_reporting_settings_init() {
         'chatbot_chatgpt_reporting',
         'chatbot_chatgpt_token_reporting_section'
     );
-   
+
+    // Gap Analysis Section - Ver 2.4.2
+    add_settings_section(
+        'chatbot_chatgpt_gap_analysis_section',
+        'Gap Analysis',
+        'chatbot_chatgpt_gap_analysis_section_callback',
+        'chatbot_chatgpt_gap_analysis'
+    );
+
+    add_settings_field(
+        'chatbot_chatgpt_gap_analysis_field',
+        '',
+        'chatbot_chatgpt_gap_analysis_callback',
+        'chatbot_chatgpt_gap_analysis',
+        'chatbot_chatgpt_gap_analysis_section'
+    );
+
 }
 add_action('admin_init', 'chatbot_chatgpt_reporting_settings_init');
 
@@ -188,11 +204,12 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
             <table class="widefat striped" style="border-collapse: collapse;">
                 <thead>
                     <tr style="background-color: #f1f5f9;">
-                        <th style="padding: 10px; width: 120px;">Date/Time</th>
-                        <th style="padding: 10px; width: 80px;">Feedback</th>
+                        <th style="padding: 10px; width: 100px;">Date/Time</th>
+                        <th style="padding: 10px; width: 60px;">Feedback</th>
+                        <th style="padding: 10px; width: 90px;">Confidence</th>
                         <th style="padding: 10px;">Question Asked</th>
                         <th style="padding: 10px;">Answer Given</th>
-                        <th style="padding: 10px; width: 100px;">Session ID</th>
+                        <th style="padding: 10px; width: 200px;">User Comment</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -201,26 +218,44 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
                         $feedback_color = $response['feedback'] === 'yes' ? '#10b981' : '#ef4444';
                         $question = isset($response['question']) ? esc_html($response['question']) : 'N/A';
                         $answer = isset($response['answer']) ? esc_html($response['answer']) : 'N/A';
+                        $comment = isset($response['comment']) && !empty($response['comment']) ? esc_html($response['comment']) : '';
+                        $confidence = isset($response['confidence_score']) ? $response['confidence_score'] : 'unknown';
+
+                        // Map confidence to display format and color
+                        $confidence_map = [
+                            'very_high' => ['label' => 'Very High', 'color' => '#10b981'],
+                            'high' => ['label' => 'High', 'color' => '#3b82f6'],
+                            'medium' => ['label' => 'Medium', 'color' => '#f59e0b'],
+                            'low' => ['label' => 'Low', 'color' => '#ef4444'],
+                            'unknown' => ['label' => '—', 'color' => '#94a3b8']
+                        ];
+                        $conf_display = $confidence_map[$confidence] ?? $confidence_map['unknown'];
 
                         // Truncate long text for display
-                        $question_display = strlen($question) > 150 ? substr($question, 0, 150) . '...' : $question;
-                        $answer_display = strlen($answer) > 200 ? substr($answer, 0, 200) . '...' : $answer;
+                        $question_display = strlen($question) > 100 ? substr($question, 0, 100) . '...' : $question;
+                        $answer_display = strlen($answer) > 150 ? substr($answer, 0, 150) . '...' : $answer;
+                        $comment_display = strlen($comment) > 100 ? substr($comment, 0, 100) . '...' : $comment;
                     ?>
                     <tr>
                         <td style="padding: 8px; font-size: 11px;">
-                            <?php echo date('Y-m-d H:i', strtotime($response['timestamp'])); ?>
+                            <?php echo date('m/d H:i', strtotime($response['timestamp'])); ?>
                         </td>
                         <td style="padding: 8px; text-align: center;">
                             <span style="font-size: 20px; color: <?php echo $feedback_color; ?>;"><?php echo $feedback_icon; ?></span>
                         </td>
-                        <td style="padding: 8px; font-size: 12px; max-width: 300px;">
+                        <td style="padding: 8px; font-size: 11px; text-align: center;">
+                            <span style="display: inline-block; padding: 4px 8px; background-color: <?php echo $conf_display['color']; ?>20; color: <?php echo $conf_display['color']; ?>; border-radius: 4px; font-weight: 600;">
+                                <?php echo $conf_display['label']; ?>
+                            </span>
+                        </td>
+                        <td style="padding: 8px; font-size: 12px; max-width: 250px;">
                             <?php echo $question_display; ?>
                         </td>
-                        <td style="padding: 8px; font-size: 12px; max-width: 400px;">
+                        <td style="padding: 8px; font-size: 12px; max-width: 300px;">
                             <?php echo $answer_display; ?>
                         </td>
-                        <td style="padding: 8px; font-size: 11px; color: #64748b;">
-                            <?php echo substr($response['session_id'], 0, 8); ?>...
+                        <td style="padding: 8px; font-size: 12px; max-width: 200px; font-style: italic; color: #64748b;">
+                            <?php echo $comment ? $comment_display : '—'; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -228,6 +263,145 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
             </table>
         </div>
         <?php } ?>
+
+        <!-- AI-Powered Feedback Analysis -->
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">🤖 AI-Powered Feedback Analysis</h3>
+            <p style="margin: 0 0 15px 0; font-size: 13px; color: #6b7280;">
+                Analyze thumbs-down feedback to automatically generate FAQ improvement suggestions based on selected time period.
+            </p>
+
+            <!-- Time Period Selector -->
+            <div style="margin-bottom: 15px;">
+                <label for="feedback-period" style="font-weight: 600; margin-right: 10px;">Analysis Period:</label>
+                <select id="feedback-period" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                    <option value="weekly">Weekly (Last 7 days)</option>
+                    <option value="monthly">Monthly (Last 30 days)</option>
+                    <option value="quarterly">Quarterly (Last 90 days)</option>
+                    <option value="yearly">Yearly (Last 365 days)</option>
+                    <option value="all">All Time</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button onclick="chatbotAnalyzeFeedback()" class="button button-primary" style="font-size: 15px; padding: 10px 30px; height: auto;">
+                    Analyze Feedback
+                </button>
+                <button onclick="chatbotClearFeedback()" class="button" style="font-size: 15px; padding: 10px 20px; height: auto; background: #ef4444; color: white; border-color: #dc2626;">
+                    Clear Feedback Data
+                </button>
+            </div>
+
+            <div id="chatbot-feedback-analysis-results" style="margin-top: 20px;"></div>
+        </div>
+
+        <script>
+        function chatbotAnalyzeFeedback() {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            const resultsDiv = document.getElementById('chatbot-feedback-analysis-results');
+            const period = document.getElementById('feedback-period').value;
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Analyzing feedback...';
+            resultsDiv.innerHTML = '';
+
+            jQuery.post(ajaxurl, {
+                action: 'chatbot_analyze_feedback',
+                period: period,
+                nonce: '<?php echo wp_create_nonce('chatbot_feedback_analysis'); ?>'
+            }, function(response) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+
+                if (response.success) {
+                    resultsDiv.innerHTML = response.data.html;
+                } else {
+                    resultsDiv.innerHTML = '<div style="background: #fee2e2; border: 1px solid #fecaca; padding: 15px; border-radius: 6px; color: #991b1b;">Error: ' + (response.data || 'Unknown error') + '</div>';
+                }
+            }).fail(function() {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                resultsDiv.innerHTML = '<div style="background: #fee2e2; border: 1px solid #fecaca; padding: 15px; border-radius: 6px; color: #991b1b;">Request failed. Please try again.</div>';
+            });
+        }
+
+        function chatbotClearFeedback() {
+            if (!confirm('Are you sure you want to clear ALL feedback data? This cannot be undone!')) {
+                return;
+            }
+
+            const btn = event.target;
+            const originalText = btn.textContent;
+
+            btn.disabled = true;
+            btn.textContent = 'Clearing...';
+
+            jQuery.post(ajaxurl, {
+                action: 'chatbot_clear_feedback',
+                nonce: '<?php echo wp_create_nonce('chatbot_clear_feedback'); ?>'
+            }, function(response) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+
+                if (response.success) {
+                    alert('Feedback data cleared successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (response.data || 'Unknown error'));
+                }
+            }).fail(function() {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                alert('Request failed. Please try again.');
+            });
+        }
+
+        function chatbotAddFAQ(suggestion) {
+            if (!confirm('Add this new FAQ to the knowledge base?')) {
+                return;
+            }
+
+            const faq = suggestion.suggested_faq;
+            jQuery.post(ajaxurl, {
+                action: 'chatbot_add_faq',
+                faq_data: faq,
+                nonce: '<?php echo wp_create_nonce('chatbot_faq_management'); ?>'
+            }, function(response) {
+                if (response.success) {
+                    alert('FAQ added successfully! ID: ' + response.data.faq_id);
+                } else {
+                    alert('Error: ' + (response.data || 'Unknown error'));
+                }
+            }).fail(function() {
+                alert('Request failed. Please try again.');
+            });
+        }
+
+        function chatbotEditFAQ(suggestion) {
+            const keywords = (suggestion.suggested_keywords || []).join(', ');
+            const newKeywords = prompt('Add these keywords to FAQ ' + suggestion.existing_faq_id + ':\n\n' + keywords + '\n\nEdit keywords:', keywords);
+
+            if (newKeywords === null) {
+                return; // User cancelled
+            }
+
+            jQuery.post(ajaxurl, {
+                action: 'chatbot_edit_faq',
+                faq_id: suggestion.existing_faq_id,
+                keywords: newKeywords,
+                nonce: '<?php echo wp_create_nonce('chatbot_faq_management'); ?>'
+            }, function(response) {
+                if (response.success) {
+                    alert('FAQ updated successfully!');
+                } else {
+                    alert('Error: ' + (response.data || 'Unknown error'));
+                }
+            }).fail(function() {
+                alert('Request failed. Please try again.');
+            });
+        }
+        </script>
 
         <p>Use these setting to select the reporting period for Visitor and User Interactions.</p>
         <p>Please review the section <b>Conversation Logging Overview</b> on the <a href="?page=chatbot-chatgpt&tab=support&dir=support&file=conversation-logging-and-history.md">Support</a> tab of this plugin for more details.</p>
@@ -865,6 +1039,456 @@ function chatbot_chatgpt_export_data( $t_table_name, $t_file_name ) {
 add_action('admin_post_chatbot_chatgpt_download_conversation_data', 'chatbot_chatgpt_download_conversation_data');
 add_action('admin_post_chatbot_chatgpt_download_interactions_data', 'chatbot_chatgpt_download_interactions_data');
 add_action('admin_post_chatbot_chatgpt_download_token_usage_data', 'chatbot_chatgpt_download_token_usage_data');
+
+// Gap Analysis Section Callback - Ver 2.4.2
+function chatbot_chatgpt_gap_analysis_section_callback($args) {
+    ?>
+    <p>Gap Analysis identifies questions that users ask but are not well-answered by the FAQ database. Use this data to improve your FAQ coverage.</p>
+    <?php
+}
+
+// Gap Analysis Callback - Ver 2.4.2
+function chatbot_chatgpt_gap_analysis_callback() {
+    error_log('🔍 GAP ANALYSIS CALLBACK CALLED');
+
+    // Get saved frequency setting (default: weekly)
+    $analysis_frequency = get_option('chatbot_gap_analysis_frequency', 'weekly');
+    $days_map = ['weekly' => 7, 'monthly' => 30, 'yearly' => 365];
+    $days = $days_map[$analysis_frequency] ?? 7;
+
+    // Get gap analysis data
+    $data = chatbot_get_gap_analysis_data($days);
+
+    error_log('Gap data received: ' . print_r($data, true));
+
+    $total_gaps = $data['total_gaps'];
+    $unresolved_gaps = $data['unresolved_gaps'];
+    $active_clusters = $data['active_clusters'];
+    $top_individual_gaps = $data['top_individual_gaps'];
+
+    error_log("Total gaps: $total_gaps, Clusters: " . count($active_clusters));
+
+    ?>
+    <div>
+        <!-- Header -->
+        <h2 style="margin: 0 0 10px 0; color: #1e293b;">AI Gap Analysis Dashboard</h2>
+        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 14px;">
+            Identifies questions users ask that your FAQ database can't answer well (confidence < 60%)
+        </p>
+
+        <!-- AI Summary Preview -->
+        <?php
+        $frequency_descriptions = [
+            'weekly' => [
+                'title' => 'Weekly Analysis Mode',
+                'interval' => '7 days',
+                'description' => 'AI will automatically analyze gap questions every week. Best for new FAQ databases that need frequent updates.',
+                'color' => '#3b82f6'
+            ],
+            'monthly' => [
+                'title' => 'Monthly Analysis Mode',
+                'interval' => '30 days',
+                'description' => 'AI will automatically analyze gap questions every month. Good for mature FAQ databases with occasional updates.',
+                'color' => '#8b5cf6'
+            ],
+            'yearly' => [
+                'title' => 'Yearly Analysis Mode',
+                'interval' => '365 days',
+                'description' => 'AI will automatically analyze gap questions once per year. Best for very mature FAQ databases that rarely need updates.',
+                'color' => '#059669'
+            ]
+        ];
+        $current_freq = $frequency_descriptions[$analysis_frequency];
+        ?>
+        <div style="background: white; border-left: 4px solid <?php echo $current_freq['color']; ?>; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div style="display: flex; align-items: start; gap: 15px;">
+                <div style="font-size: 32px;">🤖</div>
+                <div style="flex: 1;">
+                    <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #111827;">
+                        <span style="background-color: <?php echo $current_freq['color']; ?>; color: white; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; margin-right: 8px;">
+                            <?php echo strtoupper($analysis_frequency); ?>
+                        </span>
+                        <?php echo $current_freq['title']; ?>
+                    </h3>
+                    <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
+                        <?php echo $current_freq['description']; ?>
+                    </p>
+                    <div style="background-color: #f9fafb; padding: 10px; border-radius: 4px; font-size: 13px; color: #374151;">
+                        <strong>How it works:</strong>
+                        <ol style="margin: 8px 0 0 0; padding-left: 20px;">
+                            <li>Users ask questions that aren't in your FAQ database (confidence &lt; 60%)</li>
+                            <li>Questions are automatically logged as "gap questions"</li>
+                            <li>Every <strong><?php echo $current_freq['interval']; ?></strong>, AI analyzes all unresolved gap questions</li>
+                            <li>AI groups similar questions into clusters and suggests new FAQs</li>
+                            <li>You review suggestions and manually add approved FAQs to knowledge base</li>
+                        </ol>
+                    </div>
+                    <div style="background-color: #fffbeb; border-left: 3px solid #f59e0b; padding: 12px; border-radius: 4px; margin-top: 12px; font-size: 13px; color: #78350f;">
+                        <strong>💡 How to Write High-Confidence FAQs:</strong>
+                        <ul style="margin: 8px 0 0 0; padding-left: 20px; line-height: 1.6;">
+                            <li><strong>Use diverse keywords</strong> - Include synonyms and variations (e.g., "hours, open, close, time, schedule")</li>
+                            <li><strong>Think like your customers</strong> - Add keywords matching how real people ask questions</li>
+                            <li><strong>Be specific</strong> - Add keywords for common variations ("wifi" and "wi-fi", "internet" and "broadband")</li>
+                            <li><strong>Review AI suggestions</strong> - The AI learns from actual customer questions to suggest better keywords</li>
+                        </ul>
+                        <p style="margin: 10px 0 0 0; font-style: italic; font-size: 12px;">
+                            Better keywords = Higher confidence scores = More accurate answers
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Frequency -->
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #374151;">
+                Analysis Frequency:
+            </label>
+            <select id="chatbot_analysis_frequency" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; width: 200px;">
+                <option value="weekly" <?php selected($analysis_frequency, 'weekly'); ?>>Weekly</option>
+                <option value="monthly" <?php selected($analysis_frequency, 'monthly'); ?>>Monthly</option>
+                <option value="yearly" <?php selected($analysis_frequency, 'yearly'); ?>>Yearly</option>
+            </select>
+            <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;">
+                This controls how often AI automatically analyzes gap questions
+            </p>
+        </div>
+
+        <!-- Stats Overview -->
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">📊 Overview</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <td style="padding: 12px; font-size: 13px; color: #6b7280;">Total Gap Questions (<?php echo $days; ?> days):</td>
+                    <td style="padding: 12px; font-size: 18px; font-weight: bold; text-align: right; color: #111827;"><?php echo $total_gaps; ?></td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <td style="padding: 12px; font-size: 13px; color: #6b7280;">Unresolved:</td>
+                    <td style="padding: 12px; font-size: 18px; font-weight: bold; text-align: right; color: #dc2626;"><?php echo $unresolved_gaps; ?></td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; font-size: 13px; color: #6b7280;">AI Suggestions:</td>
+                    <td style="padding: 12px; font-size: 18px; font-weight: bold; text-align: right; color: #2563eb;"><?php echo count($active_clusters); ?></td>
+                </tr>
+            </table>
+        </div>
+
+        <?php if (!empty($active_clusters)) : ?>
+        <!-- AI-Suggested FAQ Additions -->
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">✨ AI-Suggested FAQ Additions (<?php echo count($active_clusters); ?>)</h3>
+            <p style="margin: 0 0 20px 0; font-size: 13px; color: #6b7280; padding: 12px; background-color: #f9fafb; border-left: 3px solid #3b82f6; border-radius: 4px;">
+                <b>Human Review Required:</b> AI has analyzed similar questions and suggested FAQ entries below. Review and manually add to your knowledge base.
+            </p>
+
+            <?php foreach ($active_clusters as $cluster) :
+                $suggested_faq = json_decode($cluster['suggested_faq'], true);
+                $sample_questions = json_decode($cluster['sample_questions'], true);
+                $priority_label = $cluster['priority_score'] >= 100 ? 'High' : ($cluster['priority_score'] >= 50 ? 'Medium' : 'Low');
+                $action_type = $cluster['action_type'] ?? 'create';
+                $is_improve = ($action_type === 'improve');
+                $border_color = $is_improve ? '#f59e0b' : '#3b82f6';
+                $action_label = $is_improve ? '🔧 Improve Existing FAQ' : '✨ Create New FAQ';
+            ?>
+            <div style="background: #f9fafb; border-left: 4px solid <?php echo $border_color; ?>; border: 1px solid #d1d5db; border-radius: 6px; padding: 16px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                    <div style="flex: 1;">
+                        <div style="font-size: 10px; font-weight: 700; color: <?php echo $border_color; ?>; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <?php echo $action_label; ?>
+                        </div>
+                        <h4 style="margin: 0 0 4px 0; color: #111827; font-size: 15px;"><?php echo esc_html($cluster['cluster_name']); ?></h4>
+                        <p style="margin: 0; font-size: 12px; color: #6b7280;"><?php echo esc_html($cluster['cluster_description']); ?></p>
+                    </div>
+                    <div style="margin-left: 15px;">
+                        <span style="background-color: #fff; border: 1px solid #d1d5db; padding: 4px 10px; border-radius: 4px; font-size: 11px; color: #374151;">
+                            <?php echo $priority_label; ?> Priority • Asked <?php echo $cluster['question_count']; ?>x
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Sample Questions -->
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 6px;">Sample Questions:</div>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #374151; line-height: 1.5;">
+                        <?php foreach (array_slice($sample_questions, 0, 3) as $question) : ?>
+                        <li style="margin-bottom: 3px;"><?php echo esc_html($question); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+
+                <?php if ($is_improve) :
+                    $suggested_keywords = json_decode($cluster['suggested_keywords'] ?? '[]', true);
+                    if (!is_array($suggested_keywords)) {
+                        $suggested_keywords = [];
+                    }
+
+                    // Get existing FAQ details (stored in suggested_faq field for improve actions)
+                    $existing_faq = $suggested_faq; // Reuse the same variable
+                    $current_keywords = !empty($existing_faq['keywords']) ? array_map('trim', explode(',', $existing_faq['keywords'])) : [];
+                ?>
+                <!-- Improve Existing FAQ -->
+                <div style="background: #fffbeb; padding: 12px; border-radius: 4px; margin-bottom: 12px; border: 1px solid #f59e0b;">
+                    <div style="font-size: 11px; font-weight: 600; color: #92400e; margin-bottom: 8px;">
+                        🔧 Improve Existing FAQ
+                    </div>
+
+                    <!-- Existing FAQ Info -->
+                    <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                        <div style="margin-bottom: 6px;">
+                            <strong style="font-size: 12px; color: #6b7280;">FAQ ID:</strong>
+                            <span style="font-size: 12px; color: #374151; font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 3px;">
+                                <?php echo esc_html($cluster['existing_faq_id'] ?? 'N/A'); ?>
+                            </span>
+                        </div>
+                        <div style="margin-bottom: 6px;">
+                            <strong style="font-size: 12px; color: #6b7280;">Question:</strong>
+                            <span style="font-size: 12px; color: #111827;"><?php echo esc_html($existing_faq['question'] ?? 'N/A'); ?></span>
+                        </div>
+                    </div>
+
+                    <!-- Current Keywords -->
+                    <div style="margin-bottom: 10px;">
+                        <strong style="font-size: 12px; color: #111827;">Current Keywords:</strong>
+                        <div style="margin-top: 4px;">
+                            <?php if (!empty($current_keywords)) : ?>
+                                <?php foreach ($current_keywords as $keyword) : ?>
+                                    <span style="display: inline-block; background: #e5e7eb; border: 1px solid #d1d5db; padding: 3px 8px; border-radius: 3px; font-size: 11px; margin: 2px; color: #374151;">
+                                        <?php echo esc_html($keyword); ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            <?php else : ?>
+                                <span style="font-size: 11px; color: #9ca3af; font-style: italic;">No keywords yet</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Suggested New Keywords -->
+                    <div>
+                        <strong style="font-size: 12px; color: #111827;">✨ Suggested Keywords to Add:</strong>
+                        <div style="margin-top: 4px;">
+                            <?php foreach ($suggested_keywords as $keyword) : ?>
+                                <span style="display: inline-block; background: #fef3c7; border: 1px solid #fbbf24; padding: 3px 8px; border-radius: 3px; font-size: 11px; margin: 2px; color: #78350f; font-weight: 600;">
+                                    <?php echo esc_html($keyword); ?>
+                                </span>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
+                    <p style="margin: 10px 0 0 0; font-size: 11px; color: #92400e; font-style: italic; background: #fef3c7; padding: 6px; border-radius: 3px;">
+                        💡 Add these keywords to improve confidence score for similar questions
+                    </p>
+                </div>
+                <?php else : ?>
+                <!-- Create New FAQ -->
+                <?php if (!empty($suggested_faq)) : ?>
+                <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+                    <div style="font-size: 11px; font-weight: 600; color: #059669; margin-bottom: 6px;">AI-Suggested FAQ:</div>
+                    <div style="margin-bottom: 8px;">
+                        <strong style="font-size: 13px; color: #111827;">Q:</strong>
+                        <span style="font-size: 13px; color: #374151;"><?php echo esc_html($suggested_faq['question']); ?></span>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <strong style="font-size: 13px; color: #111827;">A:</strong>
+                        <span style="font-size: 13px; color: #374151;"><?php echo esc_html($suggested_faq['answer']); ?></span>
+                    </div>
+                    <?php if (!empty($suggested_faq['keywords'])) : ?>
+                    <div>
+                        <strong style="font-size: 13px; color: #111827;">Keywords:</strong>
+                        <span style="font-size: 13px; color: #6b7280; font-style: italic;"><?php echo esc_html($suggested_faq['keywords']); ?></span>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+                <?php endif; ?>
+
+                <!-- Actions -->
+                <div style="text-align: right;">
+                    <button onclick="chatbotResolveCluster(<?php echo $cluster['id']; ?>)" class="button button-primary" style="margin-right: 5px;">
+                        ✓ Mark Resolved
+                    </button>
+                    <button onclick="chatbotDismissCluster(<?php echo $cluster['id']; ?>)" class="button">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!empty($top_individual_gaps)) : ?>
+        <!-- Top Individual Gap Questions -->
+        <div style="background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #1e293b;">📋 Top Unanswered Questions (Not Yet Clustered)</h3>
+            <p style="font-size: 12px; color: #64748b; margin-bottom: 15px;">These questions haven't been analyzed by AI yet. They will be processed in the next weekly analysis.</p>
+
+            <table class="widefat striped" style="border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #f1f5f9;">
+                        <th style="padding: 10px;">Question</th>
+                        <th style="padding: 10px; width: 100px; text-align: center;">Times Asked</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($top_individual_gaps as $gap) : ?>
+                    <tr>
+                        <td style="padding: 10px;"><?php echo esc_html($gap['question_text']); ?></td>
+                        <td style="padding: 10px; text-align: center; font-weight: bold; color: #1e293b;"><?php echo $gap['count']; ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+
+        <!-- Actions -->
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #111827;">🧪 Manual Testing</h3>
+            <p style="margin: 0 0 15px 0; font-size: 13px; color: #6b7280;">
+                Test the AI analysis by analyzing your last 4 chatbot conversations. The AI will review the questions, answers, and confidence scores to suggest FAQ improvements.
+            </p>
+            <div style="background: #f0f9ff; border-left: 3px solid #3b82f6; padding: 12px; margin-bottom: 20px; border-radius: 4px;">
+                <strong style="color: #1e40af; font-size: 13px;">How it works:</strong>
+                <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px; color: #1e3a8a; line-height: 1.6;">
+                    <li>Have at least 4 conversations with the chatbot first</li>
+                    <li>Click the button below to analyze those conversations</li>
+                    <li>AI will show each question, answer, and confidence score</li>
+                    <li>AI will suggest whether to improve existing FAQs or create new ones</li>
+                </ol>
+            </div>
+            <button onclick="chatbotRunGapAnalysisLast10()" class="button button-primary" style="font-size: 16px; padding: 10px 30px; height: auto;">
+                🤖 Analyze Last 4 Conversations
+            </button>
+        </div>
+    </div>
+
+    <script>
+    function chatbotResolveCluster(clusterId) {
+        if (!confirm('Mark this cluster as resolved (FAQ created)?')) return;
+
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_resolve_cluster',
+            cluster_id: clusterId,
+            nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+        }, function(response) {
+            if (response.success) {
+                alert('Cluster marked as resolved!');
+                location.reload();
+            } else {
+                alert('Error: ' + (response.data || 'Unknown error'));
+            }
+        });
+    }
+
+    function chatbotDismissCluster(clusterId) {
+        if (!confirm('Dismiss this cluster?')) return;
+
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_dismiss_cluster',
+            cluster_id: clusterId,
+            nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+        }, function(response) {
+            if (response.success) {
+                alert('Cluster dismissed!');
+                location.reload();
+            } else {
+                alert('Error: ' + (response.data || 'Unknown error'));
+            }
+        });
+    }
+
+    function chatbotRunGapAnalysisLast10() {
+        if (!confirm('Analyze your last 4 chatbot conversations with AI?\n\nThe AI will review:\n- Questions asked\n- Answers given\n- Confidence scores\n- Whether to improve existing FAQs or create new ones')) return;
+
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Analyzing conversations...';
+
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_analyze_last_10_gaps',
+            nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+        }, function(response) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+
+            if (response.success) {
+                const convos = response.data.conversations || [];
+                let message = '✓ Analysis Complete!\n\n';
+                message += 'Analyzed ' + convos.length + ' conversations:\n\n';
+
+                convos.forEach((conv, idx) => {
+                    const confPercent = Math.round(conv.confidence * 100);
+                    message += (idx + 1) + '. Q: ' + conv.question.substring(0, 60) + '...\n';
+                    message += '   Confidence: ' + confPercent + '%\n';
+                    if (conv.matched_faq_id) {
+                        message += '   Matched: ' + conv.matched_faq_id + '\n';
+                    }
+                    message += '\n';
+                });
+
+                message += 'Found ' + (response.data.suggestions || 0) + ' AI suggestions.\n\nReloading dashboard...';
+                alert(message);
+                location.reload();
+            } else {
+                alert('Error: ' + (response.data || 'Unknown error'));
+            }
+        }).fail(function() {
+            btn.disabled = false;
+            btn.textContent = originalText;
+            alert('Request failed. Please try again.');
+        });
+    }
+
+    function chatbotGenerateMockData() {
+        if (!confirm('Generate mock gap analysis data? This will create sample questions and AI clusters for testing the dashboard.')) return;
+
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = '⏳ Generating...';
+
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_generate_mock_gap_data',
+            nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+        }, function(response) {
+            btn.disabled = false;
+            btn.textContent = '✨ Generate Mock Data';
+
+            if (response.success) {
+                alert('Mock data created! Generated ' + response.data.questions + ' questions and ' + response.data.clusters + ' clusters.');
+                location.reload();
+            } else {
+                alert('Error: ' + (response.data || 'Unknown error'));
+            }
+        });
+    }
+
+    // Handle frequency dropdown change
+    jQuery(document).ready(function($) {
+        $('#chatbot_analysis_frequency').on('change', function() {
+            const frequency = $(this).val();
+            const originalVal = '<?php echo $analysis_frequency; ?>';
+
+            if (frequency === originalVal) return;
+
+            $.post(ajaxurl, {
+                action: 'chatbot_save_analysis_frequency',
+                frequency: frequency,
+                nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+            }, function(response) {
+                if (response.success) {
+                    // Show success message
+                    const message = $('<div class="notice notice-success is-dismissible" style="margin: 10px 0; padding: 10px;"><p><b>Saved!</b> Analysis frequency updated to ' + frequency + '.</p></div>');
+                    $('#chatbot_analysis_frequency').parent().parent().after(message);
+                    setTimeout(function() { location.reload(); }, 1500);
+                } else {
+                    alert('Error: ' + (response.data || 'Unknown error'));
+                }
+            });
+        });
+    });
+    </script>
+    <?php
+}
 
 // Function to display the reporting message - Ver 1.7.9
 function chatbot_chatgpt_admin_notice() {

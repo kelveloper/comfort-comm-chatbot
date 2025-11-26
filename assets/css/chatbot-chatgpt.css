@@ -350,10 +350,13 @@
     overflow-wrap: break-word;
     word-wrap: break-word;
     word-break: break-word;
-    max-width: 100%;
+    max-width: 85%;
+    width: fit-content;
     font-size: 0.85rem;
     line-height: 1.5;
     border: 1px solid #e2e8f0;
+    box-sizing: border-box;
+    white-space: pre-wrap;
 }
 
 .chatbot-bot-text p,
@@ -367,6 +370,8 @@
     word-break: break-word;
     font-style: normal !important;
     font-weight: normal !important;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 /* Force all text inside bot messages to be normal (not italic) */

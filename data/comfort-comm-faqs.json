@@ -10,7 +10,7 @@
   {
     "id": "cc002",
     "question": "What are your business hours?",
-    "answer": "We're open daily to serve you, and we offer 24-hour mobile phone recharge service! For in-store visits and consultations, please call us at (347) 519-9999 to confirm hours.",
+    "answer": "We're open every day from 10:30 AM to 7:30 PM to serve you! We also offer 24-hour mobile phone recharge service. Visit us at 13692 Roosevelt Ave, Flushing NY 11354 or call (347) 519-9999.",
     "category": "Store Information",
     "keywords": "hours open close time schedule business",
     "created_at": "2025-11-25 00:00:00"
@@ -34,9 +34,9 @@
   {
     "id": "cc005",
     "question": "What internet providers do you work with?",
-    "answer": "We partner with 9 major carriers including Spectrum, Verizon Fios, and Optimum. We can help you find the best plan for your needs with exclusive discounts!",
+    "answer": "We partner with 10 major carriers including Spectrum, Verizon Fios, Optimum, AT&T, EarthLink, and Frontier. We can help you find the best plan for your needs with exclusive discounts!",
     "category": "Internet Plans",
-    "keywords": "providers carriers internet spectrum verizon optimum partners",
+    "keywords": "providers carriers internet spectrum verizon optimum att earthlink frontier partners",
     "created_at": "2025-11-25 00:00:00"
   },
   {
@@ -74,7 +74,7 @@
   {
     "id": "cc010",
     "question": "Can I bundle internet with mobile service?",
-    "answer": "Absolutely! We offer bundled deals that include internet plus an additional mobile phone line with unlimited data. Bundling can save you money. Call (347) 519-9999 to learn about current bundle offers!",
+    "answer": "Absolutely! We offer bundled deals that include internet plus an additional mobile phone line with unlimited data. With 10 carrier partnerships, we can find the perfect bundle to save you money. Call (347) 519-9999 to learn about current bundle offers!",
     "category": "Internet Plans",
     "keywords": "bundle internet mobile phone unlimited data package deal",
     "created_at": "2025-11-25 00:00:00"
@@ -146,9 +146,9 @@
   {
     "id": "cc019",
     "question": "What mobile carriers do you support?",
-    "answer": "We support all major US mobile carriers including T-Mobile, AT&T, Verizon, and more. We partner with 9 carriers total, so we can help you find the best service for your needs!",
+    "answer": "We support all major US mobile carriers including T-Mobile, AT&T, Verizon, Lycamobile, Ultra Mobile, and H2O Wireless. We partner with 10 carriers total, so we can help you find the best service for your needs!",
     "category": "Mobile Services",
-    "keywords": "carriers mobile phone tmobile att verizon",
+    "keywords": "carriers mobile phone tmobile att verizon lycamobile ultra h2o wireless",
     "created_at": "2025-11-25 00:00:00"
   },
   {
@@ -274,7 +274,7 @@
   {
     "id": "cc035",
     "question": "Do you offer discounts?",
-    "answer": "Yes! We offer exclusive discounts through our 9 carrier partnerships. We also have bundle deals that save you money. Call (347) 519-9999 to hear about current promotions and discounts!",
+    "answer": "Yes! We offer exclusive discounts through our 10 carrier partnerships. We also have bundle deals that save you money. Call (347) 519-9999 to hear about current promotions and discounts!",
     "category": "Billing & Payments",
     "keywords": "discount promotion deal save money",
     "created_at": "2025-11-25 00:00:00"
@@ -418,9 +418,9 @@
   {
     "id": "cc053",
     "question": "What makes Comfort Communication different?",
-    "answer": "We're a trusted local business offering one-stop service with 9 major carrier partnerships. We provide exclusive discounts, professional installation, personalized customer service, and expertise you can trust. We're here to make your life easier!",
+    "answer": "We're a trusted local business offering one-stop service with 10 major carrier partnerships (Spectrum, Verizon, Optimum, AT&T, T-Mobile, EarthLink, Frontier, Lycamobile, Ultra Mobile, and H2O Wireless). We provide exclusive discounts, professional installation, personalized customer service, and expertise you can trust. We're here to make your life easier!",
     "category": "About Us",
-    "keywords": "different why choose benefits advantages",
+    "keywords": "different why choose benefits advantages carriers partners",
     "created_at": "2025-11-25 00:00:00"
   },
   {
@@ -438,5 +438,93 @@
     "category": "Account Management",
     "keywords": "move transfer address relocation moving",
     "created_at": "2025-11-25 00:00:00"
+  },
+  {
+    "id": "cc056",
+    "question": "What information do I need to sign up for service?",
+    "answer": "To sign up for internet or mobile service, you'll need: * Visit the carrier's website or physical store. * Choose your desired plan. * Provide your personal information (name, address, phone number, email, etc.). * Undergo a credit check (if required). * Provide payment information. However, keep in mind that by working with us, we can help you compare plans from multiple carriers and get you the best deal! Call us at (347) 519-9999 to get started.",
+    "category": "Account Management",
+    "keywords": "sign up signup information need required documents",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc057",
+    "question": "Do you offer AT&T services?",
+    "answer": "Yes! We partner with AT&T to provide both internet and mobile services. AT&T offers reliable wireless and fiber internet options. Call us at (347) 519-9999 to discuss AT&T plans and pricing for your area!",
+    "category": "Internet Plans",
+    "keywords": "att at&t internet mobile fiber wireless",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc058",
+    "question": "Do you offer EarthLink internet?",
+    "answer": "Yes! We partner with EarthLink to provide reliable internet service. EarthLink offers various speed tiers to fit your needs. Contact us at (347) 519-9999 for EarthLink plan options and availability in your area.",
+    "category": "Internet Plans",
+    "keywords": "earthlink internet plans availability",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc059",
+    "question": "Do you offer Frontier internet?",
+    "answer": "Yes! We partner with Frontier to provide fiber and DSL internet services. Frontier offers competitive speeds and pricing. Call (347) 519-9999 to learn about Frontier plans available in your location!",
+    "category": "Internet Plans",
+    "keywords": "frontier internet fiber dsl plans",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc060",
+    "question": "Do you offer T-Mobile plans?",
+    "answer": "Yes! We partner with T-Mobile for mobile phone service. T-Mobile offers excellent coverage and unlimited data plans. Call us at (347) 519-9999 to discuss T-Mobile plans and switch your service today!",
+    "category": "Mobile Services",
+    "keywords": "tmobile t-mobile mobile phone plans unlimited",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc061",
+    "question": "Do you offer Lycamobile?",
+    "answer": "Yes! We partner with Lycamobile for affordable prepaid mobile plans. Lycamobile is great for international calling and budget-friendly mobile service. Visit us at 13692 Roosevelt Ave or call (347) 519-9999!",
+    "category": "Mobile Services",
+    "keywords": "lycamobile prepaid mobile international calling",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc062",
+    "question": "Do you offer Ultra Mobile?",
+    "answer": "Yes! We offer Ultra Mobile prepaid plans with great value and flexible options. Ultra Mobile provides excellent coverage on the T-Mobile network. Call (347) 519-9999 to learn about Ultra Mobile plans!",
+    "category": "Mobile Services",
+    "keywords": "ultra mobile prepaid plans tmobile network",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc063",
+    "question": "Do you offer H2O Wireless?",
+    "answer": "Yes! We partner with H2O Wireless for affordable prepaid mobile service with international calling options. H2O Wireless runs on the AT&T network for reliable coverage. Contact us at (347) 519-9999!",
+    "category": "Mobile Services",
+    "keywords": "h2o wireless prepaid mobile international att network",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc064",
+    "question": "How do I make an account?",
+    "answer": "Go to spectrum.net or spectrumbusiness.net and click on \"Sign In\". Then click on \"Create a Username\" and choose an option such as the phone number or email that you have access to. After entering the information, it will prompt you to verify your identity by either sending a verification code to your email or phone number and you would provide that after clicking on the option of choice. Continue to fill out the information for your account and set up a password and security question and answer.",
+    "category": "Account Setup",
+    "keywords": "create account username register sign up spectrum setup",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc065",
+    "question": "Why did my price increase?",
+    "answer": "Your price package is usually discounted for the first few years of service with the internet provider. Your billing cycle is now outside of that discount period. Call us at (347) 519-9999 to discuss options for better pricing or plan changes.",
+    "category": "Billing",
+    "keywords": "price increase higher bill cost went up discount expired",
+    "created_at": "2025-11-26 00:00:00"
+  },
+  {
+    "id": "cc066",
+    "question": "Will I get a physical bill or is it paperless?",
+    "answer": "Go to spectrum.net or spectrumbusiness.net and click on \"Sign In\". Then click on \"Forgot Username or Password?\" if you don't know your log-in information and choose an option such as the phone number or email that you have access to. After entering the information, it will prompt you to verify your identity by either sending a verification code to your email or phone number and you would provide that after clicking on the option of choice. Once logged in, look for a tab called \"More\" > \"Settings\" > \"Notifications\". You will then see \"Paperless Billing\". See if it toggled on or off and change as you see fit.",
+    "category": "Billing",
+    "keywords": "paperless billing physical bill mail email statement",
+    "created_at": "2025-11-26 00:00:00"
   }
 ]

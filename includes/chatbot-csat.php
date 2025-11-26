@@ -36,14 +36,25 @@ function chatbot_chatgpt_submit_csat() {
     $feedback = sanitize_text_field($_POST['feedback']); // 'yes' or 'no'
     $question = sanitize_textarea_field($_POST['question']);
     $answer = sanitize_textarea_field($_POST['answer']);
+    $comment = isset($_POST['comment']) ? sanitize_textarea_field($_POST['comment']) : '';
     $user_id = sanitize_text_field($_POST['user_id']);
     $session_id = sanitize_text_field($_POST['session_id']);
     $page_id = intval($_POST['page_id']);
     $timestamp = current_time('mysql');
 
+    // Get confidence score by searching FAQ
+    $confidence_score = 'unknown';
+    if (function_exists('chatbot_faq_search')) {
+        $faq_result = chatbot_faq_search($question, true, $session_id, $user_id, $page_id);
+        if ($faq_result && isset($faq_result['confidence'])) {
+            $confidence_score = $faq_result['confidence'];
+        }
+    }
+
     // Debug logging
     prod_trace('NOTICE', 'CSAT - Received question: ' . $question);
     prod_trace('NOTICE', 'CSAT - Received answer: ' . $answer);
+    prod_trace('NOTICE', 'CSAT - Confidence score: ' . $confidence_score);
 
     // Store in WordPress options (simple approach for P0)
     $csat_data = get_option('chatbot_chatgpt_csat_data', array(
@@ -66,6 +77,8 @@ function chatbot_chatgpt_submit_csat() {
         'feedback' => $feedback,
         'question' => $question,
         'answer' => $answer,
+        'comment' => $comment,
+        'confidence_score' => $confidence_score,
         'user_id' => $user_id,
         'session_id' => $session_id,
         'page_id' => $page_id,

@@ -154,7 +154,41 @@
 ✅ **P0 Complete** - All 13 requirements
 ✅ **Production Ready**
 ✅ **CSAT Dashboard Live**
-✅ **10 FAQs Loaded**
+✅ **66 FAQs Loaded** (10 carriers covered)
+
+---
+
+## 🔄 **NEW: AI-Powered Feedback Loop** (Nov 26, 2024)
+
+### **Time-Based Feedback Analysis**
+- **Weekly/Monthly/Quarterly/Yearly filtering** - Analyze feedback by time period
+- **AI-powered suggestions** - Gemini 2.5 Flash analyzes thumbs-down feedback
+- **Confidence score tracking** - Shows FAQ match quality (Very High/High/Medium/Low/Unknown)
+- **Priority system** - Analyzes feedback with comments first (up to 10 items)
+
+### **FAQ Management Features**
+- **Add new FAQs** - One-click to add AI-suggested FAQs to knowledge base
+- **Edit existing FAQs** - Append keywords to improve FAQ matching
+- **Auto-ID generation** - Creates cc064, cc065, etc. automatically
+- **Direct JSON updates** - Changes saved to `comfort-comm-faqs.json` instantly
+
+### **Dashboard Controls**
+- **Clear Feedback Data** - Reset CSAT metrics for fresh analysis cycles
+- **Time period selector** - Choose analysis timeframe (7/30/90/365 days or all time)
+- **Action buttons** - "Add to Knowledge Base" or "Edit FAQ" on each suggestion
+
+### **Complete Feedback Loop**
+1. User gives 👎 with comment
+2. Admin selects time period (e.g., "Weekly")
+3. Click "Analyze Feedback"
+4. AI suggests improvements with reasoning
+5. Click button to update JSON
+6. Improved FAQs immediately available
+
+### **Files Added**
+- `includes/chatbot-feedback-analysis.php` - AI analysis engine
+- `includes/utilities/chatbot-gap-analysis.php` - FAQ helpers
+- AJAX handlers: `chatbot_analyze_feedback`, `chatbot_clear_feedback`, `chatbot_add_faq`, `chatbot_edit_faq`
 
 ---
 
