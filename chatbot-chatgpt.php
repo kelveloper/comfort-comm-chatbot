@@ -216,6 +216,9 @@ require_once plugin_dir_path(__FILE__) . 'includes/analytics/scoring-models/sent
 require_once plugin_dir_path(__FILE__) . 'includes/analytics/utilities.php';
 require_once plugin_dir_path(__FILE__) . 'includes/analytics/globals.php';
 
+// Include Vector Search - Semantic FAQ search with pgvector - Ver 2.4.7
+require_once plugin_dir_path(__FILE__) . 'includes/vector-search/chatbot-vector-loader.php';
+
 add_action('admin_init', function() {
     if (
         isset($_POST['chatbot_chatgpt_analytics_action']) &&
@@ -2583,6 +2586,14 @@ function chatbot_chatgpt_refresh_nonce() {
     wp_send_json_success($nonces);
 }
 
+// Function to clear context history transient on page load - Ver 2.3.7
+function chatbot_chatgpt_clear_context_history() {
+    // Clear the global context history transient
+    delete_transient('chatbot_chatgpt_context_history');
+
+    wp_send_json_success('Context history cleared');
+}
+
 // Function to clear stuck visitor locks - Ver 2.3.6
 function chatbot_chatgpt_clear_stuck_visitor_locks() {
     global $wpdb;
@@ -2650,6 +2661,10 @@ add_action('wp_ajax_nopriv_chatbot_chatgpt_send_message', 'chatbot_chatgpt_send_
 // Add action to refresh nonce - Ver 2.3.6
 add_action('wp_ajax_chatbot_chatgpt_refresh_nonce', 'chatbot_chatgpt_refresh_nonce');
 add_action('wp_ajax_nopriv_chatbot_chatgpt_refresh_nonce', 'chatbot_chatgpt_refresh_nonce');
+
+// Add action to clear context history on page load - Ver 2.3.7
+add_action('wp_ajax_chatbot_chatgpt_clear_context_history', 'chatbot_chatgpt_clear_context_history');
+add_action('wp_ajax_nopriv_chatbot_chatgpt_clear_context_history', 'chatbot_chatgpt_clear_context_history');
 
 // Add action to get queue status
 add_action('wp_ajax_chatbot_chatgpt_get_queue_status', 'chatbot_chatgpt_get_queue_status_ajax');

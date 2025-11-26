@@ -116,10 +116,11 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     error_log('=== CHATBOT DEBUG: Smart FAQ Search STARTED for message: ' . $message . ' ===');
     prod_trace('NOTICE', 'Smart FAQ Search - Processing message: ' . $message);
 
-    if (function_exists('chatbot_faq_search')) {
-        error_log('CHATBOT DEBUG: chatbot_faq_search function EXISTS - calling it now');
-        prod_trace('NOTICE', 'chatbot_faq_search function exists - calling it now');
-        $faq_result = chatbot_faq_search($message, true, $session_id, $user_id, $page_id); // Get match with confidence score - Ver 2.4.3 - Added params for gap analysis
+    // Use vector search for semantic FAQ matching (no fallback to keyword search)
+    if (function_exists('chatbot_vector_faq_search')) {
+        error_log('CHATBOT DEBUG: chatbot_vector_faq_search function EXISTS - using semantic search');
+        prod_trace('NOTICE', 'chatbot_vector_faq_search function exists - using semantic search');
+        $faq_result = chatbot_vector_faq_search($message, true, $session_id, $user_id, $page_id); // Vector search with embeddings
         error_log('CHATBOT DEBUG: FAQ search result: ' . print_r($faq_result, true));
         prod_trace('NOTICE', 'FAQ search result: ' . print_r($faq_result, true));
 

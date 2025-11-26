@@ -510,6 +510,25 @@ window.resetAllLocks = resetAllLocks;
         let thread_id = kchat_settings.thread_id;
         let chatbot_chatgpt_force_page_reload = kchat_settings.chatbot_chatgpt_force_page_reload || 'No';
 
+        // Proactively refresh nonce on page load to prevent first-message 403 error
+        $.ajax({
+            url: kchat_settings.ajax_url,
+            method: 'POST',
+            data: {
+                action: 'chatbot_chatgpt_refresh_nonce'
+            },
+            success: function(response) {
+                if (response.success && response.data && response.data.chatbot_message_nonce) {
+                    kchat_settings.chatbot_message_nonce = response.data.chatbot_message_nonce;
+                    kchat_settings.nonce_timestamp = Date.now();
+                    console.log('Chatbot: Nonce refreshed on page load');
+                }
+            },
+            error: function() {
+                console.log('Chatbot: Nonce refresh on page load failed, will use initial nonce');
+            }
+        });
+
         isFirstTime = !localStorage.getItem('chatbot_chatgpt_opened') || false;
 
         // Remove any legacy conversations that might be store in local storage for increased privacy - Ver 1.4.2
@@ -518,6 +537,21 @@ window.resetAllLocks = resetAllLocks;
         // Clear conversation on page refresh for testing - Ver 2.3.7
         sessionStorage.removeItem('chatbot_chatgpt_conversation' + '_' + assistant_id);
         localStorage.removeItem('chatbot_chatgpt_opened');
+
+        // Clear server-side context history transient on page load for fresh conversations
+        $.ajax({
+            url: kchat_settings.ajax_url,
+            method: 'POST',
+            data: {
+                action: 'chatbot_chatgpt_clear_context_history'
+            },
+            success: function() {
+                console.log('Chatbot: Server-side context history cleared on page load');
+            },
+            error: function() {
+                console.log('Chatbot: Failed to clear server-side context history');
+            }
+        });
 
         // console.log('Chatbot: NOTICE: isFirstTime: ' + isFirstTime);
 
@@ -1636,30 +1670,9 @@ window.resetAllLocks = resetAllLocks;
                     appendMessage('Oops! This request timed out. Please try again.', 'error');
                     botResponse = '';
                 } else if (jqXHR.status === 403) {
-                    // Handle 403 with safe error message extraction
-                    let errorMessage = 'Oops! Security check failed. Please refresh the page and try again.';
-                    const contentType = jqXHR.getResponseHeader('content-type') || '';
-                    
-                    // If response is JSON, try to parse it safely
-                    if (contentType.includes('application/json') && jqXHR.responseText) {
-                        const payload = tryParseJSON(jqXHR.responseText);
-                        if (payload) {
-                            errorMessage = toSafeString(payload.data || payload.message || payload);
-                        }
-                    } else if (jqXHR.responseText) {
-                        // Try parsing anyway in case Content-Type header is missing
-                        const payload = tryParseJSON(jqXHR.responseText);
-                        if (payload) {
-                            errorMessage = toSafeString(payload.data || payload.message || payload);
-                        }
-                    }
-                    
-                    // Use extracted error message or fallback
-                    if (errorMessage && errorMessage !== 'Oops! Security check failed. Please refresh the page and try again.') {
-                        appendMessage(errorMessage, 'error');
-                    }
                     // Handle 403 Forbidden - likely nonce expiration
                     // console.log('Chatbot: 403 Error detected - attempting nonce refresh');
+                    // Don't show error message yet - we'll try to refresh nonce and retry first
                     
                     // Try to refresh the nonce by making a request to get fresh settings
                     $.ajax({
@@ -1759,12 +1772,7 @@ window.resetAllLocks = resetAllLocks;
                         },
                         error: function() {
                             // console.log('Chatbot: Failed to refresh nonce');
-                            // Try to reload the page to get fresh nonces
-                            if (confirm('Security token expired. Would you like to reload the page to continue?')) {
-                                window.location.reload();
-                            } else {
-                                appendMessage('Oops! Security check failed. Please refresh the page and try again.', 'error');
-                            }
+                            appendMessage('Oops! Security check failed. Please refresh the page and try again.', 'error');
                             botResponse = '';
                         }
                     });
