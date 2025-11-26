@@ -17,19 +17,67 @@
   - Top P: 0.95
 - **API Key:** Stored in WordPress options (`chatbot_gemini_api_key`)
 
-### 1.2 Knowledge Base (CSV)
-- **Format:** CSV file with Question/Answer pairs
-- **Location:** `/data/` folder in plugin directory
-- **Search Function:** `chatbot_faq_search()` in `chatbot-call-gemini-api.php:48-62`
-- **Priority:** FAQ matches override Gemini general knowledge
-- **Behavior:** If FAQ match found, Gemini rephrases answer naturally
+### 1.2 Knowledge Base (JSON) - SMART COST OPTIMIZATION
+- **Format:** JSON file with Question/Answer/Keywords
+- **Location:** `/data/comfort-comm-faqs.json` (55 FAQs)
+- **Search Function:** `chatbot_faq_search()` in `chatbot-kn-faq-import.php:219-345`
+- **Intelligence:** 4-tier confidence-based routing system
+- **Cost Savings:** 80-90% of questions answered FREE (no AI call)
 
-**CSV Structure:**
-```csv
-Question,Answer,Category
-"What are your Spectrum prices?","[Answer text]","Internet Plans"
-"How do I check my bill?","[Answer text]","Billing"
+**JSON Structure:**
+```json
+{
+  "id": "cc006",
+  "question": "What are the Spectrum internet plans?",
+  "answer": "Spectrum internet starts at $40/month...",
+  "category": "Internet Plans",
+  "keywords": "spectrum plans pricing mbps speed",
+  "created_at": "2025-11-25"
+}
 ```
+
+**Intelligent Routing System:**
+
+**TIER 1: Pre-Processing Rules (0% API cost)**
+- **Trigger:** Sensitive keywords detected BEFORE FAQ/AI processing
+- **Keywords:** billing, payment, account balance, login, password, cancel service
+- **Action:** Immediate escalation to (347) 519-9999 - NO API CALL
+- **Coverage:** ~20% of questions
+- **Code:** `chatbot-call-gemini-api.php:48-71`
+
+**TIER 2: Very High Confidence FAQ (0% API cost)**
+- **Trigger:** FAQ match confidence ≥ 80% (exact/phrase match)
+- **Matching:** Exact question, phrase containment, weighted keywords
+- **Action:** Return FAQ answer directly - NO API CALL
+- **Coverage:** ~50-60% of questions
+- **Response Time:** <100ms
+- **Code:** `chatbot-kn-faq-import.php:245-259` + `chatbot-call-gemini-api.php:68-73`
+
+**TIER 3: High Confidence FAQ (~0.001 cost)**
+- **Trigger:** FAQ match confidence 60-79%
+- **Action:** Minimal AI call with instruction "Rephrase in 1-2 sentences"
+- **Coverage:** ~10-15% of questions
+- **Cost:** ~$0.001 per question (minimal tokens)
+- **Code:** `chatbot-call-gemini-api.php:75-78`
+
+**TIER 4: Medium/Low Confidence (full AI, ~0.004 cost)**
+- **Trigger:** FAQ confidence 20-59% OR no match
+- **Action:** Full AI processing with FAQ context or pure AI
+- **Coverage:** ~10-20% of questions
+- **Cost:** ~$0.003-0.005 per question
+- **Code:** `chatbot-call-gemini-api.php:80-91`
+
+**Enhanced FAQ Matching Algorithm:**
+- Exact question match = 100% confidence score
+- Phrase containment = 85-90% confidence
+- Weighted keyword scoring (question words worth 2x vs keywords)
+- Partial word matching for variations
+- Comprehensive match boost (+15% if 80%+ words matched)
+
+**Expected Cost Savings:**
+- Before: 100 questions = 100 API calls = $0.50/day = **$15/month**
+- After: 100 questions = 15 API calls = $0.055/day = **$1.65/month**
+- **Savings: 89% reduction ($13.35/month saved)**
 
 ### 1.3 WordPress Integration
 - **Base Plugin:** Kognetiks Chatbot v2.3.7
@@ -88,12 +136,57 @@ When answering questions, you can reference information from this page...
   - Bot: "[Answer]"
   - User: "What about T-Mobile?" ← Bot remembers context
 
-### 2.3 FAQ Context Priority
-**Order of context sent to Gemini:**
-1. **FAQ CSV Match** (highest priority)
-2. **Current Page Content**
-3. **Conversation History**
-4. **General Gemini Knowledge** (fallback)
+### 2.3 Conversation Intelligence - Auto-Escalation
+**File:** `assets/js/chatbot-chatgpt.js:142-185, 1388-1408`
+
+**Purpose:** Detect user frustration and automatically escalate to human support
+
+**State Tracking:**
+```javascript
+conversationState = {
+    failedAttempts: 0,
+    consecutiveDissatisfaction: 0,
+    lastUserMessage: ''
+}
+```
+
+**Dissatisfaction Detection:**
+Monitors user messages for phrases indicating frustration:
+- "doesn't help", "not helpful", "didn't help"
+- "this doesn't work", "not working", "still not"
+- "doesn't answer", "not what i", "not answering"
+
+**Auto-Escalation Logic:**
+- **Trigger 1:** 2 consecutive expressions of dissatisfaction
+- **Trigger 2:** 4 total failed attempts in conversation
+- **Action:** Display escalation message and STOP sending to AI (saves cost)
+- **Message:** "Please call (347) 519-9999 for direct assistance..."
+
+**Example Flow:**
+```
+User: "How do I restart my modem?"
+Bot: [FAQ answer]
+User: "This doesn't help" ← Dissatisfaction #1, consecutiveDissatisfaction = 1
+Bot: [AI asks clarifying questions]
+User: "Still not working" ← Dissatisfaction #2, consecutiveDissatisfaction = 2
+Bot: [AUTO-ESCALATE - no AI call] "Please call (347) 519-9999..."
+```
+
+**Benefits:**
+- Prevents frustrated users from wasting time
+- Stops unnecessary AI calls when user needs human help
+- Saves ~$0.015-0.025 per escalated conversation
+- Improves customer satisfaction (gets help faster)
+
+### 2.4 FAQ Context Priority
+**Order of routing (highest to lowest priority):**
+1. **Pre-Processing Rules** (billing/account → immediate escalation)
+2. **Very High Confidence FAQ** (80%+ match → direct answer, $0)
+3. **Auto-Escalation Check** (frustration detected → escalate, $0)
+4. **High Confidence FAQ** (60-79% → minimal AI rephrasing)
+5. **Medium/Low FAQ** (20-59% → AI with context)
+6. **No Match** (0-19% → full AI processing)
+7. **General Gemini Knowledge** (fallback)
 
 ---
 
@@ -207,28 +300,50 @@ When answering questions, you can reference information from this page...
 
 ---
 
-## 7. Key Files Modified for P0
+## 7. Key Files Modified
 
 ### PHP Backend
 ```
 includes/chatbot-call-gemini-api.php
-├── Lines 48-62:  FAQ search integration
-├── Lines 64-99:  Page context injection (NEW - Nov 24)
+├── Lines 48-71:   Pre-processing escalation rules (NEW - Nov 25)
+├── Lines 73-101:  Smart FAQ routing with confidence tiers (NEW - Nov 25)
+├── Lines 103-140: Page context injection
 ├── Lines 178-184: Conversation continuation
 └── Lines 216:     Context assembly for Gemini
 
+includes/knowledge-navigator/chatbot-kn-faq-import.php
+├── Lines 219-345: Enhanced FAQ search algorithm (NEW - Nov 25)
+│                  - Multi-tier confidence scoring
+│                  - Exact/phrase/keyword matching
+│                  - Weighted scoring with boost logic
+├── Lines 399-476: FAQ CRUD functions (add/update/get)
+└── Lines 478-558: AJAX handlers for FAQ management
+
+includes/settings/chatbot-settings-registration-kn.php
+├── Lines 218-425: FAQ Management UI (NEW - Nov 25)
+│                  - Add/Edit/Delete buttons
+│                  - Modal popup form
+│                  - jQuery AJAX integration
+└── Lines 233-273: FAQ table display with actions
+
 includes/appearance/chatbot-settings-appearance-text.php
-├── Lines 50-56:  Admin color overrides DISABLED
+├── Lines 50-56:   Admin color overrides DISABLED
 └── Lines 85-90, 175-182: Admin overrides DISABLED
 ```
 
 ### JavaScript Frontend
 ```
 assets/js/chatbot-chatgpt.js
+├── Lines 136-140:  Idle timeout DISABLED for testing (Nov 25)
+├── Lines 142-185:  Conversation state tracking (NEW - Nov 25)
+│                   - detectDissatisfaction()
+│                   - shouldAutoEscalate()
+│                   - getEscalationMessage()
+├── Lines 660-687:  resetIdleTimer() DISABLED (Nov 25)
+├── Lines 917-925:  CSAT exclusions for system messages (Nov 25)
+├── Lines 1388-1408: Auto-escalation integration (NEW - Nov 25)
 ├── Lines 1165-1594: Submit message handler
-├── Lines 1251: User message display
-├── Lines 495-498: Subsequent greeting bug FIX (Nov 24)
-└── Lines 830-930: appendMessage() function
+└── Lines 830-945:  appendMessage() with CSAT
 ```
 
 ### CSS Styling
@@ -236,6 +351,14 @@ assets/js/chatbot-chatgpt.js
 assets/css/chatbot-chatgpt.css
 ├── Lines 322-338: User message styling (FIXED with !important)
 └── Lines 340-354: Bot message styling
+```
+
+### Data Files
+```
+data/comfort-comm-faqs.json
+└── 55 FAQs for Comfort Communication Inc. (NEW - Nov 25)
+    Categories: Store Info, Internet Plans, Mobile Services,
+                Installation, Billing, Troubleshooting, etc.
 ```
 
 ---

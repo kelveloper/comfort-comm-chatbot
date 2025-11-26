@@ -216,46 +216,130 @@ function chatbot_faq_generate_keywords($text) {
 }
 
 // Search FAQs for matching answer
-function chatbot_faq_search($query) {
+function chatbot_faq_search($query, $return_score = false) {
     $faqs = chatbot_faq_load();
 
     if (empty($faqs)) {
-        return null;
+        return $return_score ? ['match' => null, 'score' => 0, 'confidence' => 'none'] : null;
     }
+
+    // Normalize query
+    $query_lower = strtolower($query);
 
     // Generate keywords from query
     $query_keywords = chatbot_faq_generate_keywords($query);
     $query_words = array_filter(explode(' ', $query_keywords));
 
     if (empty($query_words)) {
-        return null;
+        return $return_score ? ['match' => null, 'score' => 0, 'confidence' => 'none'] : null;
     }
 
     $best_match = null;
     $best_score = 0;
+    $best_match_type = 'keyword'; // keyword, phrase, or exact
 
     foreach ($faqs as $faq) {
-        $faq_keywords = explode(' ', $faq['keywords']);
+        $score = 0;
+        $match_type = 'keyword';
 
-        // Count matching keywords
-        $matches = 0;
-        foreach ($query_words as $word) {
-            foreach ($faq_keywords as $faq_word) {
-                // Check for partial match
-                if (strpos($faq_word, $word) !== false || strpos($word, $faq_word) !== false) {
-                    $matches++;
-                    break;
+        // TIER 1: Exact question match (highest confidence) - 100% score
+        $faq_question_lower = strtolower($faq['question']);
+        if ($faq_question_lower === $query_lower) {
+            $score = 1.0;
+            $match_type = 'exact';
+        }
+        // TIER 2: Question contains query or vice versa (high confidence) - 90% score
+        else if (strlen($query_lower) > 10 && strpos($faq_question_lower, $query_lower) !== false) {
+            $score = 0.9;
+            $match_type = 'phrase';
+        }
+        else if (strlen($query_lower) > 10 && strpos($query_lower, $faq_question_lower) !== false) {
+            $score = 0.85;
+            $match_type = 'phrase';
+        }
+        // TIER 3: Keyword matching with weighted scoring
+        else {
+            $faq_keywords = explode(' ', $faq['keywords']);
+            $faq_question_keywords = chatbot_faq_generate_keywords($faq['question']);
+            $faq_question_words = explode(' ', $faq_question_keywords);
+
+            $keyword_matches = 0;
+            $weighted_matches = 0;
+
+            foreach ($query_words as $word) {
+                $word_len = strlen($word);
+
+                // Check question words first (higher weight)
+                foreach ($faq_question_words as $q_word) {
+                    if ($word === $q_word) {
+                        $weighted_matches += 2.0; // Exact match in question = double weight
+                        $keyword_matches++;
+                        continue 2;
+                    } else if ($word_len > 4 && (strpos($q_word, $word) !== false || strpos($word, $q_word) !== false)) {
+                        $weighted_matches += 1.5; // Partial match in question
+                        $keyword_matches++;
+                        continue 2;
+                    }
+                }
+
+                // Then check keywords
+                foreach ($faq_keywords as $faq_word) {
+                    if ($word === $faq_word) {
+                        $weighted_matches += 1.0; // Exact match in keywords
+                        $keyword_matches++;
+                        break;
+                    } else if ($word_len > 4 && (strpos($faq_word, $word) !== false || strpos($word, $faq_word) !== false)) {
+                        $weighted_matches += 0.7; // Partial match in keywords
+                        $keyword_matches++;
+                        break;
+                    }
                 }
             }
+
+            // Calculate weighted score
+            $max_possible_score = count($query_words) * 2.0;
+            $score = $max_possible_score > 0 ? min(0.8, $weighted_matches / $max_possible_score) : 0;
+
+            // Boost score if most query words are matched
+            if ($keyword_matches >= count($query_words) * 0.8) {
+                $score *= 1.15; // 15% boost for comprehensive match
+            }
+
+            $match_type = 'keyword';
         }
 
-        // Calculate score as percentage of query words matched
-        $score = count($query_words) > 0 ? $matches / count($query_words) : 0;
-
-        if ($score > $best_score && $score >= 0.3) { // At least 30% match
+        // Update best match
+        if ($score > $best_score) {
             $best_score = $score;
             $best_match = $faq;
+            $best_match_type = $match_type;
         }
+    }
+
+    // Only return matches above minimum threshold (20%)
+    if ($best_score < 0.2) {
+        return $return_score ? ['match' => null, 'score' => 0, 'confidence' => 'none'] : null;
+    }
+
+    // Determine confidence level
+    $confidence = 'low';
+    if ($best_score >= 0.8) {
+        $confidence = 'very_high'; // 80%+ = return FAQ directly (no AI)
+    } else if ($best_score >= 0.6) {
+        $confidence = 'high'; // 60-80% = use AI minimally
+    } else if ($best_score >= 0.4) {
+        $confidence = 'medium'; // 40-60% = use AI with context
+    } else {
+        $confidence = 'low'; // 20-40% = mostly AI
+    }
+
+    if ($return_score) {
+        return [
+            'match' => $best_match,
+            'score' => round($best_score, 3),
+            'confidence' => $confidence,
+            'match_type' => $best_match_type
+        ];
     }
 
     return $best_match;
@@ -395,3 +479,164 @@ function chatbot_faq_download_template() {
     exit;
 }
 add_action('admin_post_chatbot_faq_download_template', 'chatbot_faq_download_template');
+
+// Add new FAQ entry - Ver 2.3.7
+function chatbot_faq_add($question, $answer, $category = '') {
+    if (empty($question) || empty($answer)) {
+        return ['success' => false, 'message' => 'Question and answer are required'];
+    }
+
+    $faqs = chatbot_faq_load();
+
+    // Generate keywords
+    $keywords = chatbot_faq_generate_keywords($question);
+
+    // Add new FAQ
+    $faqs[] = [
+        'id' => uniqid(),
+        'question' => $question,
+        'answer' => $answer,
+        'category' => $category,
+        'keywords' => $keywords,
+        'created_at' => date('Y-m-d H:i:s')
+    ];
+
+    if (chatbot_faq_save($faqs)) {
+        return ['success' => true, 'message' => 'FAQ added successfully'];
+    }
+
+    return ['success' => false, 'message' => 'Failed to save FAQ'];
+}
+
+// Update FAQ entry by ID - Ver 2.3.7
+function chatbot_faq_update($id, $question, $answer, $category = '') {
+    if (empty($question) || empty($answer)) {
+        return ['success' => false, 'message' => 'Question and answer are required'];
+    }
+
+    $faqs = chatbot_faq_load();
+    $updated = false;
+
+    foreach ($faqs as $key => $faq) {
+        if ($faq['id'] === $id) {
+            // Regenerate keywords from new question
+            $keywords = chatbot_faq_generate_keywords($question);
+
+            $faqs[$key] = [
+                'id' => $id,
+                'question' => $question,
+                'answer' => $answer,
+                'category' => $category,
+                'keywords' => $keywords,
+                'created_at' => $faq['created_at']
+            ];
+            $updated = true;
+            break;
+        }
+    }
+
+    if (!$updated) {
+        return ['success' => false, 'message' => 'FAQ not found'];
+    }
+
+    if (chatbot_faq_save($faqs)) {
+        return ['success' => true, 'message' => 'FAQ updated successfully'];
+    }
+
+    return ['success' => false, 'message' => 'Failed to save FAQ'];
+}
+
+// Get single FAQ by ID - Ver 2.3.7
+function chatbot_faq_get_by_id($id) {
+    $faqs = chatbot_faq_load();
+
+    foreach ($faqs as $faq) {
+        if ($faq['id'] === $id) {
+            return $faq;
+        }
+    }
+
+    return null;
+}
+
+// AJAX: Add FAQ
+function chatbot_faq_ajax_add() {
+    check_ajax_referer('chatbot_faq_manage', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Unauthorized']);
+    }
+
+    $question = sanitize_textarea_field($_POST['question'] ?? '');
+    $answer = sanitize_textarea_field($_POST['answer'] ?? '');
+    $category = sanitize_text_field($_POST['category'] ?? '');
+
+    $result = chatbot_faq_add($question, $answer, $category);
+
+    if ($result['success']) {
+        wp_send_json_success($result);
+    } else {
+        wp_send_json_error($result);
+    }
+}
+add_action('wp_ajax_chatbot_faq_add', 'chatbot_faq_ajax_add');
+
+// AJAX: Update FAQ
+function chatbot_faq_ajax_update() {
+    check_ajax_referer('chatbot_faq_manage', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Unauthorized']);
+    }
+
+    $id = sanitize_text_field($_POST['id'] ?? '');
+    $question = sanitize_textarea_field($_POST['question'] ?? '');
+    $answer = sanitize_textarea_field($_POST['answer'] ?? '');
+    $category = sanitize_text_field($_POST['category'] ?? '');
+
+    $result = chatbot_faq_update($id, $question, $answer, $category);
+
+    if ($result['success']) {
+        wp_send_json_success($result);
+    } else {
+        wp_send_json_error($result);
+    }
+}
+add_action('wp_ajax_chatbot_faq_update', 'chatbot_faq_ajax_update');
+
+// AJAX: Delete FAQ
+function chatbot_faq_ajax_delete() {
+    check_ajax_referer('chatbot_faq_manage', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Unauthorized']);
+    }
+
+    $id = sanitize_text_field($_POST['id'] ?? '');
+
+    if (chatbot_faq_delete($id)) {
+        wp_send_json_success(['message' => 'FAQ deleted successfully']);
+    } else {
+        wp_send_json_error(['message' => 'Failed to delete FAQ']);
+    }
+}
+add_action('wp_ajax_chatbot_faq_delete', 'chatbot_faq_ajax_delete');
+
+// AJAX: Get FAQ by ID
+function chatbot_faq_ajax_get() {
+    check_ajax_referer('chatbot_faq_manage', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Unauthorized']);
+    }
+
+    $id = sanitize_text_field($_POST['id'] ?? '');
+    $faq = chatbot_faq_get_by_id($id);
+
+    if ($faq) {
+        wp_send_json_success(['faq' => $faq]);
+    } else {
+        wp_send_json_error(['message' => 'FAQ not found']);
+    }
+}
+add_action('wp_ajax_chatbot_faq_get', 'chatbot_faq_ajax_get');

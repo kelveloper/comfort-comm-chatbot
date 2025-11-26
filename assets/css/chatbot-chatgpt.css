@@ -347,10 +347,31 @@
     color: #1e3a8a;
     padding: 10px 14px;
     border-radius: 12px 12px 12px 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
     font-size: 0.85rem;
     line-height: 1.5;
     border: 1px solid #e2e8f0;
+}
+
+.chatbot-bot-text p,
+.chatbot-bot-text em,
+.chatbot-bot-text i,
+.chatbot-bot-text strong,
+.chatbot-bot-text b,
+.chatbot-bot-text span {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+    font-style: normal !important;
+    font-weight: normal !important;
+}
+
+/* Force all text inside bot messages to be normal (not italic) */
+.chatbot-bot-text * {
+    font-style: normal !important;
 }
 
 .error-message {

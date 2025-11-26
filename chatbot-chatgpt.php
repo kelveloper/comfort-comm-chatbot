@@ -3,7 +3,7 @@
  * Plugin Name: Kognetiks Chatbot
  * Plugin URI:  https://github.com/kognetiks/kognetiks-chatbot
  * Description: This simple plugin adds an AI powered chatbot to your WordPress website.
- * Version:     2.3.7
+ * Version:     2.4.2
  * Author:      Kognetiks.com
  * Author URI:  https://www.kognetiks.com
  * License:     GPLv3 or later
@@ -32,7 +32,7 @@ ob_start();
 
 // Plugin version
 global $chatbot_chatgpt_plugin_version;
-$chatbot_chatgpt_plugin_version = '2.3.7';
+$chatbot_chatgpt_plugin_version = '2.4.2';
 
 // Plugin directory path
 global $chatbot_chatgpt_plugin_dir_path;
@@ -1048,8 +1048,8 @@ add_action('wp_enqueue_scripts', 'chatbot_chatgpt_enqueue_scripts');
 // https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js
 function enqueue_mathjax_with_custom_config() {
     
-    // Check to see if MathJax is enabled
-    if (esc_attr(get_option('chatbot_chatgpt_enable_mathjax','Yes')) === 'Yes') {
+    // Check to see if MathJax is enabled (DISABLED by default for Comfort Comm - conflicts with $ pricing)
+    if (esc_attr(get_option('chatbot_chatgpt_enable_mathjax','No')) === 'Yes') {
 
         global $chatbot_chatgpt_plugin_version;
         global $chatbot_chatgpt_plugin_dir_url;
@@ -1546,7 +1546,7 @@ function chatbot_chatgpt_process_queued_message($message_data) {
                 break;
 
             case 'Gemini':
-                $response = chatbot_call_gemini_api($api_key, $message);
+                $response = chatbot_call_gemini_api($api_key, $message, $user_id, $page_id, $session_id, $assistant_id, $client_message_id);
                 break;
 
             case 'Markov Chain':
@@ -2225,11 +2225,11 @@ function chatbot_chatgpt_send_message() {
         // Replace " ." at the end of $response with "."
         $response = str_replace(" .", ".", $response);
 
-        // Use TF-IDF to enhance response
-        $chatbot_chatgpt_suppress_learnings = esc_attr(get_option('chatbot_chatgpt_suppress_learnings', 'Random'));
-        if ( $chatbot_chatgpt_suppress_learnings != 'None') {
-            $response = $response . '<br><br>' . chatbot_chatgpt_enhance_with_tfidf($message);
-        }
+        // Use TF-IDF to enhance response - DISABLED (has bugs causing 500 errors)
+        // $chatbot_chatgpt_suppress_learnings = esc_attr(get_option('chatbot_chatgpt_suppress_learnings', 'Random'));
+        // if ( $chatbot_chatgpt_suppress_learnings != 'None') {
+        //     $response = $response . ' ' . chatbot_chatgpt_enhance_with_tfidf($message);
+        // }
 
         // DIAG - Diagnostics
         // back_trace( 'NOTICE', '$response ' . print_r($response,true));
@@ -2437,7 +2437,7 @@ function chatbot_chatgpt_send_message() {
                 // DIAG - Diagnostics - Ver 2.3.7
                 // back_trace( 'NOTICE', 'Calling Gemini API');
                 // Send message to Gemini API - Ver 2.3.7
-                $response = chatbot_call_gemini_api($api_key, $message);
+                $response = chatbot_call_gemini_api($api_key, $message, $user_id, $page_id, $session_id, $assistant_id, $client_message_id);
 
                 break;
 
@@ -2506,11 +2506,11 @@ function chatbot_chatgpt_send_message() {
             }
         }
         
-        // Use TF-IDF to enhance response
-        $chatbot_chatgpt_suppress_learnings = esc_attr(get_option('chatbot_chatgpt_suppress_learnings', 'Random'));
-        if ( $chatbot_chatgpt_suppress_learnings != 'None') {
-            $response = $response . '<br><br>' . chatbot_chatgpt_enhance_with_tfidf($message);
-        }
+        // Use TF-IDF to enhance response - DISABLED (has bugs causing 500 errors)
+        // $chatbot_chatgpt_suppress_learnings = esc_attr(get_option('chatbot_chatgpt_suppress_learnings', 'Random'));
+        // if ( $chatbot_chatgpt_suppress_learnings != 'None') {
+        //     $response = $response . ' ' . chatbot_chatgpt_enhance_with_tfidf($message);
+        // }
         // DIAG - Diagnostics
         // back_trace( 'NOTICE', ['message' => 'AFTER CALL TO ENHANCE TFIDF', 'response' => $response]);
 

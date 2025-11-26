@@ -219,58 +219,20 @@ function chatbot_chatgpt_faq_import_section_callback() {
     </form><!-- Close parent settings form to prevent nesting -->
 
     <div class="wrap">
-        <p>Import FAQ entries from a CSV file. The chatbot will use these to answer customer questions naturally.</p>
+        <p>Manage your FAQ entries. The chatbot will use these to answer customer questions naturally.</p>
 
         <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
             <strong>Current FAQ Entries:</strong> <?php echo esc_html($faq_count); ?>
             <?php if ($faq_count > 0): ?>
                 <span style="color: #155724;"> ✓ Ready to use</span>
             <?php else: ?>
-                <span style="color: #856404;"> - Upload a CSV to get started</span>
+                <span style="color: #856404;"> - Add FAQs to get started</span>
             <?php endif; ?>
         </div>
 
-        <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-            <strong>How to import:</strong>
-            <ol style="margin: 10px 0 0 20px;">
-                <li>Download the template CSV below</li>
-                <li>Fill in your questions and answers</li>
-                <li>Choose your CSV file</li>
-                <li>Click "Upload & Import FAQs"</li>
-            </ol>
-        </div>
-
-        <h3>Step 1: Download Template</h3>
-        <p>Get the sample CSV format:</p>
-        <a href="<?php echo esc_url(admin_url('admin-post.php?action=chatbot_faq_download_template')); ?>" class="button button-secondary">
-            Download Template CSV
-        </a>
-
-        <hr style="margin: 20px 0;">
-
-        <h3>Step 2: Upload Your FAQs</h3>
-        <p>CSV format: <code>question,answer,category</code> (category is optional)</p>
-
-        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" enctype="multipart/form-data" style="background: #f8f9fa; padding: 20px; border-radius: 5px; border: 1px solid #dee2e6;">
-            <?php wp_nonce_field('chatbot_faq_import', 'chatbot_faq_import_nonce'); ?>
-            <input type="hidden" name="action" value="chatbot_faq_import_csv">
-
-            <p style="margin-bottom: 15px;">
-                <label><strong>Choose CSV File:</strong></label><br>
-                <input type="file" name="faq_csv_file" accept=".csv" required style="margin-top: 5px;">
-            </p>
-
-            <p style="margin-bottom: 15px;">
-                <label>
-                    <input type="checkbox" name="clear_existing" value="1">
-                    Replace all existing FAQs (uncheck to add to existing)
-                </label>
-            </p>
-
-            <button type="submit" class="button button-primary button-large" style="background: #0073aa; border-color: #0073aa;">
-                Upload & Import FAQs
-            </button>
-        </form>
+        <button id="chatbot-faq-add-btn" class="button button-primary" style="margin-bottom: 20px;">
+            Add New FAQ
+        </button>
 
         <?php
         // Show existing FAQs if any
@@ -278,22 +240,29 @@ function chatbot_chatgpt_faq_import_section_callback() {
             $faqs = chatbot_faq_get_all();
             if (!empty($faqs)) {
                 ?>
-                <hr style="margin: 20px 0;">
-                <h3>Current FAQ Entries</h3>
-                <table class="wp-list-table widefat fixed striped">
+                <table class="wp-list-table widefat fixed striped" id="chatbot-faq-table">
                     <thead>
                         <tr>
-                            <th>Question</th>
-                            <th>Answer</th>
-                            <th>Category</th>
+                            <th style="width: 25%;">Question</th>
+                            <th style="width: 40%;">Answer</th>
+                            <th style="width: 15%;">Category</th>
+                            <th style="width: 20%;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($faqs as $faq) : ?>
-                        <tr>
-                            <td><?php echo esc_html(wp_trim_words($faq->question, 10)); ?></td>
-                            <td><?php echo esc_html(wp_trim_words($faq->answer, 15)); ?></td>
+                        <tr data-faq-id="<?php echo esc_attr($faq->id); ?>">
+                            <td><?php echo esc_html($faq->question); ?></td>
+                            <td><?php echo esc_html($faq->answer); ?></td>
                             <td><?php echo esc_html($faq->category); ?></td>
+                            <td>
+                                <button class="button button-small chatbot-faq-edit-btn" data-faq-id="<?php echo esc_attr($faq->id); ?>">
+                                    Edit
+                                </button>
+                                <button class="button button-small chatbot-faq-delete-btn" data-faq-id="<?php echo esc_attr($faq->id); ?>" style="color: #a00;">
+                                    Delete
+                                </button>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -302,6 +271,158 @@ function chatbot_chatgpt_faq_import_section_callback() {
             }
         }
         ?>
+
+        <!-- FAQ Modal -->
+        <div id="chatbot-faq-modal" style="display: none; position: fixed; z-index: 100000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+            <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 5px;">
+                <span id="chatbot-faq-modal-close" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+                <h2 id="chatbot-faq-modal-title">Add FAQ</h2>
+                <form id="chatbot-faq-form">
+                    <input type="hidden" id="chatbot-faq-id" value="">
+                    <p>
+                        <label for="chatbot-faq-question"><strong>Question:</strong></label><br>
+                        <textarea id="chatbot-faq-question" style="width: 100%; height: 80px;" required></textarea>
+                    </p>
+                    <p>
+                        <label for="chatbot-faq-answer"><strong>Answer:</strong></label><br>
+                        <textarea id="chatbot-faq-answer" style="width: 100%; height: 120px;" required></textarea>
+                    </p>
+                    <p>
+                        <label for="chatbot-faq-category"><strong>Category:</strong></label><br>
+                        <input type="text" id="chatbot-faq-category" style="width: 100%;">
+                    </p>
+                    <p>
+                        <button type="submit" class="button button-primary">Save FAQ</button>
+                        <button type="button" id="chatbot-faq-modal-cancel" class="button">Cancel</button>
+                    </p>
+                </form>
+            </div>
+        </div>
+
+        <script>
+        jQuery(document).ready(function($) {
+            const modal = $('#chatbot-faq-modal');
+            const modalTitle = $('#chatbot-faq-modal-title');
+            const form = $('#chatbot-faq-form');
+            const faqId = $('#chatbot-faq-id');
+            const question = $('#chatbot-faq-question');
+            const answer = $('#chatbot-faq-answer');
+            const category = $('#chatbot-faq-category');
+
+            // Open modal for adding
+            $('#chatbot-faq-add-btn').on('click', function() {
+                modalTitle.text('Add New FAQ');
+                faqId.val('');
+                question.val('');
+                answer.val('');
+                category.val('');
+                modal.show();
+            });
+
+            // Open modal for editing
+            $(document).on('click', '.chatbot-faq-edit-btn', function() {
+                const id = $(this).data('faq-id');
+                modalTitle.text('Edit FAQ');
+
+                // Get FAQ data via AJAX
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'chatbot_faq_get',
+                        nonce: '<?php echo wp_create_nonce('chatbot_faq_manage'); ?>',
+                        id: id
+                    },
+                    success: function(response) {
+                        if (response.success && response.data.faq) {
+                            faqId.val(response.data.faq.id);
+                            question.val(response.data.faq.question);
+                            answer.val(response.data.faq.answer);
+                            category.val(response.data.faq.category);
+                            modal.show();
+                        } else {
+                            alert('Failed to load FAQ: ' + (response.data.message || 'Unknown error'));
+                        }
+                    },
+                    error: function() {
+                        alert('Failed to load FAQ');
+                    }
+                });
+            });
+
+            // Close modal
+            $('#chatbot-faq-modal-close, #chatbot-faq-modal-cancel').on('click', function() {
+                modal.hide();
+            });
+
+            // Submit form
+            form.on('submit', function(e) {
+                e.preventDefault();
+
+                const id = faqId.val();
+                const action = id ? 'chatbot_faq_update' : 'chatbot_faq_add';
+
+                const data = {
+                    action: action,
+                    nonce: '<?php echo wp_create_nonce('chatbot_faq_manage'); ?>',
+                    question: question.val(),
+                    answer: answer.val(),
+                    category: category.val()
+                };
+
+                if (id) {
+                    data.id = id;
+                }
+
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: data,
+                    success: function(response) {
+                        if (response.success) {
+                            alert(response.data.message);
+                            location.reload();
+                        } else {
+                            alert('Error: ' + (response.data.message || 'Unknown error'));
+                        }
+                    },
+                    error: function() {
+                        alert('Failed to save FAQ');
+                    }
+                });
+            });
+
+            // Delete FAQ
+            $(document).on('click', '.chatbot-faq-delete-btn', function() {
+                const id = $(this).data('faq-id');
+
+                if (!confirm('Are you sure you want to delete this FAQ?')) {
+                    return;
+                }
+
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'chatbot_faq_delete',
+                        nonce: '<?php echo wp_create_nonce('chatbot_faq_manage'); ?>',
+                        id: id
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            alert(response.data.message);
+                            location.reload();
+                        } else {
+                            alert('Error: ' + (response.data.message || 'Unknown error'));
+                        }
+                    },
+                    error: function() {
+                        alert('Failed to delete FAQ');
+                    }
+                });
+            });
+        });
+        </script>
     </div>
 
     <!-- Reopen parent settings form -->

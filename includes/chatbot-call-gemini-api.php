@@ -16,6 +16,9 @@ if ( ! defined( 'WPINC' ) ) {
 // Call the Gemini API
 function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id = null, $session_id = null, $assistant_id = null, $client_message_id = null) {
 
+    error_log('@@@ CHATBOT: chatbot_call_gemini_api() CALLED with message: ' . $message . ' @@@');
+    error_log('CHATBOT: Parameters - user_id: ' . ($user_id ?? 'NULL') . ', page_id: ' . ($page_id ?? 'NULL') . ', session_id: ' . ($session_id ?? 'NULL'));
+
     global $session_id;
     global $user_id;
     global $page_id;
@@ -45,20 +48,91 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     // Lock check removed - main send function handles locking
     set_transient($duplicate_key, true, 300); // 5 minutes to prevent duplicates
 
-    // FAQ Search - Check for matching FAQ before calling API - Ver 2.3.7
-    $faq_context = '';
-    if (function_exists('chatbot_faq_search')) {
-        $faq_match = chatbot_faq_search($message);
-        if ($faq_match && !empty($faq_match['answer'])) {
-            // Log the FAQ match
-            prod_trace('NOTICE', 'FAQ match found for: ' . $message);
+    // PRE-PROCESSING RULES - Guaranteed escalations (no AI needed, $0 cost) - Ver 2.3.7
+    $message_lower = strtolower($message);
+    $escalation_patterns = [
+        'billing' => ['billing', 'bill', 'payment', 'pay my', 'invoice', 'charge', 'refund', 'overcharge'],
+        'account' => ['account balance', 'my account', 'account number', 'account info', 'account detail'],
+        'login' => ['login', 'log in', 'password', 'username', 'forgot password', 'reset password', 'cant access'],
+        'cancel' => ['cancel service', 'cancel my', 'terminate service', 'disconnect service'],
+    ];
 
-            // Build FAQ context for Gemini to rephrase naturally
-            $faq_context = "\n\nIMPORTANT: Answer the user's question using ONLY this information from our FAQ:\n" .
-                           "Question: " . $faq_match['question'] . "\n" .
-                           "Answer: " . $faq_match['answer'] . "\n\n" .
-                           "Rephrase this answer in a friendly, conversational tone. Do not add information beyond what's provided.";
+    foreach ($escalation_patterns as $category => $patterns) {
+        foreach ($patterns as $pattern) {
+            if (strpos($message_lower, $pattern) !== false) {
+                $escalation_response = "For your account's security, I can't access personal billing or account details. " .
+                                     "Please call our team at (347) 519-9999 or visit us at 13692 Roosevelt Ave, Flushing NY 11354. " .
+                                     "We're here to help!";
+                prod_trace('NOTICE', "Pre-processing escalation triggered: $category pattern matched - skipping AI call");
+                return [
+                    'response' => $escalation_response,
+                    'api' => 'pre_processing_escalation',
+                    'cost_saved' => true
+                ];
+            }
         }
+    }
+
+    // SMART FAQ SEARCH - Confidence-based routing to minimize AI costs - Ver 2.3.7
+    $faq_context = '';
+    $skip_ai_call = false;
+    $faq_direct_response = '';
+
+    error_log('=== CHATBOT DEBUG: Smart FAQ Search STARTED for message: ' . $message . ' ===');
+    prod_trace('NOTICE', 'Smart FAQ Search - Processing message: ' . $message);
+
+    if (function_exists('chatbot_faq_search')) {
+        error_log('CHATBOT DEBUG: chatbot_faq_search function EXISTS - calling it now');
+        prod_trace('NOTICE', 'chatbot_faq_search function exists - calling it now');
+        $faq_result = chatbot_faq_search($message, true); // Get match with confidence score
+        error_log('CHATBOT DEBUG: FAQ search result: ' . print_r($faq_result, true));
+        prod_trace('NOTICE', 'FAQ search result: ' . print_r($faq_result, true));
+
+        if ($faq_result && $faq_result['match'] && !empty($faq_result['match']['answer'])) {
+            $confidence = $faq_result['confidence'];
+            $score = $faq_result['score'];
+            $match_type = $faq_result['match_type'];
+            $faq_match = $faq_result['match'];
+
+            // Log the FAQ match with confidence
+            prod_trace('NOTICE', sprintf(
+                'FAQ match found: score=%.2f confidence=%s type=%s question="%s"',
+                $score, $confidence, $match_type, $message
+            ));
+
+            // TIER 1: Very High Confidence (80%+) - Return FAQ directly, NO AI CALL ($0 cost!)
+            if ($confidence === 'very_high') {
+                $skip_ai_call = true;
+                $faq_direct_response = $faq_match['answer'];
+                prod_trace('NOTICE', 'Very high confidence FAQ match - skipping AI call to save cost');
+            }
+            // TIER 2: High Confidence (60-80%) - Minimal AI processing
+            else if ($confidence === 'high') {
+                $faq_context = "\n\nUSE THIS FAQ ANSWER: " . $faq_match['answer'] . "\n\n" .
+                              "Rephrase it naturally in 1-2 sentences. Be concise.";
+            }
+            // TIER 3: Medium Confidence (40-60%) - AI with FAQ context
+            else if ($confidence === 'medium') {
+                $faq_context = "\n\nRELEVANT FAQ:\nQ: " . $faq_match['question'] . "\nA: " . $faq_match['answer'] . "\n\n" .
+                              "Use this FAQ as a reference, but ask clarifying questions if the user's intent is unclear.";
+            }
+            // TIER 4: Low Confidence (20-40%) - AI-first with weak FAQ hint
+            else {
+                $faq_context = "\n\nPossibly relevant FAQ: \"" . $faq_match['answer'] . "\"\n" .
+                              "Only mention this if it seems relevant to the user's question.";
+            }
+        } else {
+            prod_trace('NOTICE', 'No FAQ match found - using full AI processing');
+        }
+    }
+
+    // If very high confidence FAQ match, return immediately without calling AI
+    if ($skip_ai_call && !empty($faq_direct_response)) {
+        return [
+            'response' => $faq_direct_response,
+            'api' => 'faq_direct',
+            'cost_saved' => true
+        ];
     }
 
     // Current Page Context - Inject current page content so bot knows what page user is viewing
@@ -118,7 +192,7 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     $top_p = floatval(esc_attr(get_option('chatbot_gemini_top_p', '0.95')));
 
     // Conversation Context
-    $context = esc_attr(get_option('chatbot_gemini_conversation_context', 'You are a versatile, friendly, and helpful assistant designed to support me in a variety of tasks that responds in Markdown.'));
+    $context = esc_attr(get_option('chatbot_gemini_conversation_context', 'You are a versatile, friendly, and helpful assistant designed to support me in a variety of tasks. Respond in plain text without any markdown formatting (no asterisks, underscores, or special characters for bold/italic).'));
     $raw_context = $context;
 
     // Context History
@@ -245,6 +319,11 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
 
     $timeout = esc_attr(get_option('chatbot_gemini_timeout_setting', 240));
 
+    // DEBUG: Log the request body to check maxOutputTokens
+    error_log('CHATBOT DEBUG: Gemini API request body:');
+    error_log($body);
+    error_log('CHATBOT DEBUG: max_tokens variable value: ' . $max_tokens);
+
     // Context History
     addEntry('chatbot_chatgpt_context_history', $message);
 
@@ -265,6 +344,10 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
 
     // Retrieve and Decode Response
     $response_body = json_decode(wp_remote_retrieve_body($response));
+
+    // DEBUG: Log the full response body to check finishReason
+    error_log('CHATBOT DEBUG: Full Gemini API response body:');
+    error_log(print_r($response_body, true));
 
     // Handle API Errors
     if (isset($response_body->error)) {
@@ -312,6 +395,12 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     // Access response content properly - Gemini format
     if (isset($response_body->candidates[0]->content->parts[0]->text) && !empty($response_body->candidates[0]->content->parts[0]->text)) {
         $response_text = $response_body->candidates[0]->content->parts[0]->text;
+
+        // DEBUG: Log the full response from Gemini
+        error_log('CHATBOT DEBUG: Full Gemini API response text:');
+        error_log($response_text);
+        error_log('CHATBOT DEBUG: Response length: ' . strlen($response_text) . ' characters');
+
         addEntry('chatbot_chatgpt_context_history', $response_text);
         return $response_text;
     } else {

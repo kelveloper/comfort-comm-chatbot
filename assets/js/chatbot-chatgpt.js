@@ -133,11 +133,56 @@ window.resetAllLocks = resetAllLocks;
     // Convert the timeout setting to milliseconds
     let timeout_setting = (parseInt(kchat_settings.chatbot_chatgpt_timeout_setting) || 240) * 1000;
 
-    // Idle timeout settings - 2 minutes for warning, 2 more minutes to close
+    // Idle timeout settings - DISABLED FOR TESTING
     let idleWarningTimer = null;
     let idleCloseTimer = null;
-    const IDLE_WARNING_TIMEOUT = 2 * 60 * 1000; // 2 minutes
-    const IDLE_CLOSE_TIMEOUT = 2 * 60 * 1000; // 2 more minutes after warning
+    const IDLE_WARNING_TIMEOUT = 999999 * 60 * 1000; // Disabled for testing
+    const IDLE_CLOSE_TIMEOUT = 999999 * 60 * 1000; // Disabled for testing
+
+    // Conversation state tracking - Ver 2.3.7
+    let conversationState = {
+        failedAttempts: 0,
+        lastUserMessage: '',
+        consecutiveDissatisfaction: 0,
+        topicSwitches: 0
+    };
+
+    // Detect user dissatisfaction patterns
+    function detectDissatisfaction(message) {
+        const dissatisfactionPhrases = [
+            'doesn\'t help', 'not helpful', 'didn\'t help', 'this doesn\'t work',
+            'not working', 'still not', 'still have', 'that doesn\'t',
+            'doesn\'t answer', 'not what i', 'not answering'
+        ];
+
+        const messageLower = message.toLowerCase();
+        for (let phrase of dissatisfactionPhrases) {
+            if (messageLower.includes(phrase)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Check if should escalate based on conversation state
+    function shouldAutoEscalate() {
+        // Escalate after 2 consecutive expressions of dissatisfaction
+        if (conversationState.consecutiveDissatisfaction >= 2) {
+            return true;
+        }
+        // Or after 4 failed attempts total
+        if (conversationState.failedAttempts >= 4) {
+            return true;
+        }
+        return false;
+    }
+
+    // Get escalation message
+    function getEscalationMessage() {
+        return "I want to make sure you get the help you need. Our team can assist you directly - " +
+               "please call (347) 519-9999 and we'll get this resolved for you right away. " +
+               "We're here 7 days a week!";
+    }
 
     plugins_url = kchat_settings['plugins_url'];
 
@@ -470,6 +515,10 @@ window.resetAllLocks = resetAllLocks;
         // Remove any legacy conversations that might be store in local storage for increased privacy - Ver 1.4.2
         localStorage.removeItem('chatbot_chatgpt_conversation');
 
+        // Clear conversation on page refresh for testing - Ver 2.3.7
+        sessionStorage.removeItem('chatbot_chatgpt_conversation' + '_' + assistant_id);
+        localStorage.removeItem('chatbot_chatgpt_opened');
+
         // console.log('Chatbot: NOTICE: isFirstTime: ' + isFirstTime);
 
         if (isFirstTime) {
@@ -485,6 +534,10 @@ window.resetAllLocks = resetAllLocks;
                 initialGreeting = 'Hello again! How can I help you?';
                 // console.log('Chatbot: NOTICE: chatbot-chatgpt.js - Greeting: ' + initialGreeting);
             }
+
+            // FORCE CLEAR conversation DOM before adding greeting - Ver 2.3.7
+            conversation.empty();
+            console.log('DEBUG: Cleared conversation DOM before adding greeting (first time)');
 
             if (conversation.text().includes(initialGreeting)) {
                 return;
@@ -503,6 +556,10 @@ window.resetAllLocks = resetAllLocks;
             sessionStorage.setItem('chatbot_chatgpt_conversation' + '_' + assistant_id, conversation.html());
 
         } else {
+
+            // FORCE CLEAR conversation DOM before adding greeting - Ver 2.3.7
+            conversation.empty();
+            console.log('DEBUG: Cleared conversation DOM before adding greeting (returning)');
 
             // Use the same initial greeting for returning visitors
             if (conversation.text().includes(initialGreeting)) {
@@ -653,8 +710,11 @@ window.resetAllLocks = resetAllLocks;
         chatEl.style.setProperty('height', newHeight + 'px', 'important');
     }
 
-    // Idle timeout functions
+    // Idle timeout functions - DISABLED FOR TESTING
     function resetIdleTimer() {
+        // DISABLED FOR TESTING - Do nothing
+        return;
+
         // Clear existing timers
         if (idleWarningTimer) {
             clearTimeout(idleWarningTimer);
@@ -797,10 +857,10 @@ window.resetAllLocks = resetAllLocks;
                     // Show answer
                     appendMessage(answer, 'bot');
 
-                    // Show category buttons again after answer
-                    setTimeout(function() {
-                        renderCategoryButtons();
-                    }, 500);
+                    // DON'T show category buttons again - let user continue conversation
+                    // setTimeout(function() {
+                    //     renderCategoryButtons();
+                    // }, 500);
                 });
             buttonContainer.append(button);
         });
@@ -868,8 +928,12 @@ window.resetAllLocks = resetAllLocks;
 
         messageElement = $('<div></div>').addClass('chat-message');
 
-        // Convert HTML entities back to their original form
-        let decodedMessage = $('<textarea/>').html(DOMPurify.sanitize(message)).text();
+        // Sanitize the message HTML (keep HTML tags intact, don't strip to text)
+        let decodedMessage = DOMPurify.sanitize(message);
+
+        // DEBUG: Log the actual HTML being rendered
+        console.log('DEBUG appendMessage - Raw message:', message);
+        console.log('DEBUG appendMessage - After DOMPurify:', decodedMessage);
 
         // Check if the message contains an audio tag
         if (decodedMessage.includes('<audio')) {
@@ -913,8 +977,16 @@ window.resetAllLocks = resetAllLocks;
 
         messageElement.append(textElement);
 
-        // Add CSAT prompt for bot messages (not for errors or initial greeting)
-        if (sender === 'bot' && cssClass !== 'initial-greeting' && !message.startsWith('Error') && !message.startsWith('Oops')) {
+        // Add CSAT prompt for bot messages (not for errors, greetings, or system messages)
+        if (sender === 'bot' &&
+            cssClass !== 'initial-greeting' &&
+            cssClass !== 'idle-warning' &&
+            cssClass !== 'session-closed' &&
+            !message.startsWith('Error') &&
+            !message.startsWith('Oops') &&
+            !message.startsWith('It seems you') &&
+            !message.startsWith('Session closed') &&
+            !message.startsWith('Session paused')) {
             // Get the previous user message (question)
             let userQuestion = '';
             let userMessages = conversation.find('.user-message');
@@ -1115,8 +1187,8 @@ window.resetAllLocks = resetAllLocks;
     
         // Step 11: Consolidate line breaks and remove extra spaces
         markdown = markdown.replace(/\n{2,}/g, '\n').split(/\n/g).map((line, index) => {
-            return line.match(/^<h|<p|<ul|<pre|<blockquote/) ? line : line.trim() ? `${line}</p>` : '';
-        }).filter(line => line.trim() !== '').join('');
+            return line.match(/^<h|<p|<ul|<pre|<blockquote/) ? line : line.trim() ? `<p>${line}</p>` : '';
+        }).filter(line => line.trim() !== '').join('\n');
    
         // Step 12: Reinsert LaTeX expressions - Ver 2.1.5 MathJax Fix
         markdown = markdown.replace(/{{LATEX_DISPLAY_(\d+)}}/g, (match, index) => {
@@ -1324,6 +1396,28 @@ window.resetAllLocks = resetAllLocks;
         if (input_type === 'user') {
             console.log('DEBUG: Appending user message:', message);
             appendMessage(message, 'user');
+
+            // Track dissatisfaction and auto-escalate if needed - Ver 2.3.7
+            if (detectDissatisfaction(message)) {
+                conversationState.consecutiveDissatisfaction++;
+                conversationState.failedAttempts++;
+                console.log('DEBUG: Dissatisfaction detected. Consecutive:', conversationState.consecutiveDissatisfaction);
+
+                // Check if should auto-escalate
+                if (shouldAutoEscalate()) {
+                    console.log('DEBUG: Auto-escalating to human support');
+                    appendMessage(getEscalationMessage(), 'bot');
+                    // Reset state after escalation
+                    conversationState.failedAttempts = 0;
+                    conversationState.consecutiveDissatisfaction = 0;
+                    return; // Don't send to AI
+                }
+            } else {
+                // Reset consecutive dissatisfaction if user seems satisfied
+                conversationState.consecutiveDissatisfaction = 0;
+            }
+
+            conversationState.lastUserMessage = message;
         } else {
             // DO NOTHING
         }
@@ -1342,7 +1436,11 @@ window.resetAllLocks = resetAllLocks;
 
         // Generate a unique client message ID for idempotency
         let client_message_id = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        
+
+        console.log('DEBUG: About to send AJAX request');
+        console.log('DEBUG: Message:', message);
+        console.log('DEBUG: AJAX URL:', kchat_settings.ajax_url);
+
         // Variable to track if this is a "still working" message
         let isStillWorkingMessage = false;
         let ajaxResponse = null; // Store response for use in complete handler
@@ -1391,8 +1489,9 @@ window.resetAllLocks = resetAllLocks;
                 }
             },
             success: function (response) {
+                console.log('DEBUG: Main AJAX success handler - Backend response:', response);
                 // console.log('Chatbot: SUCCESS: ' + JSON.stringify(response));
-                
+
                 // Gate the success path - if server returned a structured object with success flag
                 if (response && typeof response === 'object' && response.success === false) {
                     appendMessage(toSafeString(response.data || response.message || response));
@@ -1461,7 +1560,11 @@ window.resetAllLocks = resetAllLocks;
                     let messageInfo = ` (${messageCount} / ${messageLimit})`;
                     botResponse += messageInfo;
                 }
-                botResponse = markdownToHtml(botResponse || '');
+                // DISABLED:markdownToHtml - Gemini now responds in plain text
+                // botResponse = markdownToHtml(botResponse || '');
+
+                // Convert plain text line breaks to HTML paragraphs
+                botResponse = (botResponse || '').split('\n\n').map(para => para.trim() ? `<p>${para}</p>` : '').join('');
             },
             error: function (jqXHR, status, error) {
                 if(status === "timeout") {
@@ -1528,6 +1631,9 @@ window.resetAllLocks = resetAllLocks;
                                         'Expires': '0'
                                     },
                                     success: function(response) {
+                                        // DEBUG: Log response from backend
+                                        console.log('DEBUG: Backend response received:', response);
+
                                         // Gate the success path - if server returned success:false, handle it
                                         if (response && typeof response === 'object' && response.success === false) {
                                             appendMessage(toSafeString(response.data || response.message || response));
@@ -1536,7 +1642,7 @@ window.resetAllLocks = resetAllLocks;
                                             submitButton.prop('disabled', false);
                                             return;
                                         }
-                                        
+
                                         ajaxResponse = response;
                                         const isQueued = response.data && typeof response.data === 'object' && response.data.queued;
                                         if (isQueued) {
@@ -1551,7 +1657,9 @@ window.resetAllLocks = resetAllLocks;
                                                 let messageInfo = ` (${messageCount} / ${messageLimit})`;
                                                 botResponse += messageInfo;
                                             }
-                                            botResponse = markdownToHtml(botResponse || '');
+                                            // DISABLED: markdownToHtml - using plain text
+                                            // botResponse = markdownToHtml(botResponse || '');
+                                            botResponse = (botResponse || '').split('\n\n').map(para => para.trim() ? `<p>${para}</p>` : '').join('');
                                         }
                                     },
                                     error: function(retryJqXHR, retryStatus, retryError) {
@@ -1841,7 +1949,9 @@ window.resetAllLocks = resetAllLocks;
                 if (typeof response === 'string') {
                     response = JSON.parse(response);
                 }
-                response.data = markdownToHtml(response.data || '');
+                // DISABLED: markdownToHtml - using plain text
+                // response.data = markdownToHtml(response.data || '');
+                response.data = (response.data || '').split('\n\n').map(para => para.trim() ? `<p>${para}</p>` : '').join('');
                 // appendMessage('Text-to-Speech: ' + response.data, 'bot');
                 appendMessage(safeStringCoercion(response.data), 'bot');
             },
@@ -2533,6 +2643,18 @@ window.resetAllLocks = resetAllLocks;
         let thread_id = kchat_settings.thread_id;
         let chatbot_chatgpt_force_page_reload = kchat_settings.chatbot_chatgpt_force_page_reload || 'No';
 
+        // FORCE CLEAR on page load for testing - Ver 2.3.7
+        sessionStorage.clear(); // Clear ALL sessionStorage
+        localStorage.removeItem('chatbot_chatgpt_opened');
+        localStorage.removeItem('chatbot_chatgpt_message_count');
+
+        // Clear the conversation DOM immediately
+        if (conversation && conversation.length > 0) {
+            conversation.empty();
+        }
+
+        console.log('DEBUG: Cleared all conversation storage on page load');
+
         // Removed in Ver 1.9.3
         // storedConversation = sessionStorage.getItem('chatbot_chatgpt_conversation' + '_' + assistant_id);
         // Reset the conversation - Added in Ver 1.9.3
@@ -2540,10 +2662,10 @@ window.resetAllLocks = resetAllLocks;
         let sanitizedConversation = '';
         localStorage.setItem('chatbot_chatgpt_start_status_new_visitor', 'closed');
 
-        // If conversation_continuation is enabled, load the conversation from local storage - Ver 2.0.7
-        if (kchat_settings.chatbot_chatgpt_conversation_continuation === 'On') {
+        // DISABLED: Conversation continuation disabled for testing - Ver 2.3.7
+        if (false && kchat_settings.chatbot_chatgpt_conversation_continuation === 'On') {
             storedConversation = sessionStorage.getItem('chatbot_chatgpt_conversation' + '_' + assistant_id);
-            
+
             // Check if storedConversation is not null before trying to replace
             if (storedConversation) {
                 // remove autoplay attribute from the audio elements - Ver 2.0.7
@@ -2556,7 +2678,11 @@ window.resetAllLocks = resetAllLocks;
             }
         }
 
-        if (storedConversation) {
+        console.log('DEBUG: storedConversation value:', storedConversation);
+        console.log('DEBUG: storedConversation empty?', !storedConversation);
+
+        // FORCE: Never load stored conversation for testing
+        if (false && storedConversation) {
  
             // console.log('Chatbot: NOTICE: loadConversation - IN THE IF STATEMENT');
  
