@@ -171,8 +171,10 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
         ];
     }
 
-    // Current Page Context - Inject current page content so bot knows what page user is viewing
+    // Current Page Context - DISABLED for now
+    // TODO: Add a setting to enable/disable this feature
     $page_context = '';
+    /*
     if (!empty($page_id) && $page_id !== '999999') {
         $current_page = get_post($page_id);
         if ($current_page && $current_page->post_status === 'publish') {
@@ -207,6 +209,7 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
             }
         }
     }
+    */
 
     // Google Gemini API Documentation
     // https://ai.google.dev/gemini-api/docs
