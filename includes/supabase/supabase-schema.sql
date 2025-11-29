@@ -84,6 +84,54 @@ CREATE POLICY "Allow all operations" ON chatbot_gap_questions
     FOR ALL USING (true) WITH CHECK (true);
 
 -- =============================================================================
+-- Table 4: chatbot_faq_usage (tracks FAQ hit counts)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS chatbot_faq_usage (
+    id BIGSERIAL PRIMARY KEY,
+    faq_id VARCHAR(50) NOT NULL,
+    hit_count INTEGER DEFAULT 0,
+    last_asked TIMESTAMP WITH TIME ZONE,
+    avg_confidence FLOAT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_faq_usage_faq_id ON chatbot_faq_usage(faq_id);
+
+ALTER TABLE chatbot_faq_usage ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all operations" ON chatbot_faq_usage
+    FOR ALL USING (true) WITH CHECK (true);
+
+-- =============================================================================
+-- Table 5: chatbot_assistants (OpenAI assistant configurations)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS chatbot_assistants (
+    id BIGSERIAL PRIMARY KEY,
+    assistant_id VARCHAR(255) NOT NULL,
+    common_name VARCHAR(255) NOT NULL,
+    style VARCHAR(20) NOT NULL CHECK (style IN ('embedded', 'floating')),
+    audience VARCHAR(20) NOT NULL CHECK (audience IN ('all', 'visitors', 'logged-in')),
+    voice VARCHAR(20) NOT NULL CHECK (voice IN ('alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', 'none')),
+    allow_file_uploads VARCHAR(5) NOT NULL CHECK (allow_file_uploads IN ('Yes', 'No')),
+    allow_transcript_downloads VARCHAR(5) NOT NULL CHECK (allow_transcript_downloads IN ('Yes', 'No')),
+    show_assistant_name VARCHAR(5) NOT NULL CHECK (show_assistant_name IN ('Yes', 'No')),
+    initial_greeting TEXT NOT NULL,
+    subsequent_greeting TEXT NOT NULL,
+    placeholder_prompt TEXT NOT NULL,
+    additional_instructions TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_assistants_assistant_id ON chatbot_assistants(assistant_id);
+
+ALTER TABLE chatbot_assistants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all operations" ON chatbot_assistants
+    FOR ALL USING (true) WITH CHECK (true);
+
+-- =============================================================================
 -- Helper function: Update updated_at timestamp
 -- =============================================================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()

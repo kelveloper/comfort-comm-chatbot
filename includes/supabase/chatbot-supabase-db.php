@@ -492,6 +492,96 @@ function chatbot_supabase_get_faq_usage($limit = 100) {
 }
 
 // =============================================================================
+// ASSISTANTS MANAGEMENT
+// =============================================================================
+
+/**
+ * Get all assistants from Supabase
+ */
+function chatbot_supabase_get_assistants() {
+    $query_params = [
+        'order' => 'id.asc'
+    ];
+
+    $result = chatbot_supabase_request('chatbot_assistants', 'GET', null, $query_params);
+
+    if ($result['success']) {
+        return $result['data'];
+    }
+
+    return [];
+}
+
+/**
+ * Get assistant by ID
+ */
+function chatbot_supabase_get_assistant($id) {
+    $query_params = ['id' => 'eq.' . $id];
+    $result = chatbot_supabase_request('chatbot_assistants', 'GET', null, $query_params);
+
+    if ($result['success'] && !empty($result['data'])) {
+        return $result['data'][0];
+    }
+
+    return null;
+}
+
+/**
+ * Get assistant by assistant_id (OpenAI ID)
+ */
+function chatbot_supabase_get_assistant_by_assistant_id($assistant_id) {
+    $query_params = ['assistant_id' => 'eq.' . $assistant_id];
+    $result = chatbot_supabase_request('chatbot_assistants', 'GET', null, $query_params);
+
+    if ($result['success'] && !empty($result['data'])) {
+        return $result['data'][0];
+    }
+
+    return null;
+}
+
+/**
+ * Add new assistant
+ */
+function chatbot_supabase_add_assistant($data) {
+    $result = chatbot_supabase_request('chatbot_assistants', 'POST', $data);
+
+    if ($result['success'] && !empty($result['data'])) {
+        return ['success' => true, 'id' => $result['data'][0]['id']];
+    }
+
+    return ['success' => false, 'message' => $result['error'] ?? 'Failed to add assistant'];
+}
+
+/**
+ * Update assistant
+ */
+function chatbot_supabase_update_assistant($id, $data) {
+    $query_params = ['id' => 'eq.' . $id];
+    $result = chatbot_supabase_request('chatbot_assistants', 'PATCH', $data, $query_params);
+
+    return ['success' => $result['success'], 'message' => $result['error'] ?? ''];
+}
+
+/**
+ * Delete assistant
+ */
+function chatbot_supabase_delete_assistant($id) {
+    $query_params = ['id' => 'eq.' . $id];
+    $result = chatbot_supabase_request('chatbot_assistants', 'DELETE', null, $query_params);
+
+    return $result['success'];
+}
+
+/**
+ * Get assistant count
+ */
+function chatbot_supabase_get_assistant_count() {
+    $result = chatbot_supabase_get_assistants();
+    return count($result);
+}
+
+// =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
 
@@ -507,7 +597,7 @@ function chatbot_supabase_test_connection() {
  * Get all table counts for diagnostics
  */
 function chatbot_supabase_get_diagnostics() {
-    $tables = ['chatbot_faqs', 'chatbot_conversations', 'chatbot_interactions', 'chatbot_gap_questions', 'chatbot_faq_usage'];
+    $tables = ['chatbot_faqs', 'chatbot_conversations', 'chatbot_interactions', 'chatbot_gap_questions', 'chatbot_faq_usage', 'chatbot_assistants'];
     $diagnostics = [];
 
     foreach ($tables as $table) {
