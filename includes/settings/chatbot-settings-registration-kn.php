@@ -215,16 +215,30 @@ function chatbot_chatgpt_faq_import_section_callback() {
         echo '<div class="notice ' . esc_attr($class) . ' is-dismissible"><p>' . esc_html($import_message['message']) . '</p></div>';
     }
 
+    // Check if Supabase is configured
+    $supabase_configured = defined('CHATBOT_PG_HOST') && defined('CHATBOT_SUPABASE_ANON_KEY');
     ?>
     </form><!-- Close parent settings form to prevent nesting -->
 
     <div class="wrap">
-        <p>Manage your FAQ entries. The chatbot will use these to answer customer questions naturally.</p>
+        <p>Manage your FAQ entries. The chatbot uses semantic vector search to match questions naturally.</p>
+
+        <?php if ($supabase_configured): ?>
+        <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <strong>Vector Database:</strong> Connected to Supabase
+            <span style="color: #0c5460;"> - Using AI-powered semantic search</span>
+        </div>
+        <?php else: ?>
+        <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <strong>Vector Database:</strong> Not configured
+            <span style="color: #721c24;"> - Add CHATBOT_PG_HOST and CHATBOT_SUPABASE_ANON_KEY to wp-config.php</span>
+        </div>
+        <?php endif; ?>
 
         <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
             <strong>Current FAQ Entries:</strong> <?php echo esc_html($faq_count); ?>
             <?php if ($faq_count > 0): ?>
-                <span style="color: #155724;"> ✓ Ready to use</span>
+                <span style="color: #155724;"> - Ready to use</span>
             <?php else: ?>
                 <span style="color: #856404;"> - Add FAQs to get started</span>
             <?php endif; ?>
@@ -292,8 +306,12 @@ function chatbot_chatgpt_faq_import_section_callback() {
                         <input type="text" id="chatbot-faq-category" style="width: 100%;">
                     </p>
                     <p>
-                        <button type="submit" class="button button-primary">Save FAQ</button>
+                        <button type="submit" class="button button-primary" id="chatbot-faq-save-btn">Save FAQ</button>
                         <button type="button" id="chatbot-faq-modal-cancel" class="button">Cancel</button>
+                        <span id="chatbot-faq-saving" style="display: none; margin-left: 10px;">
+                            <span class="spinner is-active" style="float: none; margin: 0;"></span>
+                            Generating embedding...
+                        </span>
                     </p>
                 </form>
             </div>
@@ -374,20 +392,29 @@ function chatbot_chatgpt_faq_import_section_callback() {
                     data.id = id;
                 }
 
+                // Show loading spinner
+                $('#chatbot-faq-save-btn').prop('disabled', true);
+                $('#chatbot-faq-saving').show();
+
                 $.ajax({
                     url: ajaxurl,
                     type: 'POST',
                     data: data,
+                    timeout: 60000, // 60 second timeout for embedding generation
                     success: function(response) {
                         if (response.success) {
                             alert(response.data.message);
                             location.reload();
                         } else {
                             alert('Error: ' + (response.data.message || 'Unknown error'));
+                            $('#chatbot-faq-save-btn').prop('disabled', false);
+                            $('#chatbot-faq-saving').hide();
                         }
                     },
                     error: function() {
-                        alert('Failed to save FAQ');
+                        alert('Failed to save FAQ. This may be due to a timeout - embedding generation can take a few seconds.');
+                        $('#chatbot-faq-save-btn').prop('disabled', false);
+                        $('#chatbot-faq-saving').hide();
                     }
                 });
             });

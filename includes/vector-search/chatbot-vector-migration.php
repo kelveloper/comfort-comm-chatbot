@@ -23,13 +23,28 @@ require_once plugin_dir_path(__FILE__) . 'chatbot-vector-schema.php';
  * @param string $model Model to use (default: text-embedding-3-small)
  * @return array|null Embedding vector (1536 dimensions) or null on failure
  */
-function chatbot_vector_generate_embedding($text, $model = 'text-embedding-3-small') {
-    // Get OpenAI API key from WordPress options
-    $api_key = get_option('chatbot_chatgpt_api_key', '');
+function chatbot_vector_generate_embedding($text, $model = 'text-embedding-004') {
+    // Try Gemini API first (since user is using Gemini for chatbot)
+    $api_key = get_option('chatbot_gemini_api_key', '');
+    $use_gemini = !empty($api_key);
+
+    // Fall back to OpenAI if no Gemini key
+    if (empty($api_key)) {
+        $api_key = get_option('chatbot_chatgpt_api_key', '');
+        $use_gemini = false;
+    }
 
     if (empty($api_key)) {
-        error_log('[Chatbot Vector] OpenAI API key not configured');
+        error_log('[Chatbot Vector] No API key configured (tried Gemini and OpenAI)');
         return null;
+    }
+
+    // Decrypt the API key if it's encrypted (contains iv and encrypted fields)
+    if (function_exists('chatbot_chatgpt_decrypt_api_key')) {
+        $decrypted = chatbot_chatgpt_decrypt_api_key($api_key);
+        if (!empty($decrypted)) {
+            $api_key = $decrypted;
+        }
     }
 
     // Clean and prepare text
@@ -38,11 +53,79 @@ function chatbot_vector_generate_embedding($text, $model = 'text-embedding-3-sma
         return null;
     }
 
-    // Truncate if too long (max ~8000 tokens for embedding model)
+    // Truncate if too long
     if (strlen($text) > 30000) {
         $text = substr($text, 0, 30000);
     }
 
+    if ($use_gemini) {
+        return chatbot_vector_generate_embedding_gemini($text, $api_key, $model);
+    } else {
+        return chatbot_vector_generate_embedding_openai($text, $api_key, 'text-embedding-3-small');
+    }
+}
+
+/**
+ * Generate embedding using Google Gemini API
+ */
+function chatbot_vector_generate_embedding_gemini($text, $api_key, $model = 'text-embedding-004') {
+    // Note: Gemini embedding model produces 768 dimensions by default
+    // We'll need to update schema or pad to 1536 dimensions
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':embedContent?key=' . $api_key;
+
+    $body = json_encode([
+        'model' => 'models/' . $model,
+        'content' => [
+            'parts' => [
+                ['text' => $text]
+            ]
+        ]
+    ]);
+
+    $response = wp_remote_post($url, [
+        'timeout' => 30,
+        'headers' => [
+            'Content-Type' => 'application/json',
+        ],
+        'body' => $body
+    ]);
+
+    if (is_wp_error($response)) {
+        error_log('[Chatbot Vector] Gemini API request failed: ' . $response->get_error_message());
+        return null;
+    }
+
+    $status_code = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if ($status_code !== 200) {
+        $error_msg = isset($data['error']['message']) ? $data['error']['message'] : 'Unknown error';
+        error_log('[Chatbot Vector] Gemini API error: ' . $error_msg);
+        return null;
+    }
+
+    if (!isset($data['embedding']['values'])) {
+        error_log('[Chatbot Vector] No embedding in Gemini response');
+        return null;
+    }
+
+    $embedding = $data['embedding']['values'];
+
+    // Gemini text-embedding-004 produces 768 dimensions
+    // Pad to 1536 dimensions for consistency with our schema
+    // (or we could resize the schema, but padding is simpler)
+    while (count($embedding) < 1536) {
+        $embedding[] = 0.0;
+    }
+
+    return $embedding;
+}
+
+/**
+ * Generate embedding using OpenAI API
+ */
+function chatbot_vector_generate_embedding_openai($text, $api_key, $model = 'text-embedding-3-small') {
     $url = 'https://api.openai.com/v1/embeddings';
 
     $body = json_encode([
@@ -312,33 +395,29 @@ function chatbot_vector_migrate_all_faqs($clear_existing = false) {
 }
 
 /**
- * Add a single FAQ with embedding (for future additions)
+ * Add a single FAQ with embedding (legacy function - use chatbot_faq_add instead)
  *
  * @param string $question The FAQ question
  * @param string $answer The FAQ answer
  * @param string $category The category
  * @return array Result with success status
+ * @deprecated Use chatbot_faq_add() from chatbot-vector-faq-crud.php instead
  */
 function chatbot_vector_add_faq($question, $answer, $category = '') {
-    // Generate keywords using existing function
-    $keywords = chatbot_faq_generate_keywords($question);
+    // This function is deprecated - use chatbot_faq_add() instead
+    // Keeping for backwards compatibility only
+    if (function_exists('chatbot_faq_add')) {
+        return chatbot_faq_add($question, $answer, $category);
+    }
 
+    // Fallback to PDO method if CRUD functions not loaded
     $faq = [
         'id' => uniqid('cc'),
         'question' => $question,
         'answer' => $answer,
         'category' => $category,
-        'keywords' => $keywords
     ];
 
-    // Also add to JSON file for backup
-    $json_result = chatbot_faq_add($question, $answer, $category);
-
-    if (!$json_result['success']) {
-        error_log('[Chatbot Vector] Failed to add FAQ to JSON: ' . $json_result['message']);
-    }
-
-    // Add to vector database with embeddings
     return chatbot_vector_upsert_faq($faq, true);
 }
 

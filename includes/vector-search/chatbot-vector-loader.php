@@ -21,6 +21,7 @@ require_once plugin_dir_path(__FILE__) . 'chatbot-vector-migration.php';
 require_once plugin_dir_path(__FILE__) . 'chatbot-vector-search.php';
 require_once plugin_dir_path(__FILE__) . 'chatbot-vector-integration.php';
 require_once plugin_dir_path(__FILE__) . 'chatbot-vector-api.php';
+require_once plugin_dir_path(__FILE__) . 'chatbot-vector-faq-crud.php'; // Supabase FAQ CRUD
 
 /**
  * Initialize vector search on plugin load

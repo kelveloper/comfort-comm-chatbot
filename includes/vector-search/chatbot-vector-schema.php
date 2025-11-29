@@ -60,7 +60,7 @@ if (!defined('WPINC')) {
  */
 
 /**
- * Get PostgreSQL PDO connection
+ * Get PostgreSQL PDO connection (if pdo_pgsql is available)
  *
  * @return PDO|null PostgreSQL PDO instance or null on failure
  */
@@ -69,6 +69,12 @@ function chatbot_vector_get_pg_connection() {
 
     if ($pdo !== null) {
         return $pdo;
+    }
+
+    // Check if PDO PostgreSQL extension is available
+    if (!extension_loaded('pdo_pgsql')) {
+        // Will use REST API instead
+        return null;
     }
 
     // Check if PostgreSQL config is defined
@@ -97,6 +103,94 @@ function chatbot_vector_get_pg_connection() {
         error_log('[Chatbot Vector] PostgreSQL connection failed: ' . $e->getMessage());
         return null;
     }
+}
+
+/**
+ * Get Supabase configuration for REST API
+ *
+ * @return array|null Supabase config or null if not configured
+ */
+function chatbot_vector_get_supabase_config() {
+    if (!defined('CHATBOT_PG_HOST')) {
+        return null;
+    }
+
+    // Extract project ref from host (e.g., db.xxxxx.supabase.co -> xxxxx)
+    $host = CHATBOT_PG_HOST;
+    if (preg_match('/db\.([a-z0-9]+)\.supabase\.co/', $host, $matches)) {
+        $project_ref = $matches[1];
+        return [
+            'url' => 'https://' . $project_ref . '.supabase.co',
+            'anon_key' => defined('CHATBOT_SUPABASE_ANON_KEY') ? CHATBOT_SUPABASE_ANON_KEY : null,
+            'service_key' => defined('CHATBOT_SUPABASE_SERVICE_KEY') ? CHATBOT_SUPABASE_SERVICE_KEY : null,
+        ];
+    }
+
+    return null;
+}
+
+/**
+ * Make a Supabase REST API request
+ *
+ * @param string $endpoint The API endpoint (e.g., '/rest/v1/chatbot_faqs')
+ * @param string $method HTTP method (GET, POST, etc.)
+ * @param array $params Query parameters or body data
+ * @param bool $use_service_key Use service key instead of anon key
+ * @return array|null Response data or null on failure
+ */
+function chatbot_vector_supabase_request($endpoint, $method = 'GET', $params = [], $use_service_key = false) {
+    $config = chatbot_vector_get_supabase_config();
+
+    if (!$config) {
+        error_log('[Chatbot Vector] Supabase configuration not found');
+        return null;
+    }
+
+    $api_key = $use_service_key ? $config['service_key'] : $config['anon_key'];
+    if (!$api_key) {
+        error_log('[Chatbot Vector] Supabase API key not configured');
+        return null;
+    }
+
+    $url = $config['url'] . $endpoint;
+
+    $headers = [
+        'apikey' => $api_key,
+        'Authorization' => 'Bearer ' . $api_key,
+        'Content-Type' => 'application/json',
+        'Prefer' => 'return=representation',
+    ];
+
+    $args = [
+        'method' => $method,
+        'headers' => $headers,
+        'timeout' => 30,
+    ];
+
+    if ($method === 'GET' && !empty($params)) {
+        $url .= '?' . http_build_query($params);
+    } elseif (!empty($params)) {
+        $args['body'] = json_encode($params);
+    }
+
+    $response = wp_remote_request($url, $args);
+
+    if (is_wp_error($response)) {
+        error_log('[Chatbot Vector] Supabase request failed: ' . $response->get_error_message());
+        return null;
+    }
+
+    $status = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if ($status >= 400) {
+        $error = isset($data['message']) ? $data['message'] : 'Unknown error';
+        error_log('[Chatbot Vector] Supabase API error: ' . $error);
+        return null;
+    }
+
+    return $data;
 }
 
 /**
@@ -209,20 +303,21 @@ function chatbot_vector_create_search_index($lists = 10) {
  * @return bool True if PostgreSQL with pgvector is configured and accessible
  */
 function chatbot_vector_is_available() {
+    // Check PDO connection first
     $pdo = chatbot_vector_get_pg_connection();
 
-    if (!$pdo) {
-        return false;
+    if ($pdo) {
+        try {
+            $stmt = $pdo->query("SELECT 1 FROM pg_extension WHERE extname = 'vector'");
+            return $stmt->fetchColumn() !== false;
+        } catch (PDOException $e) {
+            return false;
+        }
     }
 
-    try {
-        // Check if pgvector extension is installed
-        $stmt = $pdo->query("SELECT 1 FROM pg_extension WHERE extname = 'vector'");
-        return $stmt->fetchColumn() !== false;
-
-    } catch (PDOException $e) {
-        return false;
-    }
+    // Fall back to checking Supabase REST API config
+    $config = chatbot_vector_get_supabase_config();
+    return ($config && !empty($config['anon_key']));
 }
 
 /**

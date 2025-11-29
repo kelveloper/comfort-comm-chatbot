@@ -49,57 +49,43 @@ function chatbot_vector_search($query, $options = []) {
     ];
     $options = array_merge($defaults, $options);
 
-    // Vector search is REQUIRED - no fallback
-    if (!chatbot_vector_is_available()) {
-        error_log('[Chatbot Vector] CRITICAL: Vector search not available. Check PostgreSQL/pgvector configuration.');
-        return [
-            'success' => false,
-            'error' => 'Vector search is not configured. Please check PostgreSQL connection.',
-            'results' => [],
-            'count' => 0,
-            'search_type' => 'error'
-        ];
-    }
-
-    $pdo = chatbot_vector_get_pg_connection();
-    if (!$pdo) {
-        error_log('[Chatbot Vector] CRITICAL: Could not connect to PostgreSQL database.');
-        return [
-            'success' => false,
-            'error' => 'Database connection failed.',
-            'results' => [],
-            'count' => 0,
-            'search_type' => 'error'
-        ];
-    }
-
-    // Generate embedding for the query
+    // Generate embedding for the query first
     $query_embedding = chatbot_vector_generate_embedding($query);
 
     if (!$query_embedding) {
-        error_log('[Chatbot Vector] Failed to generate query embedding. Check OpenAI API key.');
+        error_log('[Chatbot Vector] Failed to generate query embedding. Check API key (Gemini or OpenAI).');
         return [
             'success' => false,
-            'error' => 'Failed to generate embedding. Check OpenAI API configuration.',
+            'error' => 'Failed to generate embedding. Check API configuration.',
             'results' => [],
             'count' => 0,
             'search_type' => 'error'
         ];
     }
 
+    // Try PDO connection first (faster), fall back to REST API
+    $pdo = chatbot_vector_get_pg_connection();
+
+    if ($pdo) {
+        return chatbot_vector_search_pdo($query_embedding, $options, $pdo);
+    } else {
+        return chatbot_vector_search_rest($query_embedding, $options);
+    }
+}
+
+/**
+ * Search using PDO (direct PostgreSQL connection)
+ */
+function chatbot_vector_search_pdo($query_embedding, $options, $pdo) {
     $embedding_str = chatbot_vector_to_pg_format($query_embedding);
 
     try {
-        // Build the query with cosine similarity
-        // pgvector uses <=> for cosine distance (1 - similarity)
-        // So we calculate: 1 - (embedding <=> query_embedding) for similarity
         $sql = '
             SELECT
                 faq_id,
                 question,
                 answer,
                 category,
-                keywords,
                 1 - (combined_embedding <=> ?::vector) AS similarity
             FROM chatbot_faqs
             WHERE combined_embedding IS NOT NULL
@@ -107,18 +93,15 @@ function chatbot_vector_search($query, $options = []) {
 
         $params = [$embedding_str];
 
-        // Add category filter if specified
         if (!empty($options['category'])) {
             $sql .= ' AND category = ?';
             $params[] = $options['category'];
         }
 
-        // Add similarity threshold filter
         $sql .= ' AND 1 - (combined_embedding <=> ?::vector) >= ?';
         $params[] = $embedding_str;
         $params[] = $options['threshold'];
 
-        // Order by similarity (highest first) and limit results
         $sql .= ' ORDER BY similarity DESC LIMIT ?';
         $params[] = (int) $options['limit'];
 
@@ -126,33 +109,10 @@ function chatbot_vector_search($query, $options = []) {
         $stmt->execute($params);
         $results = $stmt->fetchAll();
 
-        // Process results
-        $processed_results = [];
-        foreach ($results as $row) {
-            $result = [
-                'faq_id' => $row['faq_id'],
-                'question' => $row['question'],
-                'answer' => $row['answer'],
-                'category' => $row['category']
-            ];
-
-            if ($options['return_scores']) {
-                $result['similarity'] = round((float) $row['similarity'], 4);
-                $result['confidence'] = chatbot_vector_get_confidence_level($row['similarity']);
-            }
-
-            $processed_results[] = $result;
-        }
-
-        return [
-            'success' => true,
-            'results' => $processed_results,
-            'count' => count($processed_results),
-            'search_type' => 'vector'
-        ];
+        return chatbot_vector_process_results($results, $options);
 
     } catch (PDOException $e) {
-        error_log('[Chatbot Vector] Search query failed: ' . $e->getMessage());
+        error_log('[Chatbot Vector] PDO search failed: ' . $e->getMessage());
         return [
             'success' => false,
             'error' => 'Database query failed: ' . $e->getMessage(),
@@ -161,6 +121,111 @@ function chatbot_vector_search($query, $options = []) {
             'search_type' => 'error'
         ];
     }
+}
+
+/**
+ * Search using Supabase REST API (no PHP extensions required)
+ */
+function chatbot_vector_search_rest($query_embedding, $options) {
+    $config = chatbot_vector_get_supabase_config();
+
+    if (!$config || !$config['anon_key']) {
+        error_log('[Chatbot Vector] Supabase REST API not configured');
+        return [
+            'success' => false,
+            'error' => 'Vector search not configured. Add CHATBOT_SUPABASE_ANON_KEY to wp-config.php',
+            'results' => [],
+            'count' => 0,
+            'search_type' => 'error'
+        ];
+    }
+
+    // Call the search_faqs function via RPC
+    $url = $config['url'] . '/rest/v1/rpc/search_faqs';
+
+    $body = [
+        'query_embedding' => $query_embedding,
+        'match_threshold' => $options['threshold'],
+        'match_count' => $options['limit']
+    ];
+
+    $response = wp_remote_post($url, [
+        'headers' => [
+            'apikey' => $config['anon_key'],
+            'Authorization' => 'Bearer ' . $config['anon_key'],
+            'Content-Type' => 'application/json',
+        ],
+        'body' => json_encode($body),
+        'timeout' => 30,
+    ]);
+
+    if (is_wp_error($response)) {
+        error_log('[Chatbot Vector] Supabase REST request failed: ' . $response->get_error_message());
+        return [
+            'success' => false,
+            'error' => 'API request failed: ' . $response->get_error_message(),
+            'results' => [],
+            'count' => 0,
+            'search_type' => 'error'
+        ];
+    }
+
+    $status = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    $results = json_decode($body, true);
+
+    if ($status >= 400) {
+        $error = is_array($results) && isset($results['message']) ? $results['message'] : 'Unknown API error';
+        error_log('[Chatbot Vector] Supabase API error: ' . $error . ' (Status: ' . $status . ')');
+        return [
+            'success' => false,
+            'error' => 'API error: ' . $error,
+            'results' => [],
+            'count' => 0,
+            'search_type' => 'error'
+        ];
+    }
+
+    if (!is_array($results)) {
+        return [
+            'success' => true,
+            'results' => [],
+            'count' => 0,
+            'search_type' => 'vector_rest'
+        ];
+    }
+
+    return chatbot_vector_process_results($results, $options);
+}
+
+/**
+ * Process search results into standard format
+ */
+function chatbot_vector_process_results($results, $options) {
+    $processed_results = [];
+
+    foreach ($results as $row) {
+        $result = [
+            'faq_id' => $row['faq_id'],
+            'question' => $row['question'],
+            'answer' => $row['answer'],
+            'category' => $row['category']
+        ];
+
+        if ($options['return_scores']) {
+            $result['similarity'] = round((float) $row['similarity'], 4);
+            $result['confidence'] = chatbot_vector_get_confidence_level($row['similarity']);
+        }
+
+        $processed_results[] = $result;
+    }
+
+    return [
+        'success' => true,
+        'results' => $processed_results,
+        'count' => count($processed_results),
+        'search_type' => 'vector'
+    ];
 }
 
 /**
