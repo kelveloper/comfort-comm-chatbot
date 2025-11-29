@@ -59,13 +59,17 @@ function create_chatbot_chatgpt_interactions_table() {
 // register_activation_hook(__FILE__, 'create_chatbot_chatgpt_interactions_table');
 
 // Update Interaction Tracking - Ver 1.6.3
+// Updated Ver 2.4.8: Uses Supabase when configured
 function update_interaction_tracking() {
 
-    global $wpdb;
+    // USE SUPABASE if configured - Ver 2.4.8
+    if (function_exists('chatbot_should_use_supabase_db') && chatbot_should_use_supabase_db()) {
+        $result = chatbot_supabase_update_interaction_count();
+        return $result['success'] ?? false;
+    }
 
-    // Check version and create table if necessary
-    // FIXME - WHAT IF THE TABLE WAS DROPPED? - Ver 1.7.6
-    // chatbot_chatgpt_check_version();
+    // FALLBACK to WordPress $wpdb
+    global $wpdb;
 
     // Get current date and table name
     $today = current_time('Y-m-d');
@@ -245,11 +249,8 @@ function create_conversation_logging_table() {
 }
 
 // Append message to conversation log in the database - Ver 1.7.6
+// Updated Ver 2.4.8: Uses Supabase when configured
 function append_message_to_conversation_log($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message) {
-
-    global $wpdb;
-
-    // $user_type can be 'chatbot', 'visitor', 'prompt_tokens', 'completion_tokens', 'total_tokens'
 
     // Check if conversation logging is enabled
     if (esc_attr(get_option('chatbot_chatgpt_enable_conversation_logging')) !== 'On') {
@@ -257,16 +258,31 @@ function append_message_to_conversation_log($session_id, $user_id, $page_id, $us
         return;
     }
 
-    // Belt & Suspenders - Ver 1.9.3 - 20224 03 18
-    // Cannot have a partial user_id based on the number value of the session_id - it trims it
-    // 9ae6a5ebfacc3df8015a42d01bb25fbe becomes 9 - UGH!
+    // Belt & Suspenders - Ver 1.9.3
     if ( $user_id == $session_id ) {
         $user_id = 0;
     }
 
-    // Get the $assistant_name from the transient - REMOVED - LET'S AVOID AN ADDITIONAL CALL TO THE DB HERE - Ver 2.2.7
+    // Get the $assistant_name from the transient
     $assistant_name = get_chatbot_chatgpt_transients('assistant_name', $user_id, $page_id, $session_id);
 
+    // USE SUPABASE if configured - Ver 2.4.8
+    if (function_exists('chatbot_should_use_supabase_db') && chatbot_should_use_supabase_db()) {
+        return chatbot_supabase_log_conversation(
+            $session_id,
+            $user_id,
+            $page_id,
+            $user_type,
+            $thread_id,
+            $assistant_id,
+            $assistant_name,
+            $message,
+            0 // Default sentiment score
+        );
+    }
+
+    // FALLBACK to WordPress $wpdb
+    global $wpdb;
     $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
 
     // Check if sentiment_score column exists and analytics module is available

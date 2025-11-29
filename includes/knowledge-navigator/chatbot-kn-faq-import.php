@@ -38,16 +38,29 @@ if ( ! defined( 'WPINC' ) ) {
 
 /**
  * Log gap question - Ver 2.4.2
+ * Updated Ver 2.4.8: Uses Supabase when configured
  * Questions that weren't matched with high confidence
  */
 function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $confidence_level, $session_id = null, $user_id = null, $page_id = null) {
-    global $wpdb;
-
     // Skip if question is empty or too short
     if (empty($question) || strlen(trim($question)) < 3) {
         return false;
     }
 
+    // USE SUPABASE if configured - Ver 2.4.8
+    if (function_exists('chatbot_should_use_supabase_db') && chatbot_should_use_supabase_db()) {
+        return chatbot_supabase_log_gap_question(
+            sanitize_text_field($question),
+            $session_id,
+            $user_id ? intval($user_id) : 0,
+            $page_id ? intval($page_id) : 0,
+            floatval($confidence_score),
+            $faq_match_id
+        );
+    }
+
+    // FALLBACK to WordPress $wpdb
+    global $wpdb;
     $table_name = $wpdb->prefix . 'chatbot_gap_questions';
 
     // Check if table exists

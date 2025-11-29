@@ -219,6 +219,9 @@ require_once plugin_dir_path(__FILE__) . 'includes/analytics/globals.php';
 // Include Vector Search - Semantic FAQ search with pgvector - Ver 2.4.7
 require_once plugin_dir_path(__FILE__) . 'includes/vector-search/chatbot-vector-loader.php';
 
+// Include Supabase Database Module - All database operations via Supabase - Ver 2.4.8
+require_once plugin_dir_path(__FILE__) . 'includes/supabase/chatbot-supabase-loader.php';
+
 add_action('admin_init', function() {
     if (
         isset($_POST['chatbot_chatgpt_analytics_action']) &&
