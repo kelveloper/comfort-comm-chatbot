@@ -38,7 +38,7 @@ if ( ! defined( 'WPINC' ) ) {
 
 /**
  * Log gap question - Ver 2.4.2
- * Updated Ver 2.4.8: Uses Supabase when configured
+ * Updated Ver 2.4.8: Uses Supabase only
  * Questions that weren't matched with high confidence
  */
 function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $confidence_level, $session_id = null, $user_id = null, $page_id = null) {
@@ -47,8 +47,8 @@ function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $
         return false;
     }
 
-    // USE SUPABASE if configured - Ver 2.4.8
-    if (function_exists('chatbot_should_use_supabase_db') && chatbot_should_use_supabase_db()) {
+    // Use Supabase for all gap question logging
+    if (function_exists('chatbot_supabase_log_gap_question')) {
         return chatbot_supabase_log_gap_question(
             sanitize_text_field($question),
             $session_id,
@@ -59,103 +59,24 @@ function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $
         );
     }
 
-    // FALLBACK to WordPress $wpdb
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'chatbot_gap_questions';
-
-    // Check if table exists
-    if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) !== $table_name) {
-        error_log('[Chatbot] Gap questions table does not exist. Run plugin activation.');
-        return false;
-    }
-
-    // Insert gap question
-    $result = $wpdb->insert(
-        $table_name,
-        array(
-            'question_text' => sanitize_text_field($question),
-            'session_id' => $session_id,
-            'user_id' => $user_id ? intval($user_id) : null,
-            'page_id' => $page_id ? intval($page_id) : null,
-            'faq_confidence' => floatval($confidence_score),
-            'faq_match_id' => $faq_match_id,
-            'asked_date' => current_time('mysql')
-        ),
-        array('%s', '%s', '%d', '%d', '%f', '%s', '%s')
-    );
-
-    if ($result === false) {
-        error_log('[Chatbot] Failed to log gap question: ' . $wpdb->last_error);
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 /**
  * Track FAQ usage - Ver 2.4.2
+ * Updated Ver 2.4.8: Uses Supabase only
  */
 function chatbot_track_faq_usage($faq_id, $confidence_score) {
-    global $wpdb;
-
     if (empty($faq_id)) {
         return false;
     }
 
-    $table_name = $wpdb->prefix . 'chatbot_faq_usage';
-
-    // Check if table exists
-    if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) !== $table_name) {
-        error_log('[Chatbot] FAQ usage table does not exist. Run plugin activation.');
-        return false;
+    // Use Supabase for all FAQ usage tracking
+    if (function_exists('chatbot_supabase_track_faq_usage')) {
+        return chatbot_supabase_track_faq_usage($faq_id, $confidence_score);
     }
 
-    // Check if FAQ already has a record
-    $existing = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE faq_id = %s", $faq_id), ARRAY_A);
-
-    if ($existing) {
-        // Update existing record
-        $new_hit_count = intval($existing['hit_count']) + 1;
-
-        // Calculate new average confidence (running average)
-        $old_avg = floatval($existing['avg_confidence']);
-        $old_count = intval($existing['hit_count']);
-        $new_avg = (($old_avg * $old_count) + floatval($confidence_score)) / $new_hit_count;
-
-        $result = $wpdb->update(
-            $table_name,
-            array(
-                'hit_count' => $new_hit_count,
-                'last_asked' => current_time('mysql'),
-                'avg_confidence' => $new_avg,
-                'updated_at' => current_time('mysql')
-            ),
-            array('faq_id' => $faq_id),
-            array('%d', '%s', '%f', '%s'),
-            array('%s')
-        );
-    } else {
-        // Insert new record
-        $result = $wpdb->insert(
-            $table_name,
-            array(
-                'faq_id' => $faq_id,
-                'hit_count' => 1,
-                'last_asked' => current_time('mysql'),
-                'avg_confidence' => floatval($confidence_score),
-                'created_at' => current_time('mysql'),
-                'updated_at' => current_time('mysql')
-            ),
-            array('%s', '%d', '%s', '%f', '%s', '%s')
-        );
-    }
-
-    if ($result === false) {
-        error_log('[Chatbot] Failed to track FAQ usage: ' . $wpdb->last_error);
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 // ============================================

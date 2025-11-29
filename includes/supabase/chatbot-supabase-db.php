@@ -426,6 +426,72 @@ function chatbot_supabase_get_gap_questions_by_confidence($min_confidence = 0, $
 }
 
 // =============================================================================
+// FAQ USAGE TRACKING
+// =============================================================================
+
+/**
+ * Track FAQ usage in Supabase
+ */
+function chatbot_supabase_track_faq_usage($faq_id, $confidence_score) {
+    if (empty($faq_id)) {
+        return false;
+    }
+
+    // First, check if record exists
+    $query_params = ['faq_id' => 'eq.' . $faq_id];
+    $result = chatbot_supabase_request('chatbot_faq_usage', 'GET', null, $query_params);
+
+    if ($result['success'] && !empty($result['data'])) {
+        // Update existing record
+        $existing = $result['data'][0];
+        $new_hit_count = intval($existing['hit_count']) + 1;
+
+        // Calculate new average confidence (running average)
+        $old_avg = floatval($existing['avg_confidence'] ?? 0);
+        $old_count = intval($existing['hit_count']);
+        $new_avg = (($old_avg * $old_count) + floatval($confidence_score)) / $new_hit_count;
+
+        $data = [
+            'hit_count' => $new_hit_count,
+            'last_asked' => gmdate('c'),
+            'avg_confidence' => $new_avg
+        ];
+
+        $result = chatbot_supabase_request('chatbot_faq_usage', 'PATCH', $data, $query_params);
+    } else {
+        // Insert new record
+        $data = [
+            'faq_id' => $faq_id,
+            'hit_count' => 1,
+            'last_asked' => gmdate('c'),
+            'avg_confidence' => floatval($confidence_score)
+        ];
+
+        $result = chatbot_supabase_request('chatbot_faq_usage', 'POST', $data);
+    }
+
+    return $result['success'] ?? false;
+}
+
+/**
+ * Get FAQ usage stats
+ */
+function chatbot_supabase_get_faq_usage($limit = 100) {
+    $query_params = [
+        'order' => 'hit_count.desc',
+        'limit' => $limit
+    ];
+
+    $result = chatbot_supabase_request('chatbot_faq_usage', 'GET', null, $query_params);
+
+    if ($result['success']) {
+        return $result['data'];
+    }
+
+    return [];
+}
+
+// =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
 
@@ -441,7 +507,7 @@ function chatbot_supabase_test_connection() {
  * Get all table counts for diagnostics
  */
 function chatbot_supabase_get_diagnostics() {
-    $tables = ['chatbot_faqs', 'chatbot_conversations', 'chatbot_interactions', 'chatbot_gap_questions'];
+    $tables = ['chatbot_faqs', 'chatbot_conversations', 'chatbot_interactions', 'chatbot_gap_questions', 'chatbot_faq_usage'];
     $diagnostics = [];
 
     foreach ($tables as $table) {
