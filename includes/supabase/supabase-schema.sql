@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS chatbot_gap_questions (
     is_clustered BOOLEAN DEFAULT FALSE,
     cluster_id INTEGER,
     is_resolved BOOLEAN DEFAULT FALSE,
+    embedding vector(1536),  -- Vector embedding for semantic clustering
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -75,6 +76,8 @@ CREATE INDEX IF NOT EXISTS idx_gap_session_id ON chatbot_gap_questions(session_i
 CREATE INDEX IF NOT EXISTS idx_gap_asked_date ON chatbot_gap_questions(asked_date);
 CREATE INDEX IF NOT EXISTS idx_gap_is_resolved ON chatbot_gap_questions(is_resolved);
 CREATE INDEX IF NOT EXISTS idx_gap_faq_confidence ON chatbot_gap_questions(faq_confidence);
+CREATE INDEX IF NOT EXISTS idx_gap_questions_embedding ON chatbot_gap_questions
+    USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
 
 -- Enable RLS
 ALTER TABLE chatbot_gap_questions ENABLE ROW LEVEL SECURITY;
