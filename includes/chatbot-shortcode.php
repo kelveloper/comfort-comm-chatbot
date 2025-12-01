@@ -933,9 +933,9 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
     $kchat_settings['chatbot_chatgpt_start_status_new_visitor'] = $chatbot_chatgpt_start_status_new_visitor;
 
     // Fetch and update initial greeting
-    $assistant_details = options_helper($assistant_details, 'initial_greeting', 'Hello! How can I help you today?');
+    $assistant_details = options_helper($assistant_details, 'initial_greeting', "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?");
     // Fetch and update subsequent greeting
-    $assistant_details = options_helper($assistant_details, 'subsequent_greeting', 'Hello again! How can I help you?');
+    $assistant_details = options_helper($assistant_details, 'subsequent_greeting', "Welcome back! I'm Steven. How can I help you today?");
 
     // Use enqueue_greetings_script and handle its return
     $modified_greetings = enqueue_greetings_script($assistant_details['initial_greeting'], $assistant_details['subsequent_greeting']);
@@ -1016,6 +1016,13 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
     $assistant_details['common_name'] = !empty($assistant_details['common_name']) ? $assistant_details['common_name'] : esc_attr(get_option('chatbot_chatgpt_bot_name', 'Kognetiks Chatbot'));
     $kchat_settings['chatbot_chatgpt_bot_name'] = $assistant_details['common_name'];
     $kchat_settings['chatbot_chatgpt_bot_name'] = !empty($assistant_details['common_name']) ? $assistant_details['common_name'] : esc_attr(get_option('chatbot_chatgpt_bot_name', 'Kognetiks Chatbot'));
+
+    // Add FAQ category buttons data for preset bubbles
+    if (function_exists('chatbot_faq_get_buttons_data')) {
+        $kchat_settings['faq_category_buttons'] = chatbot_faq_get_buttons_data();
+    } else {
+        $kchat_settings['faq_category_buttons'] = [];
+    }
 
     // THIS WAS HIGHER UP
     $kchat_settings['chatbot_chatgpt_version'] = $chatbot_chatgpt_plugin_version;
@@ -1107,7 +1114,7 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
         //     echo '</div>';
         // } else {
             echo '<div id="chatbot-chatgpt-header-embedded">';
-            echo '<div id="chatbot-chatgpt-title" class="title">' . strip_tags($bot_name) . '</div>';
+            echo '<div id="chatbot-chatgpt-title" class="title"></div>';
             echo '</div>';
         // }
         ?>
@@ -1251,7 +1258,7 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
         ?>
         <div id="chatbot-chatgpt">
             <div id="chatbot-chatgpt-header" data-cache-buster="<?php echo time(); ?>">
-                <div id="chatbot-chatgpt-title" class="title"><?php echo htmlspecialchars($bot_name); ?></div>
+                <div id="chatbot-chatgpt-title" class="title"></div>
             </div>
             <div id="chatbot-chatgpt-conversation"></div>
             <div id="chatbot-chatgpt-input">
