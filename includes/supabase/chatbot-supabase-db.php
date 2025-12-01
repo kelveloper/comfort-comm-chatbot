@@ -17,17 +17,50 @@ if (!defined('WPINC')) {
  * Check if Supabase is configured
  */
 function chatbot_supabase_is_configured() {
+    // Check admin settings first, then wp-config.php
+    if (function_exists('chatbot_supabase_get_config')) {
+        $config = chatbot_supabase_get_config();
+        return !empty($config['anon_key']);
+    }
+    // Fallback to wp-config.php constant
     return defined('CHATBOT_SUPABASE_ANON_KEY') && !empty(CHATBOT_SUPABASE_ANON_KEY);
+}
+
+/**
+ * Get Supabase anon key from settings or wp-config
+ */
+function chatbot_supabase_get_anon_key() {
+    if (function_exists('chatbot_supabase_get_config')) {
+        $config = chatbot_supabase_get_config();
+        if (!empty($config['anon_key'])) {
+            return $config['anon_key'];
+        }
+    }
+    // Fallback to wp-config.php constant
+    return defined('CHATBOT_SUPABASE_ANON_KEY') ? CHATBOT_SUPABASE_ANON_KEY : '';
 }
 
 /**
  * Get Supabase REST API base URL
  */
 function chatbot_supabase_get_url() {
+    // Check admin settings first
+    if (function_exists('chatbot_supabase_get_config')) {
+        $config = chatbot_supabase_get_config();
+        if (!empty($config['project_url'])) {
+            return rtrim($config['project_url'], '/') . '/rest/v1';
+        }
+    }
+
+    // Fallback to wp-config.php constant
     if (defined('CHATBOT_PG_HOST')) {
         // Extract project ref from host (db.xxxxx.supabase.co -> xxxxx)
         $host = CHATBOT_PG_HOST;
         if (preg_match('/db\.([^.]+)\.supabase\.co/', $host, $matches)) {
+            return 'https://' . $matches[1] . '.supabase.co/rest/v1';
+        }
+        // Also handle without db. prefix
+        if (preg_match('/([^.]+)\.supabase\.co/', $host, $matches)) {
             return 'https://' . $matches[1] . '.supabase.co/rest/v1';
         }
     }
@@ -39,7 +72,9 @@ function chatbot_supabase_get_url() {
  */
 function chatbot_supabase_request($endpoint, $method = 'GET', $data = null, $query_params = []) {
     $base_url = chatbot_supabase_get_url();
-    if (!$base_url || !chatbot_supabase_is_configured()) {
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    if (!$base_url || empty($anon_key)) {
         return ['success' => false, 'error' => 'Supabase not configured'];
     }
 
@@ -51,8 +86,8 @@ function chatbot_supabase_request($endpoint, $method = 'GET', $data = null, $que
     }
 
     $headers = [
-        'apikey: ' . CHATBOT_SUPABASE_ANON_KEY,
-        'Authorization: Bearer ' . CHATBOT_SUPABASE_ANON_KEY,
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
         'Content-Type: application/json',
         'Prefer: return=representation'
     ];
@@ -201,11 +236,12 @@ function chatbot_supabase_get_conversation_stats($start_date, $end_date) {
 
     // Use Prefer header for count
     $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
     $url = $base_url . '/chatbot_conversations?' . http_build_query($query_params);
 
     $headers = [
-        'apikey: ' . CHATBOT_SUPABASE_ANON_KEY,
-        'Authorization: Bearer ' . CHATBOT_SUPABASE_ANON_KEY,
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
         'Prefer: count=exact'
     ];
 
@@ -412,6 +448,7 @@ function chatbot_supabase_get_gap_questions($limit = 100, $include_resolved = fa
  */
 function chatbot_supabase_get_gap_questions_count($include_resolved = false) {
     $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
     $url = $base_url . '/chatbot_gap_questions?select=id';
 
     if (!$include_resolved) {
@@ -419,8 +456,8 @@ function chatbot_supabase_get_gap_questions_count($include_resolved = false) {
     }
 
     $headers = [
-        'apikey: ' . CHATBOT_SUPABASE_ANON_KEY,
-        'Authorization: Bearer ' . CHATBOT_SUPABASE_ANON_KEY,
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
         'Prefer: count=exact'
     ];
 
@@ -935,13 +972,7 @@ function chatbot_supabase_get_assistant_count() {
 // UTILITY FUNCTIONS
 // =============================================================================
 
-/**
- * Test Supabase connection
- */
-function chatbot_supabase_test_connection() {
-    $result = chatbot_supabase_request('chatbot_faqs', 'GET', null, ['limit' => 1]);
-    return $result['success'];
-}
+// Note: chatbot_supabase_test_connection() is now defined in chatbot-settings-supabase.php
 
 /**
  * Get all table counts for diagnostics
@@ -949,14 +980,15 @@ function chatbot_supabase_test_connection() {
 function chatbot_supabase_get_diagnostics() {
     $tables = ['chatbot_faqs', 'chatbot_conversations', 'chatbot_interactions', 'chatbot_gap_questions', 'chatbot_faq_usage', 'chatbot_assistants'];
     $diagnostics = [];
+    $anon_key = chatbot_supabase_get_anon_key();
 
     foreach ($tables as $table) {
         $base_url = chatbot_supabase_get_url();
         $url = $base_url . '/' . $table . '?select=id';
 
         $headers = [
-            'apikey: ' . CHATBOT_SUPABASE_ANON_KEY,
-            'Authorization: Bearer ' . CHATBOT_SUPABASE_ANON_KEY,
+            'apikey: ' . $anon_key,
+            'Authorization: Bearer ' . $anon_key,
             'Prefer: count=exact'
         ];
 

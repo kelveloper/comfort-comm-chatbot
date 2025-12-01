@@ -83,6 +83,31 @@ if (empty($user_id) || $user_id == 0) {
 
 ob_end_flush(); // End output buffering and send the buffer to the browser
 
+// Fallback function for icon paths (replaces removed appearance settings)
+if (!function_exists('chatbot_chatgpt_appearance_icon_path')) {
+    function chatbot_chatgpt_appearance_icon_path($icon_type) {
+        $icons_url = plugins_url('assets/icons/', __FILE__);
+
+        $icon_map = array(
+            'send_icon' => 'send_FILL0_wght400_GRAD0_opsz24.png',
+            'attach_icon' => 'attach_file_FILL0_wght400_GRAD0_opsz24.png',
+            'erase_icon' => 'delete_FILL0_wght400_GRAD0_opsz24.png',
+            'download_icon' => 'download_FILL0_wght400_GRAD0_opsz24.png',
+            'mic_enabled_icon' => 'mic_24dp_000000_FILL0_wght400_GRAD0_opsz24.png',
+            'mic_disabled_icon' => 'mic_off_24dp_000000_FILL0_wght400_GRAD0_opsz24.png',
+            'read_aloud_icon' => 'text_to_speech_FILL0_wght400_GRAD0_opsz24.png',
+            'open_icon' => 'chat_FILL0_wght400_GRAD0_opsz24.png',
+            'collapse_icon' => 'bottom_panel_close_FILL0_wght400_GRAD0_opsz24.png',
+        );
+
+        if (isset($icon_map[$icon_type])) {
+            return $icons_url . $icon_map[$icon_type];
+        }
+
+        return $icons_url . 'chat_FILL0_wght400_GRAD0_opsz24.png';
+    }
+}
+
 // Include necessary files - Main files
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-anthropic-api.php';         // ANT API - Ver 2.0.7
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-azure-openai-api.php';      // Azure OpenAI API - Ver 2.2.6
@@ -106,12 +131,6 @@ require_once plugin_dir_path(__FILE__) . 'includes/chatbot-globals.php';        
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-shortcode.php';                  // Shortcode - Ver 1.6.5
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-csat.php';                       // CSAT Feedback - P0
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-feedback-analysis.php';      // AI Feedback Analysis - P0
-
-// Include necessary files - Appearance - Ver 1.8.1
-require_once plugin_dir_path(__FILE__) . 'includes/appearance/chatbot-settings-appearance-body.php';
-require_once plugin_dir_path(__FILE__) . 'includes/appearance/chatbot-settings-appearance-dimensions.php';
-require_once plugin_dir_path(__FILE__) . 'includes/appearance/chatbot-settings-appearance-text.php';
-require_once plugin_dir_path(__FILE__) . 'includes/appearance/chatbot-settings-appearance-user-css.php';
 
 // Include necessary files - Knowledge Navigator
 require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-kn-acquire-controller.php';  // Knowledge Navigator Acquisition - Ver 1.9.6
@@ -148,9 +167,6 @@ require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-openai-assistants.php';    // OpenAI ChatGPT
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-openai.php';               // OpenAI ChatGPT
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-api-test.php';
-require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-appearance.php';
-require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-avatar.php';
-require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-buttons.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-diagnostics.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-general.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-links.php';
@@ -163,6 +179,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-reg
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-registration-kn.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-registration.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-reporting.php';
+require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-supabase.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-support.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-tools.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-transformers.php';
@@ -931,9 +948,6 @@ function chatbot_chatgpt_enqueue_scripts() {
     // Enqueue the styles
     wp_enqueue_style('dashicons');
     wp_enqueue_style('chatbot-chatgpt-css', plugins_url('assets/css/chatbot-chatgpt.css', __FILE__), array(), $chatbot_chatgpt_plugin_version, 'all');
-
-    // Now override the default styles with the custom styles - Ver 1.8.1
-    chatbot_chatgpt_appearance_custom_css_settings();
 
     // Enqueue the scripts
     wp_enqueue_script('jquery');

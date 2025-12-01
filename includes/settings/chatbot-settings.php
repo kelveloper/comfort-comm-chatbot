@@ -83,7 +83,7 @@ function chatbot_chatgpt_settings_page() {
 
     ?>
     <div id="chatbot-chatgpt-settings" class="wrap">
-        <h1><span class="dashicons dashicons-format-chat" style="font-size: 25px;"></span> Kognetiks Chatbot</h1>
+        <h1><span class="dashicons dashicons-format-chat" style="font-size: 25px;"></span> Steve-Bot</h1>
 
        <script>
             window.onload = function() {
@@ -123,23 +123,10 @@ function chatbot_chatgpt_settings_page() {
 
        <h2 class="nav-tab-wrapper">
             <a href="?page=chatbot-chatgpt&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">General</a>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'OpenAI') { ?><a href="?page=chatbot-chatgpt&tab=api_chatgpt" class="nav-tab <?php echo $active_tab == 'api_chatgpt' ? 'nav-tab-active' : ''; ?>">API/ChatGPT</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'OpenAI') { ?><a href="?page=chatbot-chatgpt&tab=gpt_assistants" class="nav-tab <?php echo $active_tab == 'gpt_assistants' ? 'nav-tab-active' : ''; ?>">GPT Assistants</a>  <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'NVIDIA') { ?><a href="?page=chatbot-chatgpt&tab=api_nvidia" class="nav-tab <?php echo $active_tab == 'api_nvidia' ? 'nav-tab-active' : ''; ?>">API/NVIDIA</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Anthropic') { ?><a href="?page=chatbot-chatgpt&tab=api_anthropic" class="nav-tab <?php echo $active_tab == 'api_anthropic' ? 'nav-tab-active' : ''; ?>">API/Anthropic</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'DeepSeek') { ?><a href="?page=chatbot-chatgpt&tab=api_deepseek" class="nav-tab <?php echo $active_tab == 'api_deepseek' ? 'nav-tab-active' : ''; ?>">API/DeepSeek</a> <?php } ?>
+            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'OpenAI') { ?><a href="?page=chatbot-chatgpt&tab=api_chatgpt" class="nav-tab <?php echo $active_tab == 'api_chatgpt' ? 'nav-tab-active' : ''; ?>">API/OpenAI</a> <?php } ?>
             <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Gemini') { ?><a href="?page=chatbot-chatgpt&tab=api_gemini" class="nav-tab <?php echo $active_tab == 'api_gemini' ? 'nav-tab-active' : ''; ?>">API/Gemini</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Mistral') { ?><a href="?page=chatbot-chatgpt&tab=api_mistral" class="nav-tab <?php echo $active_tab == 'api_mistral' ? 'nav-tab-active' : ''; ?>">API/Mistral</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Mistral') { ?><a href="?page=chatbot-chatgpt&tab=mistral_agent" class="nav-tab <?php echo $active_tab == 'mistral_agent' ? 'nav-tab-active' : ''; ?>">Mistral Agent</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Local Server') { ?><a href="?page=chatbot-chatgpt&tab=api_local" class="nav-tab <?php echo $active_tab == 'api_local' ? 'nav-tab-active' : ''; ?>">API/Local</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Markov Chain') { ?><a href="?page=chatbot-chatgpt&tab=api_markov" class="nav-tab <?php echo $active_tab == 'api_markov' ? 'nav-tab-active' : ''; ?>">API/Markov</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Transformer') { ?><a href="?page=chatbot-chatgpt&tab=api_transformer" class="nav-tab <?php echo $active_tab == 'api_transformer' ? 'nav-tab-active' : ''; ?>">API/Transformer</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Azure OpenAI') { ?><a href="?page=chatbot-chatgpt&tab=api_azure" class="nav-tab <?php echo $active_tab == 'api_azure' ? 'nav-tab-active' : ''; ?>">API/Azure OpenAI</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Azure OpenAI') { ?><a href="?page=chatbot-chatgpt&tab=gpt_azure_assistants" class="nav-tab <?php echo $active_tab == 'gpt_azure_assistants' ? 'nav-tab-active' : ''; ?>">GPT Assistants</a>  <?php } ?>
-            <a href="?page=chatbot-chatgpt&tab=avatar" class="nav-tab <?php echo $active_tab == 'avatar' ? 'nav-tab-active' : ''; ?>">Avatars</a>
-            <a href="?page=chatbot-chatgpt&tab=appearance" class="nav-tab <?php echo $active_tab == 'appearance' ? 'nav-tab-active' : ''; ?>">Appearance</a>
-            <a href="?page=chatbot-chatgpt&tab=custom_buttons" class="nav-tab <?php echo $active_tab == 'custom_buttons' ? 'nav-tab-active' : ''; ?>">Buttons</a>
-            <a href="?page=chatbot-chatgpt&tab=kn_acquire" class="nav-tab <?php echo $active_tab == 'kn_acquire' ? 'nav-tab-active' : ''; ?>">Knowledge Navigator</a>
+            <a href="?page=chatbot-chatgpt&tab=database" class="nav-tab <?php echo $active_tab == 'database' ? 'nav-tab-active' : ''; ?>">Database</a>
+            <a href="?page=chatbot-chatgpt&tab=kn_acquire" class="nav-tab <?php echo $active_tab == 'kn_acquire' ? 'nav-tab-active' : ''; ?>">Knowledge Base</a>
             <a href="?page=chatbot-chatgpt&tab=reporting" class="nav-tab <?php echo $active_tab == 'reporting' ? 'nav-tab-active' : ''; ?>">Reporting</a>
             <a href="?page=chatbot-chatgpt&tab=analytics" class="nav-tab <?php echo $active_tab == 'analytics' ? 'nav-tab-active' : ''; ?>">Analytics</a>
             <a href="?page=chatbot-chatgpt&tab=tools" class="nav-tab <?php echo $active_tab == 'tools' ? 'nav-tab-active' : ''; ?>">Tools</a>
@@ -156,16 +143,10 @@ function chatbot_chatgpt_settings_page() {
 
                 settings_fields('chatbot_chatgpt_settings');
 
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_bot_settings_general');
-                echo '</div>';
+                // General Settings and Chatbot Settings sections removed - bot name hardcoded to "Steven"
 
                 echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
                 do_settings_sections('chatbot_ai_engine_settings');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_name_settings');
                 echo '</div>';
 
                 echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
@@ -524,30 +505,6 @@ function chatbot_chatgpt_settings_page() {
                 do_settings_sections('chatbot_transformer_model_advanced_settings');
                 echo '</div>';
 
-            } elseif ($active_tab == 'avatar') {
-
-                settings_fields('chatbot_chatgpt_avatar');
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_avatar_overview');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_avatar');
-                echo '</div>';
-
-            } elseif ($active_tab == 'custom_buttons') {
-
-                settings_fields('chatbot_chatgpt_custom_buttons');
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_custom_buttons_overview');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_custom_buttons');
-                echo '</div>';
-
             } elseif ($active_tab == 'kn_acquire') {
 
                 settings_fields('chatbot_chatgpt_knowledge_navigator');
@@ -636,26 +593,6 @@ function chatbot_chatgpt_settings_page() {
                 do_settings_sections('chatbot_chatgpt_beta_features');
                 echo '</div>';
 
-            } elseif ($active_tab == 'appearance') {
-
-                settings_fields('chatbot_chatgpt_appearance');
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_appearance_overview');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_appearance');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_appearance_icons_overview');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_appearance_icons');
-                echo '</div>';
-
             } elseif ($active_tab == 'analytics') {
 
                 // Load the actual analytics functionality
@@ -699,6 +636,18 @@ function chatbot_chatgpt_settings_page() {
                 // echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
                 // do_settings_sections('chatbot_chatgpt_capability_tools');
                 // echo '</div>';
+
+            } elseif ($active_tab == 'database') {
+
+                settings_fields('chatbot_chatgpt_supabase');
+
+                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
+                do_settings_sections('chatbot_chatgpt_supabase');
+                echo '</div>';
+
+                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
+                do_settings_sections('chatbot_chatgpt_supabase_status');
+                echo '</div>';
 
             } elseif ($active_tab == 'support') {
 

@@ -1,8 +1,8 @@
 <?php
 /**
- * Kognetiks Chatbot - Knowledge Navigator - TF-IDF Analyzer
+ * Steve-Bot - Knowledge Base - TF-IDF Analyzer
  *
- * This file contains the code for the Chatbot Knowledge Navigator analysis.
+ * This file contains the code for the Chatbot Knowledge Base analysis.
  * 
  * 
  *
@@ -14,11 +14,11 @@ if ( ! defined( 'WPINC' ) ) {
     die();
 }
 
-// Knowledge Navigator Analysis section callback - Ver 1.6.2
+// Knowledge Base Analysis section callback - Ver 1.6.2
 function chatbot_chatgpt_kn_analysis_section_callback($args) {
     ?>
-    <p>Use the 'Download Data' button to retrieve the Knowledge Navigator results.</p>
-    <p style="background-color: #e0f7fa; padding: 10px;"><b>For an explanation on how to use the Knowledge Navigator Analysis and additional documentation please click <a href="?page=chatbot-chatgpt&tab=support&dir=knowledge-navigator&file=knowledge-navigator-analysis.md">here</a>.</b></p>
+    <p>Use the 'Download Data' button to retrieve the Knowledge Base results.</p>
+    <p style="background-color: #e0f7fa; padding: 10px;"><b>For an explanation on how to use the Knowledge Base Analysis and additional documentation please click <a href="?page=chatbot-chatgpt&tab=support&dir=knowledge-navigator&file=knowledge-navigator-analysis.md">here</a>.</b></p>
     <?php
     if (is_admin()) {
         $header = " ";
@@ -28,7 +28,7 @@ function chatbot_chatgpt_kn_analysis_section_callback($args) {
 }
 
 
-// Knowledge Navigator Analysis section callback - Ver 1.6.2
+// Knowledge Base Analysis section callback - Ver 1.6.2
 function chatbot_chatgpt_kn_analysis_output_callback($args) {
     // Get the saved chatbot_chatgpt_kn_analysis_choice value or default to "CSV"
     $output_choice = esc_attr(get_option('chatbot_chatgpt_kn_analysis_output', 'CSV'));
@@ -71,7 +71,7 @@ function chatbot_chatgpt_kn_analysis_download_csv() {
 
     // Set headers for file download
     header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="Knowledge Navigator Results.csv"');
+    header('Content-Disposition: attachment; filename="Knowledge Base Results.csv"');
     header('Content-Length: ' . filesize($results_csv_file));
 
     // Output the file contents

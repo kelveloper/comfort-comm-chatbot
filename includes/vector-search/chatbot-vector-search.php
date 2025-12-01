@@ -124,6 +124,98 @@ function chatbot_vector_search_pdo($query_embedding, $options, $pdo) {
 }
 
 /**
+ * Search using question-only embeddings (for duplicate detection)
+ * This compares question vs question for more accurate matching
+ *
+ * @param string $query The question to search for
+ * @param array $options Search options
+ * @return array Search results
+ */
+function chatbot_vector_search_by_question($query, $options = []) {
+    $defaults = [
+        'threshold' => 0.70,
+        'limit' => 5,
+        'return_scores' => true
+    ];
+    $options = array_merge($defaults, $options);
+
+    // Generate embedding for the query
+    $query_embedding = chatbot_vector_generate_embedding($query);
+
+    if (!$query_embedding) {
+        return [
+            'success' => false,
+            'error' => 'Failed to generate embedding',
+            'results' => [],
+            'count' => 0
+        ];
+    }
+
+    $config = chatbot_vector_get_supabase_config();
+
+    if (!$config || !$config['anon_key']) {
+        return [
+            'success' => false,
+            'error' => 'Supabase not configured',
+            'results' => [],
+            'count' => 0
+        ];
+    }
+
+    // Call the search_faqs_by_question function via RPC
+    $url = $config['url'] . '/rest/v1/rpc/search_faqs_by_question';
+
+    $body = [
+        'query_embedding' => $query_embedding,
+        'match_threshold' => $options['threshold'],
+        'match_count' => $options['limit']
+    ];
+
+    $response = wp_remote_post($url, [
+        'headers' => [
+            'apikey' => $config['anon_key'],
+            'Authorization' => 'Bearer ' . $config['anon_key'],
+            'Content-Type' => 'application/json',
+        ],
+        'body' => json_encode($body),
+        'timeout' => 30,
+    ]);
+
+    if (is_wp_error($response)) {
+        return [
+            'success' => false,
+            'error' => $response->get_error_message(),
+            'results' => [],
+            'count' => 0
+        ];
+    }
+
+    $status = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    $results = json_decode($body, true);
+
+    if ($status >= 400) {
+        $error = is_array($results) && isset($results['message']) ? $results['message'] : 'API error';
+        return [
+            'success' => false,
+            'error' => $error,
+            'results' => [],
+            'count' => 0
+        ];
+    }
+
+    if (!is_array($results)) {
+        return [
+            'success' => true,
+            'results' => [],
+            'count' => 0
+        ];
+    }
+
+    return chatbot_vector_process_results($results, $options);
+}
+
+/**
  * Search using Supabase REST API (no PHP extensions required)
  */
 function chatbot_vector_search_rest($query_embedding, $options) {

@@ -26,7 +26,7 @@ function chatbot_faq_load() {
         return [];
     }
 
-    $url = $config['url'] . '/rest/v1/chatbot_faqs?select=faq_id,question,answer,category,created_at&order=created_at.desc';
+    $url = $config['url'] . '/rest/v1/chatbot_faqs?select=faq_id,question,answer,category,created_at&order=created_at.asc';
 
     $response = wp_remote_get($url, [
         'headers' => [
@@ -160,14 +160,82 @@ function chatbot_faq_get_by_id($id) {
 }
 
 /**
+ * Check for similar existing FAQs
+ *
+ * @param string $question The question to check
+ * @param float $threshold Similarity threshold (default 0.85 = 85% similar)
+ * @param string|null $exclude_id FAQ ID to exclude (for updates)
+ * @return array|null Similar FAQ if found, null otherwise
+ */
+function chatbot_faq_find_similar($question, $threshold = 0.75, $exclude_id = null) {
+    // Search for similar FAQs using question-only embeddings
+    // This compares question vs question for more accurate duplicate detection
+    // Get top 3 matches so user can see multiple potential duplicates
+    $results = chatbot_vector_search_by_question($question, [
+        'threshold' => $threshold,
+        'limit' => 3,
+        'return_scores' => true
+    ]);
+
+    if (!$results['success'] || empty($results['results'])) {
+        return null;
+    }
+
+    // Load all FAQs once for number lookup
+    $all_faqs = chatbot_faq_load();
+
+    // Process matches
+    $similar_faqs = [];
+    foreach ($results['results'] as $match) {
+        // Check if similarity meets threshold
+        if (!isset($match['similarity']) || $match['similarity'] < $threshold) {
+            continue;
+        }
+
+        // Exclude the FAQ being updated
+        if ($exclude_id && isset($match['faq_id']) && $match['faq_id'] === $exclude_id) {
+            continue;
+        }
+
+        // Find the FAQ number
+        $faq_number = 0;
+        foreach ($all_faqs as $index => $faq) {
+            if (isset($faq['id']) && isset($match['faq_id']) && $faq['id'] === $match['faq_id']) {
+                $faq_number = $index + 1;
+                break;
+            }
+        }
+
+        $similar_faqs[] = [
+            'faq_id' => $match['faq_id'] ?? null,
+            'faq_number' => $faq_number,
+            'question' => $match['question'],
+            'similarity' => $match['similarity'],
+            'similarity_pct' => round($match['similarity'] * 100)
+        ];
+    }
+
+    if (empty($similar_faqs)) {
+        return null;
+    }
+
+    // Return first match for backward compatibility, but include all matches
+    $result = $similar_faqs[0];
+    $result['all_matches'] = $similar_faqs;
+    return $result;
+}
+
+/**
  * Add new FAQ to Supabase with embedding
+ * Includes duplicate detection - warns if similar FAQ exists
  *
  * @param string $question The question
  * @param string $answer The answer
  * @param string $category The category
+ * @param bool $force_add Skip duplicate check if true
  * @return array Result with success status
  */
-function chatbot_faq_add($question, $answer, $category = '') {
+function chatbot_faq_add($question, $answer, $category = '', $force_add = false) {
     if (empty($question) || empty($answer)) {
         return ['success' => false, 'message' => 'Question and answer are required'];
     }
@@ -178,24 +246,58 @@ function chatbot_faq_add($question, $answer, $category = '') {
         return ['success' => false, 'message' => 'Supabase not configured'];
     }
 
+    // Check for similar existing FAQ (unless forced)
+    // Using 75% threshold with question-only embeddings for accurate duplicate detection
+    if (!$force_add) {
+        error_log('[Chatbot FAQ] Checking for duplicates of: ' . substr($question, 0, 50));
+        $similar = chatbot_faq_find_similar($question, 0.75); // 75% threshold (question vs question)
+        if ($similar) {
+            error_log('[Chatbot FAQ] Found ' . count($similar['all_matches']) . ' similar FAQs');
+
+            // Build message showing all matches
+            $message_parts = ["Similar FAQs found:\n"];
+            foreach ($similar['all_matches'] as $match) {
+                $faq_ref = $match['faq_number'] > 0 ? '#' . $match['faq_number'] : '';
+                $message_parts[] = '• FAQ ' . $faq_ref . ' (' . $match['similarity_pct'] . '%): "' . substr($match['question'], 0, 60) . '..."';
+            }
+
+            return [
+                'success' => false,
+                'duplicate' => true,
+                'message' => implode("\n", $message_parts),
+                'similar_faq' => $similar
+            ];
+        } else {
+            error_log('[Chatbot FAQ] No duplicate found above 75% threshold');
+        }
+    }
+
     // Generate FAQ ID
     $faq_id = 'cc' . uniqid();
 
-    // Generate embedding for the combined question + answer
-    $combined_text = $question . ' ' . $answer;
-    $embedding = chatbot_vector_generate_embedding($combined_text);
+    // Generate embedding for question only (for duplicate detection)
+    $question_embedding = chatbot_vector_generate_embedding($question);
 
-    if (!$embedding) {
-        return ['success' => false, 'message' => 'Failed to generate embedding. Check API configuration.'];
+    if (!$question_embedding) {
+        return ['success' => false, 'message' => 'Failed to generate question embedding. Check API configuration.'];
     }
 
-    // Prepare FAQ data
+    // Generate embedding for the combined question + answer (for search)
+    $combined_text = $question . ' ' . $answer;
+    $combined_embedding = chatbot_vector_generate_embedding($combined_text);
+
+    if (!$combined_embedding) {
+        return ['success' => false, 'message' => 'Failed to generate combined embedding. Check API configuration.'];
+    }
+
+    // Prepare FAQ data with both embeddings
     $faq_data = [
         'faq_id' => $faq_id,
         'question' => $question,
         'answer' => $answer,
         'category' => $category,
-        'combined_embedding' => $embedding
+        'question_embedding' => $question_embedding,
+        'combined_embedding' => $combined_embedding
     ];
 
     // Insert via REST API
@@ -473,12 +575,14 @@ function chatbot_faq_ajax_add() {
     $question = sanitize_textarea_field($_POST['question'] ?? '');
     $answer = sanitize_textarea_field($_POST['answer'] ?? '');
     $category = sanitize_text_field($_POST['category'] ?? '');
+    $force_add = isset($_POST['force_add']) && $_POST['force_add'] === '1';
 
-    $result = chatbot_faq_add($question, $answer, $category);
+    $result = chatbot_faq_add($question, $answer, $category, $force_add);
 
     if ($result['success']) {
         wp_send_json_success($result);
     } else {
+        // Return duplicate info for confirmation dialog
         wp_send_json_error($result);
     }
 }

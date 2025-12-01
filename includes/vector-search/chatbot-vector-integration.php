@@ -31,18 +31,27 @@ function chatbot_vector_check_status() {
         'errors' => []
     ];
 
-    // Check if PostgreSQL config exists
-    if (!defined('CHATBOT_PG_HOST') || !defined('CHATBOT_PG_DATABASE')) {
-        $status['errors'][] = 'PostgreSQL configuration not found in wp-config.php';
+    // Check if Supabase config exists (from admin settings or wp-config.php)
+    $config = function_exists('chatbot_supabase_get_config') ? chatbot_supabase_get_config() : [];
+
+    if (empty($config['project_url']) && empty($config['db_host'])) {
+        $status['errors'][] = 'Supabase not configured. Go to Steve-Bot → Database to configure.';
+        return $status;
+    }
+
+    if (empty($config['anon_key'])) {
+        $status['errors'][] = 'Supabase Anon Key not configured. Go to Steve-Bot → Database to configure.';
         return $status;
     }
     $status['configured'] = true;
 
-    // Check database connection
-    $pdo = chatbot_vector_get_pg_connection();
-    if (!$pdo) {
-        $status['errors'][] = 'Could not connect to PostgreSQL database';
-        return $status;
+    // Test connection using REST API (doesn't need direct DB access)
+    if (function_exists('chatbot_supabase_test_connection')) {
+        $test = chatbot_supabase_test_connection($config);
+        if (!$test['success']) {
+            $status['errors'][] = $test['message'];
+            return $status;
+        }
     }
     $status['connected'] = true;
 
@@ -221,15 +230,18 @@ function chatbot_build_faq_context($query, $max_faqs = 3) {
 
 /**
  * Admin notice if vector search is not configured
+ * Only shows on the Knowledge Base tab to avoid cluttering other pages
  */
 function chatbot_vector_admin_notice() {
     if (!current_user_can('manage_options')) {
         return;
     }
 
-    // Only show on chatbot admin pages
-    $screen = get_current_screen();
-    if (!$screen || strpos($screen->id, 'chatbot') === false) {
+    // Only show on Knowledge Base tab
+    $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : '';
+    $current_page = isset($_GET['page']) ? sanitize_text_field($_GET['page']) : '';
+
+    if ($current_page !== 'chatbot-chatgpt' || $current_tab !== 'kn_acquire') {
         return;
     }
 
@@ -237,8 +249,8 @@ function chatbot_vector_admin_notice() {
 
     if (!$status['ready']) {
         $errors = implode('<br>', $status['errors']);
-        echo '<div class="notice notice-error"><p>';
-        echo '<strong>Chatbot Vector Search Error:</strong><br>';
+        echo '<div class="notice notice-warning"><p>';
+        echo '<strong>Knowledge Base Setup:</strong><br>';
         echo $errors;
         echo '</p></div>';
     }

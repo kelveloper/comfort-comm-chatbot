@@ -158,8 +158,7 @@ function chatbot_chatgpt_diagnostics_overview_section_callback($args) {
     ?>
         <p>The Diagnostics tab checks the API status and set options for diagnostics and notices.</p>
         <p>You can turn on/off console and error logging (as of Version 1.6.5 most are now commented out).</p>
-        <!-- <p>You can also suppress attribution ('Chatbot & Knowledge Navigator by Kognetiks') and notices by setting the value to 'On' (suppress) or 'Off' (no suppression).</p> -->
-        <p>You can also suppress attribution ('Chatbot plugin by Kognetiks') and notices by setting the value to 'On' (suppress) or 'Off' (no suppression).</p>
+        <p>You can also suppress attribution and notices by setting the value to 'On' (suppress) or 'Off' (no suppression).</p>
         <p><b><i>Don't forget to click </i><code>Save Settings</code><i> to save any changes your might make.</i></b></p>
         <p style="background-color: #e0f7fa; padding: 10px;"><b>For an explanation on how to use the diagnostics, messages, and additional documentation please click <a href="?page=chatbot-chatgpt&tab=support&dir=messages&file=messages.md">here</a>.</b></p>
     <?php
@@ -288,14 +287,14 @@ function chatbot_chatgpt_beta_features_section_callback($args) {
         <div class="chatbot-beta-disclaimer">
             <h3>Caution: Beta Features Ahead 🚧</h3>
             <p>
-                Enabling Beta Features in the Kognetiks Chatbot plugin is intended for testing and experimental purposes only. 
+                Enabling Beta Features in the Steven-Bot plugin is intended for testing and experimental purposes only. 
                 <strong>These features are not fully tested or guaranteed to work as expected</strong> and may cause unexpected behavior, errors, or conflicts with your website.
             </p>
             <p><strong>Important Notices:</strong></p>
             <ol>
                 <li><strong>Backup Your Site:</strong> Before enabling Beta Features, ensure you have a complete backup of your WordPress site and database.</li>
                 <li><strong>Test Environment Recommended:</strong> Beta Features should only be enabled in a testing or staging environment. Avoid enabling them on live or production sites.</li>
-                <li><strong>Use at Your Own Risk:</strong> Kognetiks assumes no liability for issues arising from the use of Beta Features. By enabling them, you accept full responsibility for any changes or damage to your site.</li>
+                <li><strong>Use at Your Own Risk:</strong> We assume no liability for issues arising from the use of Beta Features. By enabling them, you accept full responsibility for any changes or damage to your site.</li>
             </ol>
             <p>
                 If you're unsure about any of these steps, consult with a web professional or WordPress expert before proceeding.
