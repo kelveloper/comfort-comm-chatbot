@@ -40,37 +40,27 @@ function chatbot_ai_engine_section_callback($args) {
 }
 
 // AI Platform Choice - Ver 2.1.8
+// Note: Only OpenAI and Gemini are supported (both provide embedding APIs for vector search)
 function chatbot_ai_platform_choice_callback($args) {
 
-    $chatbot_ai_platform_choice = esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI'));
+    $chatbot_ai_platform_choice = esc_attr(get_option('chatbot_ai_platform_choice', 'Gemini'));
 
-    $platforms = ['OpenAI', 'Azure OpenAI', 'NVIDIA', 'Markov Chain', 'Transformer', 'Anthropic', 'DeepSeek', 'Gemini', 'Mistral', 'Local Server'];
+    // Only support platforms that have embedding APIs for vector search
+    $platforms = ['OpenAI', 'Gemini'];
     if (!in_array($chatbot_ai_platform_choice, $platforms)) {
-        $chatbot_ai_platform_choice = 'OpenAI';
+        $chatbot_ai_platform_choice = 'Gemini';
     }
     update_option('chatbot_ai_platform_choice', $chatbot_ai_platform_choice);
-    
+
     foreach ($platforms as $platform) {
         $enabled = $chatbot_ai_platform_choice === $platform ? 'Yes' : 'No';
         update_option("chatbot_" . strtolower(str_replace(' ', '_', $platform)) . "_api_enabled", $enabled);
     }
-    
+
     ?>
     <select id="chatbot_ai_platform_choice" name="chatbot_ai_platform_choice">
-        <option value="OpenAI" <?php selected( $chatbot_ai_platform_choice, 'OpenAI' ); ?>><?php echo esc_html( 'OpenAI' ); ?></option>
-        <option value="Azure OpenAI" <?php selected( $chatbot_ai_platform_choice, 'Azure OpenAI' ); ?>><?php echo esc_html( 'Azure OpenAI' ); ?></option>
-        <option value="NVIDIA" <?php selected( $chatbot_ai_platform_choice, 'NVIDIA' ); ?>><?php echo esc_html( 'NVIDIA' ); ?></option>
-        <option value="Anthropic" <?php selected( $chatbot_ai_platform_choice, 'Anthropic' ); ?>><?php echo esc_html( 'Anthropic' ); ?></option>
-        <option value="DeepSeek" <?php selected( $chatbot_ai_platform_choice, 'DeepSeek' ); ?>><?php echo esc_html( 'DeepSeek' ); ?></option>
         <option value="Gemini" <?php selected( $chatbot_ai_platform_choice, 'Gemini' ); ?>><?php echo esc_html( 'Gemini' ); ?></option>
-        <option value="Mistral" <?php selected( $chatbot_ai_platform_choice, 'Mistral' ); ?>><?php echo esc_html( 'Mistral' ); ?></option>
-        <option value="Local Server" <?php selected( $chatbot_ai_platform_choice, 'Local Server' ); ?>><?php echo esc_html( 'Local Server' ); ?></option>
-        <?php
-        $chatbot_chatgpt_enable_beta_features = esc_attr(get_option('chatbot_chatgpt_enable_beta_features', 'no'));
-        if ($chatbot_chatgpt_enable_beta_features === 'yes') : ?>
-            <!-- <option value="Markov Chain" <?php selected( $chatbot_ai_platform_choice, 'Markov Chain' ); ?>><?php echo esc_html( 'Markov Chain' ); ?></option> -->
-            <option value="Transformer" <?php selected( $chatbot_ai_platform_choice, 'Transformer' ); ?>><?php echo esc_html( 'Transformer' ); ?></option>
-        <?php endif; ?>
+        <option value="OpenAI" <?php selected( $chatbot_ai_platform_choice, 'OpenAI' ); ?>><?php echo esc_html( 'OpenAI' ); ?></option>
     </select>
     <?php
 
@@ -206,7 +196,7 @@ function chatbot_chatgpt_settings_section_callback($args) {
 
 // Chatbot Name
 function chatbot_chatgpt_bot_name_callback($args) {
-    $bot_name = esc_attr(get_option('chatbot_chatgpt_bot_name', 'Kognetiks Chatbot'));
+    $bot_name = esc_attr(get_option('chatbot_chatgpt_bot_name', 'Steven'));
     ?>
     <input type="text" id="chatbot_chatgpt_bot_name" name="chatbot_chatgpt_bot_name" value="<?php echo esc_attr( $bot_name ); ?>" class="regular-text">
     <?php
@@ -394,37 +384,7 @@ function chatbot_chatgpt_settings_setup_init() {
         'chatbot_ai_engine_section'
     );
 
-    // Chatbot Settings - Chatbot Name, Start Status, Start Status New Visitor
-    add_settings_section(
-        'chatbot_chatgpt_name_section',
-        'Chatbot Settings',
-        'chatbot_chatgpt_name_section_callback',
-        'chatbot_chatgpt_name_settings'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_bot_name',
-        'Chatbot Name',
-        'chatbot_chatgpt_bot_name_callback',
-        'chatbot_chatgpt_name_settings',
-        'chatbot_chatgpt_name_section'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_start_status',
-        'Start Status',
-        'chatbot_chatgpt_start_status_callback',
-        'chatbot_chatgpt_name_settings',
-        'chatbot_chatgpt_name_section'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_start_status_new_visitor',
-        'Start Status New Visitor',
-        'chatbot_chatgpt_start_status_new_visitor_callback',
-        'chatbot_chatgpt_name_settings',
-        'chatbot_chatgpt_name_section'
-    );
+    // Chatbot Settings section removed - bot name hardcoded to "Steven", start status uses defaults
 
     add_settings_section(
         'chatbot_chatgpt_message_limits_section',

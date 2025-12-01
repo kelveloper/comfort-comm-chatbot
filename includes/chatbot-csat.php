@@ -42,10 +42,11 @@ function chatbot_chatgpt_submit_csat() {
     $page_id = intval($_POST['page_id']);
     $timestamp = current_time('mysql');
 
-    // Get confidence score by searching FAQ
+    // Get confidence score by searching FAQ using vector search
     $confidence_score = 'unknown';
-    if (function_exists('chatbot_faq_search')) {
-        $faq_result = chatbot_faq_search($question, true, $session_id, $user_id, $page_id);
+    if (function_exists('chatbot_vector_faq_search')) {
+        // Use vector search (no fallback)
+        $faq_result = chatbot_vector_faq_search($question, true, $session_id, $user_id, $page_id);
         if ($faq_result && isset($faq_result['confidence'])) {
             $confidence_score = $faq_result['confidence'];
         }

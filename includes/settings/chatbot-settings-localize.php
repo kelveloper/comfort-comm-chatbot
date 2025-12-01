@@ -22,7 +22,7 @@ function chatbot_chatgpt_localize(){
         'chatbot_chatgpt_avatar_greeting_setting' => 'Howdy!!! Great to see you today! How can I help you?',
         'chatbot_chatgpt_avatar_icon_setting' => 'icon-001.png',
         'chatbot_chatgpt_avatar_icon_url_setting' => '',
-        'chatbot_chatgpt_bot_name' => 'Kognetiks Chatbot',
+        'chatbot_chatgpt_bot_name' => 'Steven',
         'chatbot_chatgpt_bot_prompt' => 'Enter your question ...',
         'chatbot_chatgpt_conversation_context' => 'You are a versatile, friendly, and helpful assistant designed to support me in a variety of tasks that responds in Markdown.',
         'chatbot_chatgpt_custom_avatar_icon_setting' => '',

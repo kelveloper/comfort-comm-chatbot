@@ -760,3 +760,248 @@ function chatbot_ajax_edit_faq() {
 - A/B testing for FAQ variations
 - Bulk FAQ import/export
 - Category-based filtering
+
+---
+
+## 11. Vector Search & Supabase Database (Nov 29, 2024)
+
+### 11.1 Overview
+**Purpose:** Replace keyword-based FAQ search with semantic vector search using pgvector
+**Database:** Supabase PostgreSQL (cloud-hosted)
+**Embeddings:** Google Gemini `text-embedding-004` (768 dimensions, padded to 1536)
+**Result:** 10-15% better FAQ matching accuracy
+
+### 11.2 Architecture
+
+#### Database Migration (WordPress → Supabase)
+All chatbot data now stored in Supabase cloud database:
+
+| Table | Description | Row Count |
+|-------|-------------|-----------|
+| `chatbot_faqs` | FAQ entries with vector embeddings | 66 |
+| `chatbot_conversations` | Conversation logs | 294 |
+| `chatbot_interactions` | Daily interaction counts | 2 |
+| `chatbot_gap_questions` | Unanswered questions with embeddings | 79 |
+| `chatbot_faq_usage` | FAQ hit tracking | 19 |
+| `chatbot_assistants` | OpenAI assistant configs | 0 |
+
+**No WordPress fallback** - All operations go directly to Supabase.
+
+#### Vector Embedding Flow
+```
+1. User asks question
+   ↓
+2. Generate embedding via Gemini API
+   - Model: text-embedding-004
+   - Output: 768 dimensions → padded to 1536
+   ↓
+3. PostgreSQL pgvector similarity search
+   - Operator: <=> (cosine distance)
+   - Formula: 1 - (query <=> faq) = similarity
+   ↓
+4. Return FAQ if similarity ≥ 0.40 threshold
+```
+
+### 11.3 Similarity Thresholds
+
+| Threshold | Confidence | Action |
+|-----------|------------|--------|
+| ≥ 0.85 | Very High | Return FAQ directly |
+| ≥ 0.75 | High | Return FAQ directly |
+| ≥ 0.65 | Medium | Return FAQ, log for review |
+| ≥ 0.50 | Low | Return FAQ, log as gap question |
+| ≥ 0.40 | Minimum | Return FAQ with caution |
+| < 0.40 | None | No match, use AI |
+
+### 11.4 Key Files
+
+```
+includes/vector-search/
+├── chatbot-vector-search.php     # Core search functions
+├── chatbot-vector-schema.php     # Database schema & connection
+├── chatbot-vector-migration.php  # Embedding generation (Gemini/OpenAI)
+├── chatbot-vector-faq-crud.php   # FAQ CRUD operations
+├── chatbot-vector-integration.php # FAQ response integration
+├── chatbot-vector-api.php        # REST API endpoints
+└── chatbot-vector-loader.php     # Auto-loader
+
+includes/supabase/
+├── chatbot-supabase-db.php       # Supabase REST API wrapper
+├── chatbot-supabase-loader.php   # Database wrapper functions
+└── supabase-schema.sql           # PostgreSQL schema
+```
+
+### 11.5 Configuration
+
+**Required in wp-config.php:**
+```php
+define('CHATBOT_PG_HOST', 'aws-0-ap-southeast-1.pooler.supabase.com');
+define('CHATBOT_PG_PORT', '6543');
+define('CHATBOT_PG_USER', 'postgres.xxxxx');
+define('CHATBOT_PG_PASSWORD', 'your-password');
+define('CHATBOT_PG_DATABASE', 'postgres');
+define('CHATBOT_SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIs...');
+```
+
+### 11.6 Search Functions
+
+```php
+// Main search function
+$results = chatbot_vector_search($query, [
+    'threshold' => 0.40,
+    'limit' => 5,
+    'category' => 'Internet Plans'
+]);
+
+// Find best match
+$match = chatbot_vector_find_best_match($query);
+// Returns: ['match' => [...], 'score' => 0.87, 'confidence' => 'very_high']
+
+// Get similar FAQs
+$similar = chatbot_vector_get_similar_faqs('faq_123', 3);
+```
+
+---
+
+## 12. Vector-Based Gap Question Clustering (Nov 29, 2024)
+
+### 12.1 Overview
+**Purpose:** Automatically group similar unanswered questions using semantic similarity
+**Method:** Generate embeddings for gap questions, cluster by cosine similarity
+**Result:** Identifies FAQ gaps and suggests new topics to address
+
+### 12.2 How It Works
+
+1. **Embedding Generation:** When a gap question is logged, an embedding is generated
+2. **Storage:** Embedding stored in `chatbot_gap_questions.embedding` column (vector 1536)
+3. **Clustering:** SQL query finds pairs with similarity ≥ 0.70
+4. **Union-Find:** Groups connected questions into clusters
+5. **Topic Extraction:** Analyzes cluster text for common keywords
+
+### 12.3 Key Functions
+
+```php
+// Find similar questions to a specific one
+$similar = chatbot_supabase_find_similar_gap_questions($question_id, 0.70, 10);
+
+// Get all clusters
+$result = chatbot_supabase_cluster_gap_questions(0.70, 2);
+// Returns: ['clusters' => [...], 'total_clustered' => 15, 'cluster_count' => 4]
+
+// Get clusters for admin display
+$clusters = chatbot_supabase_get_gap_clusters_for_admin();
+// Returns clusters with suggested topics and keywords
+
+// Backfill embeddings for existing questions
+$result = chatbot_supabase_migrate_gap_embeddings(30);
+```
+
+### 12.4 Cluster Output Example
+
+```php
+[
+    'cluster_id' => 1,
+    'question_count' => 3,
+    'questions' => [
+        ['id' => 70, 'text' => "What's your address?"],
+        ['id' => 71, 'text' => "what is your address?"],
+        ['id' => 72, 'text' => "Where are you located?"]
+    ],
+    'representative_question' => "What's your address?",
+    'suggested_keywords' => ['address', 'location', 'where', 'store'],
+    'suggested_topic' => 'Address location where'
+]
+```
+
+### 12.5 Database Schema Addition
+
+```sql
+ALTER TABLE chatbot_gap_questions
+ADD COLUMN embedding vector(1536);
+
+CREATE INDEX idx_gap_questions_embedding
+ON chatbot_gap_questions
+USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
+```
+
+---
+
+## 13. Vector-Based Sentiment Analysis (Nov 29, 2024)
+
+### 13.1 Overview
+**Purpose:** More accurate sentiment scoring using semantic embeddings
+**Method:** Compare message embedding to positive/negative/neutral reference embeddings
+**Result:** Catches sentiments that keyword matching misses
+
+### 13.2 How It Works
+
+1. **Reference Embeddings:** Generate averaged embeddings for:
+   - Positive phrases ("Thank you, this is excellent", "Great job, very helpful")
+   - Negative phrases ("I am frustrated", "This is terrible")
+   - Neutral phrases ("What are your hours?", "How does this work?")
+
+2. **Message Analysis:**
+   - Generate embedding for user message
+   - Calculate cosine similarity to each reference
+   - Determine sentiment from relative similarities
+
+3. **Score Calculation:**
+   - Positive similarity - Negative similarity = direction
+   - Distance from neutral = intensity
+   - Scaled to -1.0 to +1.0 range
+
+### 13.3 Comparison: Vector vs Keyword
+
+| Message | Vector Score | Keyword Score |
+|---------|--------------|---------------|
+| "Thank you for your help!" | **+1.00** | +0.40 |
+| "This is frustrating" | **-1.00** | 0.00 ❌ |
+| "I hate waiting so long" | **-0.66** | 0.00 ❌ |
+| "What is your address?" | 0.00 | 0.00 |
+| "You guys are great!" | +1.00 | +0.80 |
+
+### 13.4 Key Functions
+
+```php
+// Main function (auto-selects method based on option)
+$score = kognetiks_analytics_compute_sentiment_score($message);
+
+// Vector-based (recommended)
+$score = kognetiks_analytics_compute_sentiment_score_vector($message);
+
+// Get/generate reference embeddings (cached 24 hours)
+$refs = kognetiks_analytics_get_sentiment_reference_embeddings();
+
+// Calculate similarity between vectors
+$sim = kognetiks_analytics_cosine_similarity($vec1, $vec2);
+```
+
+### 13.5 Configuration
+
+**Enable vector sentiment:**
+```php
+update_option('kognetiks_analytics_scoring_method', 'vector');
+```
+
+**Options:**
+- `simple` - Keyword matching (default)
+- `vector` - Vector embedding comparison
+- `ai_based` - Full AI analysis (future)
+
+### 13.6 Caching
+
+Reference embeddings cached in WordPress transient:
+- Key: `chatbot_sentiment_reference_embeddings`
+- TTL: 24 hours (DAY_IN_SECONDS)
+- Size: ~18KB (3 embeddings × 1536 dimensions × 4 bytes)
+
+### 13.7 Files Modified
+
+```
+includes/analytics/scoring-models/sentiment-analysis.php
+├── kognetiks_analytics_compute_sentiment_score() - Updated to support 'vector' method
+├── kognetiks_analytics_compute_sentiment_score_vector() - NEW
+├── kognetiks_analytics_get_sentiment_reference_embeddings() - NEW
+├── kognetiks_analytics_average_embeddings() - NEW
+└── kognetiks_analytics_cosine_similarity() - NEW
+```

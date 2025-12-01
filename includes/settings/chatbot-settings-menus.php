@@ -38,8 +38,8 @@ function kognetiks_chatbot_register_menus() {
     if ( ! $kognetiks_menu_exists ) {
 
         add_menu_page(
-            'Kognetiks',                            // Page title
-            'Kognetiks',                            // Menu title
+            'Steve-Bot',                           // Page title
+            'Steve-Bot',                           // Menu title
             'manage_options',                       // Capability
             'kognetiks_main_menu',                  // Menu slug
             'chatbot_chatgpt_settings_page',        // Callback function

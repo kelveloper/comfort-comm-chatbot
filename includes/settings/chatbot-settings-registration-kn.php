@@ -1,6 +1,6 @@
 <?php
 /**
- * Kognetiks Chatbot - Registration - Knowledge Navigator Settings - Ver 2.0.0
+ * Steve-Bot - Registration - Knowledge Base Settings - Ver 2.0.0
  *
  * This file contains the code for the Chatbot settings page.
  * It handles the registration of settings and other parameters.
@@ -14,35 +14,35 @@ if ( ! defined( 'WPINC' ) ) {
     die();
 }
 
-// Register Knowledge Navigator settings
+// Register Knowledge Base settings
 function chatbot_chatgpt_kn_settings_init() {
 
-    // Knowledge Navigator Tab
-    
-    // Knowledge Navigator Settings and Schedule - Ver 2.0.0
+    // Knowledge Base Tab
+
+    // Knowledge Base Settings and Schedule - Ver 2.0.0
     add_settings_section(
         'chatbot_chatgpt_knowledge_navigator_settings_section',
-        'Knowledge Navigator',
+        'Knowledge Base',
         'chatbot_chatgpt_knowledge_navigator_section_callback',
         'chatbot_chatgpt_knowledge_navigator'
     );
 
-    // Knowledge Navigator Status
+    // Knowledge Base Status
     add_settings_section(
         'chatbot_chatgpt_kn_status_section',
-        'Knowledge Navigator Status',
+        'Knowledge Base Status',
         'chatbot_chatgpt_kn_status_section_callback',
         'chatbot_chatgpt_kn_status'
     );
 
-    // Knowledge Navigator Settings and Schedule - Ver 2.0.0
+    // Knowledge Base Settings and Schedule - Ver 2.0.0
     register_setting('chatbot_chatgpt_knowledge_navigator', 'chatbot_chatgpt_kn_schedule');
     register_setting('chatbot_chatgpt_knowledge_navigator', 'chatbot_chatgpt_kn_maximum_top_words');
     register_setting('chatbot_chatgpt_knowledge_navigator', 'chatbot_chatgpt_kn_tuning_percentage');
 
     add_settings_section(
         'chatbot_chatgpt_kn_scheduling_section',
-        'Knowledge Navigator Scheduling',
+        'Knowledge Base Scheduling',
         'chatbot_chatgpt_kn_settings_section_callback',
         'chatbot_chatgpt_kn_scheduling'
     );
@@ -71,11 +71,11 @@ function chatbot_chatgpt_kn_settings_init() {
         'chatbot_chatgpt_kn_scheduling_section'
     );
 
-    // Knowledge Navigator Inclusion/Exclusion Settings - Ver 2.0.0
+    // Knowledge Base Inclusion/Exclusion Settings - Ver 2.0.0
     // Register settings for dynamic post types
     add_settings_section(
         'chatbot_chatgpt_kn_include_exclude_section',
-        'Knowledge Navigator Include/Exclude Settings',
+        'Knowledge Base Include/Exclude Settings',
         'chatbot_chatgpt_kn_include_exclude_section_callback',
         'chatbot_chatgpt_kn_include_exclude'
     );
@@ -126,7 +126,7 @@ function chatbot_chatgpt_kn_settings_init() {
         'chatbot_chatgpt_kn_include_exclude_section'
     );
 
-    // Knowledge Navigator Enhanced Responses - Ver 2.0.0
+    // Knowledge Base Enhanced Responses - Ver 2.0.0
     register_setting('chatbot_chatgpt_knowledge_navigator', 'chatbot_chatgpt_suppress_learnings');
     register_setting('chatbot_chatgpt_knowledge_navigator', 'chatbot_chatgpt_custom_learnings_message');
     register_setting('chatbot_chatgpt_knowledge_navigator', 'chatbot_chatgpt_enhanced_response_limit');
@@ -134,7 +134,7 @@ function chatbot_chatgpt_kn_settings_init() {
 
     add_settings_section(
         'chatbot_chatgpt_kn_enhanced_response_section',
-        'Knowledge Navigator Enhanced Response Settings',
+        'Knowledge Base Enhanced Response Settings',
         'chatbot_chatgpt_kn_enhanced_response_section_callback',
         'chatbot_chatgpt_kn_enhanced_response'
     );
@@ -173,12 +173,12 @@ function chatbot_chatgpt_kn_settings_init() {
 
     // Analysis Tab
 
-    // Knowledge Navigator Analysis settings tab - Ver 1.6.1
+    // Knowledge Base Analysis settings tab - Ver 1.6.1
     register_setting('chatbot_chatgpt_kn_analysis', 'chatbot_chatgpt_kn_analysis_output');
 
     add_settings_section(
         'chatbot_chatgpt_kn_analysis_section',
-        'Knowledge Navigator Analysis',
+        'Knowledge Base Analysis',
         'chatbot_chatgpt_kn_analysis_section_callback',
         'chatbot_chatgpt_kn_analysis'
     );
@@ -215,22 +215,36 @@ function chatbot_chatgpt_faq_import_section_callback() {
         echo '<div class="notice ' . esc_attr($class) . ' is-dismissible"><p>' . esc_html($import_message['message']) . '</p></div>';
     }
 
+    // Check if Supabase is configured
+    $supabase_configured = defined('CHATBOT_PG_HOST') && defined('CHATBOT_SUPABASE_ANON_KEY');
     ?>
     </form><!-- Close parent settings form to prevent nesting -->
 
     <div class="wrap">
-        <p>Manage your FAQ entries. The chatbot will use these to answer customer questions naturally.</p>
+        <p>Manage your FAQ entries. The chatbot uses semantic vector search to match questions naturally.</p>
+
+        <?php if ($supabase_configured): ?>
+        <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <strong>Vector Database:</strong> Connected to Supabase
+            <span style="color: #0c5460;"> - Using AI-powered semantic search</span>
+        </div>
+        <?php else: ?>
+        <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <strong>Vector Database:</strong> Not configured
+            <span style="color: #721c24;"> - Add CHATBOT_PG_HOST and CHATBOT_SUPABASE_ANON_KEY to wp-config.php</span>
+        </div>
+        <?php endif; ?>
 
         <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
             <strong>Current FAQ Entries:</strong> <?php echo esc_html($faq_count); ?>
             <?php if ($faq_count > 0): ?>
-                <span style="color: #155724;"> ✓ Ready to use</span>
+                <span style="color: #155724;"> - Ready to use</span>
             <?php else: ?>
                 <span style="color: #856404;"> - Add FAQs to get started</span>
             <?php endif; ?>
         </div>
 
-        <button id="chatbot-faq-add-btn" class="button button-primary" style="margin-bottom: 20px;">
+        <button type="button" id="chatbot-faq-add-btn" class="button button-primary" style="margin-bottom: 20px;">
             Add New FAQ
         </button>
 
@@ -239,34 +253,84 @@ function chatbot_chatgpt_faq_import_section_callback() {
         if ($faq_count > 0 && function_exists('chatbot_faq_get_all')) {
             $faqs = chatbot_faq_get_all();
             if (!empty($faqs)) {
+                // Get unique categories for filter
+                $categories = array_unique(array_filter(array_map(function($f) { return $f->category; }, $faqs)));
+                sort($categories);
                 ?>
+
+                <!-- Category Filter -->
+                <div style="margin-bottom: 15px;">
+                    <label for="chatbot-faq-filter"><strong>Filter by Category:</strong></label>
+                    <select id="chatbot-faq-filter" style="margin-left: 10px;">
+                        <option value="">All Categories (<?php echo count($faqs); ?>)</option>
+                        <?php foreach ($categories as $cat): ?>
+                            <option value="<?php echo esc_attr($cat); ?>"><?php echo esc_html($cat); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span id="chatbot-faq-filter-count" style="margin-left: 10px; color: #666;"></span>
+                </div>
+
                 <table class="wp-list-table widefat fixed striped" id="chatbot-faq-table">
                     <thead>
                         <tr>
-                            <th style="width: 25%;">Question</th>
-                            <th style="width: 40%;">Answer</th>
-                            <th style="width: 15%;">Category</th>
-                            <th style="width: 20%;">Actions</th>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 30%;">Question</th>
+                            <th style="width: 35%;">Answer</th>
+                            <th style="width: 12%;">Category</th>
+                            <th style="width: 18%;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($faqs as $faq) : ?>
-                        <tr data-faq-id="<?php echo esc_attr($faq->id); ?>">
+                        <?php
+                        $faq_number = 1;
+                        foreach ($faqs as $faq) :
+                        ?>
+                        <tr data-faq-id="<?php echo esc_attr($faq->id); ?>" data-faq-number="<?php echo $faq_number; ?>" data-category="<?php echo esc_attr($faq->category); ?>">
+                            <td><strong><?php echo $faq_number; ?></strong></td>
                             <td><?php echo esc_html($faq->question); ?></td>
-                            <td><?php echo esc_html($faq->answer); ?></td>
-                            <td><?php echo esc_html($faq->category); ?></td>
+                            <td><?php echo esc_html(substr($faq->answer, 0, 150)); ?><?php echo strlen($faq->answer) > 150 ? '...' : ''; ?></td>
+                            <td><span style="background: #e0e0e0; padding: 2px 8px; border-radius: 3px; font-size: 12px;"><?php echo esc_html($faq->category); ?></span></td>
                             <td>
-                                <button class="button button-small chatbot-faq-edit-btn" data-faq-id="<?php echo esc_attr($faq->id); ?>">
+                                <button type="button" class="button button-small chatbot-faq-edit-btn" data-faq-id="<?php echo esc_attr($faq->id); ?>" data-faq-number="<?php echo $faq_number; ?>">
                                     Edit
                                 </button>
-                                <button class="button button-small chatbot-faq-delete-btn" data-faq-id="<?php echo esc_attr($faq->id); ?>" style="color: #a00;">
+                                <button type="button" class="button button-small chatbot-faq-delete-btn" data-faq-id="<?php echo esc_attr($faq->id); ?>" style="color: #a00;">
                                     Delete
                                 </button>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
+                        <?php
+                        $faq_number++;
+                        endforeach;
+                        ?>
                     </tbody>
                 </table>
+
+                <script>
+                // Category filter functionality
+                jQuery(document).ready(function($) {
+                    $('#chatbot-faq-filter').on('change', function() {
+                        const category = $(this).val();
+                        let visibleCount = 0;
+
+                        $('#chatbot-faq-table tbody tr').each(function() {
+                            const rowCategory = $(this).data('category');
+                            if (!category || rowCategory === category) {
+                                $(this).show();
+                                visibleCount++;
+                            } else {
+                                $(this).hide();
+                            }
+                        });
+
+                        if (category) {
+                            $('#chatbot-faq-filter-count').text('Showing ' + visibleCount + ' FAQs');
+                        } else {
+                            $('#chatbot-faq-filter-count').text('');
+                        }
+                    });
+                });
+                </script>
                 <?php
             }
         }
@@ -280,20 +344,32 @@ function chatbot_chatgpt_faq_import_section_callback() {
                 <form id="chatbot-faq-form">
                     <input type="hidden" id="chatbot-faq-id" value="">
                     <p>
-                        <label for="chatbot-faq-question"><strong>Question:</strong></label><br>
+                        <label for="chatbot-faq-question"><strong>Question:</strong> <span style="color: #dc3232;">*</span></label><br>
                         <textarea id="chatbot-faq-question" style="width: 100%; height: 80px;" required></textarea>
                     </p>
                     <p>
-                        <label for="chatbot-faq-answer"><strong>Answer:</strong></label><br>
+                        <label for="chatbot-faq-answer"><strong>Answer:</strong> <span style="color: #dc3232;">*</span></label><br>
                         <textarea id="chatbot-faq-answer" style="width: 100%; height: 120px;" required></textarea>
                     </p>
                     <p>
-                        <label for="chatbot-faq-category"><strong>Category:</strong></label><br>
-                        <input type="text" id="chatbot-faq-category" style="width: 100%;">
+                        <label for="chatbot-faq-category-select"><strong>Category:</strong> <span style="color: #dc3232;">*</span></label><br>
+                        <select id="chatbot-faq-category-select" style="width: 100%;" required>
+                            <option value="">-- Select Category --</option>
+                            <?php foreach ($categories as $cat): ?>
+                                <option value="<?php echo esc_attr($cat); ?>"><?php echo esc_html($cat); ?></option>
+                            <?php endforeach; ?>
+                            <option value="__new__">+ Add New Category...</option>
+                        </select>
+                        <input type="text" id="chatbot-faq-category-new" style="width: 100%; margin-top: 8px; display: none;" placeholder="Enter new category name">
+                        <input type="hidden" id="chatbot-faq-category" value="">
                     </p>
                     <p>
-                        <button type="submit" class="button button-primary">Save FAQ</button>
+                        <button type="submit" class="button button-primary" id="chatbot-faq-save-btn">Save FAQ</button>
                         <button type="button" id="chatbot-faq-modal-cancel" class="button">Cancel</button>
+                        <span id="chatbot-faq-saving" style="display: none; margin-left: 10px;">
+                            <span class="spinner is-active" style="float: none; margin: 0;"></span>
+                            Generating embedding...
+                        </span>
                     </p>
                 </form>
             </div>
@@ -308,6 +384,43 @@ function chatbot_chatgpt_faq_import_section_callback() {
             const question = $('#chatbot-faq-question');
             const answer = $('#chatbot-faq-answer');
             const category = $('#chatbot-faq-category');
+            const categorySelect = $('#chatbot-faq-category-select');
+            const categoryNew = $('#chatbot-faq-category-new');
+
+            // Handle category dropdown change
+            categorySelect.on('change', function() {
+                const val = $(this).val();
+                if (val === '__new__') {
+                    categoryNew.show().focus();
+                    category.val('');
+                } else {
+                    categoryNew.hide().val('');
+                    category.val(val);
+                }
+            });
+
+            // Update hidden field when typing new category
+            categoryNew.on('input', function() {
+                category.val($(this).val());
+            });
+
+            // Helper to set category value in form
+            function setCategoryValue(catValue) {
+                // Check if category exists in dropdown
+                const optionExists = categorySelect.find('option[value="' + catValue + '"]').length > 0;
+                if (catValue && optionExists) {
+                    categorySelect.val(catValue);
+                    categoryNew.hide().val('');
+                } else if (catValue) {
+                    // New category not in list - show as custom
+                    categorySelect.val('__new__');
+                    categoryNew.show().val(catValue);
+                } else {
+                    categorySelect.val('');
+                    categoryNew.hide().val('');
+                }
+                category.val(catValue);
+            }
 
             // Open modal for adding
             $('#chatbot-faq-add-btn').on('click', function() {
@@ -315,14 +428,21 @@ function chatbot_chatgpt_faq_import_section_callback() {
                 faqId.val('');
                 question.val('');
                 answer.val('');
-                category.val('');
+                setCategoryValue('');
                 modal.show();
             });
 
             // Open modal for editing
-            $(document).on('click', '.chatbot-faq-edit-btn', function() {
+            $(document).on('click', '.chatbot-faq-edit-btn', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
                 const id = $(this).data('faq-id');
+                const btn = $(this);
                 modalTitle.text('Edit FAQ');
+
+                // Show loading state
+                btn.prop('disabled', true).text('Loading...');
 
                 // Get FAQ data via AJAX
                 $.ajax({
@@ -334,17 +454,19 @@ function chatbot_chatgpt_faq_import_section_callback() {
                         id: id
                     },
                     success: function(response) {
+                        btn.prop('disabled', false).text('Edit');
                         if (response.success && response.data.faq) {
                             faqId.val(response.data.faq.id);
                             question.val(response.data.faq.question);
                             answer.val(response.data.faq.answer);
-                            category.val(response.data.faq.category);
+                            setCategoryValue(response.data.faq.category);
                             modal.show();
                         } else {
                             alert('Failed to load FAQ: ' + (response.data.message || 'Unknown error'));
                         }
                     },
                     error: function() {
+                        btn.prop('disabled', false).text('Edit');
                         alert('Failed to load FAQ');
                     }
                 });
@@ -359,6 +481,23 @@ function chatbot_chatgpt_faq_import_section_callback() {
             form.on('submit', function(e) {
                 e.preventDefault();
 
+                // Validate category - required field
+                if (categorySelect.val() === '__new__' && !categoryNew.val().trim()) {
+                    alert('Please enter a category name.');
+                    categoryNew.focus();
+                    return;
+                }
+                if (!categorySelect.val() || (categorySelect.val() === '__new__' && !category.val().trim())) {
+                    alert('Please select or enter a category.');
+                    categorySelect.focus();
+                    return;
+                }
+
+                submitFaq(false);
+            });
+
+            // Function to submit FAQ with optional force flag
+            function submitFaq(forceAdd) {
                 const id = faqId.val();
                 const action = id ? 'chatbot_faq_update' : 'chatbot_faq_add';
 
@@ -367,33 +506,59 @@ function chatbot_chatgpt_faq_import_section_callback() {
                     nonce: '<?php echo wp_create_nonce('chatbot_faq_manage'); ?>',
                     question: question.val(),
                     answer: answer.val(),
-                    category: category.val()
+                    category: category.val().trim()
                 };
 
                 if (id) {
                     data.id = id;
                 }
 
+                // Add force flag if user confirmed duplicate
+                if (forceAdd) {
+                    data.force_add = '1';
+                }
+
+                // Show loading spinner
+                $('#chatbot-faq-save-btn').prop('disabled', true);
+                $('#chatbot-faq-saving').show();
+
                 $.ajax({
                     url: ajaxurl,
                     type: 'POST',
                     data: data,
+                    timeout: 60000, // 60 second timeout for embedding generation
                     success: function(response) {
                         if (response.success) {
                             alert(response.data.message);
                             location.reload();
                         } else {
-                            alert('Error: ' + (response.data.message || 'Unknown error'));
+                            // Check if it's a duplicate warning
+                            if (response.data && response.data.duplicate) {
+                                if (confirm(response.data.message + '\n\nDo you want to add it anyway?')) {
+                                    // Retry with force flag
+                                    submitFaq(true);
+                                    return;
+                                }
+                            } else {
+                                alert('Error: ' + (response.data.message || 'Unknown error'));
+                            }
+                            $('#chatbot-faq-save-btn').prop('disabled', false);
+                            $('#chatbot-faq-saving').hide();
                         }
                     },
                     error: function() {
-                        alert('Failed to save FAQ');
+                        alert('Failed to save FAQ. This may be due to a timeout - embedding generation can take a few seconds.');
+                        $('#chatbot-faq-save-btn').prop('disabled', false);
+                        $('#chatbot-faq-saving').hide();
                     }
                 });
-            });
+            }
 
             // Delete FAQ
-            $(document).on('click', '.chatbot-faq-delete-btn', function() {
+            $(document).on('click', '.chatbot-faq-delete-btn', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
                 const id = $(this).data('faq-id');
 
                 if (!confirm('Are you sure you want to delete this FAQ?')) {

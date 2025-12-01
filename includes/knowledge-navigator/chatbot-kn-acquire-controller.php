@@ -876,7 +876,7 @@ function chatbot_kn_wrap_up() {
     dbKNClean();
 
     // Save the results message value into the option
-    $kn_results = 'Knowledge Navigator completed! Visit the plugin settings Analysis tab to download the results.';
+    $kn_results = 'Knowledge Base scan completed! Visit the plugin settings Analysis tab to download the results.';
     update_option('chatbot_chatgpt_kn_results', $kn_results);
 
     // Notify outcome for up to 3 minutes

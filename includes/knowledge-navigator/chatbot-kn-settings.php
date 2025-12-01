@@ -1,9 +1,9 @@
 <?php
 /**
- * Kognetiks Chatbot - Knowledge Navigator - Settings
+ * Steve-Bot - Knowledge Base - Settings
  *
  * This file contains the code for the Chatbot settings page.
- * These are all the options for the Knowledge Navigator.
+ * These are all the options for the Knowledge Base.
  * 
  *
  * @package chatbot-chatgpt
@@ -22,7 +22,7 @@ $start_url = site_url();
 $domain = parse_url($start_url, PHP_URL_HOST);
 $max_top_words = esc_attr(get_option('chatbot_chatgpt_kn_maximum_top_words', 25)); // Default to 25
 
-// Knowledge Navigator Results
+// Knowledge Base Results
 function chatbot_chatgpt_kn_results_callback($run_scanner) {
 
     // DIAG - Diagnostics - Ver 1.6.3
@@ -126,7 +126,7 @@ function chatbot_chatgpt_kn_results_callback($run_scanner) {
     }
 }
 
-// Knowledge Navigator Introduction
+// Knowledge Base Introduction
 function chatbot_chatgpt_knowledge_navigator_section_callback($args) {
 
     // See if the scanner needs to run
@@ -134,19 +134,26 @@ function chatbot_chatgpt_knowledge_navigator_section_callback($args) {
 
     // Force run the scanner
     // $results = chatbot_chatgpt_kn_acquire();
-    
+
     ?>
         <div class="wrap">
-            <p>Introducing <b>Knowledge Navigator</b> - the smart explorer behind our Kognetiks Chatbot plugin that's designed to delve into the core of your website. Like a digital archaeologist, it embarks on an all-encompassing journey through your site's published pages, posts, products and approved comments, carefully following every internal link to get a holistic view of your content. The exciting part? It sifts through each page, extracting the essence of your content in the form of keywords and phrases, gradually building a meticulous, interactive map of your website's architecture. </p>
-            <p>What's the outcome? Detailed "results.csv" and "results.json" files are created, tucking away all this valuable information in a dedicated 'results' directory within the plugin's folder. The prime objective of <b>Knowledge Navigator</b> is to enable the Kognetiks Chatbot plugin to have a crystal clear understanding of your website's context and content. The result? Your chatbot will deliver responses that are not just accurate, but also fittingly contextual, thereby crafting a truly bespoke user experience. This all is powered by the advanced AI technology of OpenAI', NVIDIA's, and other AI platform's Large Language Model (LLM) APIs.</p>
-            <p>And how does the <b>Knowledge Navigator</b> do all this? It employs a clever technique known as TF-IDF (Term Frequency-Inverse Document Frequency) to unearth the keywords that really matter. The keywords are ranked by their TF-IDF scores, where the score represents the keyword's relevance to your site. This score is a fine balance between the term's frequency on your site and its inverse document frequency (which is essentially the log of total instances divided by the number of documents containing the term). In simpler words, it's a sophisticated measure of how special a keyword is to your content.</p>
-            <p><b><i>Don't forget to click </i><code>Save Settings</code><i> to save any changes your might make.</i></b></p>
-            <p style="background-color: #e0f7fa; padding: 10px;"><b>For an explanation on how to use the Knowledge Navigator and additional documentation please click <a href="?page=chatbot-chatgpt&tab=support&dir=knowledge-navigator&file=knowledge-navigator.md">here</a>.</b></p>
+            <p>The <b>Knowledge Base</b> powers Steve-Bot's intelligent FAQ system using AI-driven semantic search. Instead of basic keyword matching, it understands the meaning behind questions to deliver accurate, contextual answers.</p>
+            <p>Your FAQs are stored in a Supabase vector database with AI-generated embeddings. When a visitor asks a question, the system finds the most semantically similar FAQ - even if the wording is completely different. This means "What are your hours?" matches "When are you open?" naturally.</p>
+            <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <strong>How it works:</strong>
+                <ol style="margin: 10px 0 0 20px;">
+                    <li><strong>Add FAQs:</strong> Create question-answer pairs in the FAQ section below</li>
+                    <li><strong>AI Embedding:</strong> Each FAQ is converted to a vector embedding using Google's AI</li>
+                    <li><strong>Semantic Search:</strong> Visitor questions are matched by meaning, not just keywords</li>
+                    <li><strong>Confidence Scoring:</strong> High-confidence matches return FAQ answers directly; lower matches provide context to the AI</li>
+                </ol>
+            </div>
+            <p><b><i>Don't forget to click </i><code>Save Settings</code><i> to save any changes you might make.</i></b></p>
         </div>
     <?php
 }
 
-// Knowledge Navigator Status - Ver 2.0.0.
+// Knowledge Base Status - Ver 2.0.0.
 function chatbot_chatgpt_kn_status_section_callback($args) {
 
     // See if the scanner is needs to run
@@ -163,7 +170,7 @@ function chatbot_chatgpt_kn_status_section_callback($args) {
                 <p><b>Status of Last Run: </b><?php echo esc_attr(get_option('chatbot_chatgpt_kn_status', 'Please select a Run Schedule below.')); ?></p>
                 <p><b>Content Items Analyzed: </b><?php echo esc_attr(get_option('chatbot_chatgpt_no_of_items_analyzed', 0)); ?></p>
             </div>
-            <p>Refresh this page to determine the progress and status of Knowledge Navigation!</p>
+            <p>Refresh this page to determine the progress and status of the Knowledge Base scan!</p>
         </div>
     <?php
 }
@@ -213,7 +220,7 @@ function chatbot_chatgpt_kn_register_settings() {
     // Register the section first
     add_settings_section(
         'chatbot_chatgpt_kn_include_exclude_section',
-        'Knowledge Navigator Include/Exclude Settings',
+        'Knowledge Base Include/Exclude Settings',
         'chatbot_chatgpt_kn_include_exclude_section_callback',
         'chatbot-chatgpt'
     );
@@ -264,7 +271,7 @@ function chatbot_chatgpt_kn_register_settings() {
 
 function chatbot_chatgpt_kn_include_exclude_section_callback($args) {
     ?>
-    <p>Choose the content types you want to include in the Knowledge Navigator's indexing process. Only published content will be indexed.</p>
+    <p>Choose the content types you want to include in the Knowledge Base's indexing process. Only published content will be indexed.</p>
     <?php
 }
 
@@ -380,7 +387,7 @@ function chatbot_chatgpt_custom_learnings_message_callback($args) {
     <?php
 }
 
-// Optionally include post or page excerpts with Knowledge Navigator responses - Ver 2.2.1
+// Optionally include post or page excerpts with Knowledge Base responses - Ver 2.2.1
 function chatbot_chatgpt_enhanced_response_include_excerpts_callback() {
     $value = esc_attr(get_option('chatbot_chatgpt_enhanced_response_include_excerpts', 'No'));
     ?>

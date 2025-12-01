@@ -382,22 +382,26 @@ function kognetiks_analytics_deactivate() {
 }
 register_deactivation_hook(__FILE__, 'kognetiks_analytics_deactivate');
 
-// Wrapper function to compute sentiment score using either simple or AI-based method
+// Wrapper function to compute sentiment score using either simple, vector, or AI-based method
 function kognetiks_analytics_compute_sentiment_score($message_text) {
 
     // Get the scoring method from options
     $scoring_method = get_option('kognetiks_analytics_scoring_method', 'simple');
-    
-    if ($scoring_method === 'ai_based') {
+
+    if ($scoring_method === 'vector') {
+        // Vector embedding-based sentiment analysis
+        $score = kognetiks_analytics_compute_sentiment_score_vector($message_text);
+    } elseif ($scoring_method === 'ai_based') {
         // FIXME - AI-based scoring is future functionality
         // $score = kognetiks_analytics_compute_sentiment_score_ai_based($message_text);
+        $score = kognetiks_analytics_compute_sentiment_score_simple($message_text);
     } else {
         $score = kognetiks_analytics_compute_sentiment_score_simple($message_text);
     }
-    
+
     // Format score to one decimal place using standard rounding
     return round($score, 1);
-    
+
 }
 
 // Compute the sentiment score for a message using a simple algorithm
@@ -447,12 +451,207 @@ function kognetiks_analytics_compute_sentiment_score_simple($message_text) {
     }
     
     if ($count === 0) return 0.0;
-    
+
     // Normalize score to -1.0 to 1.0
     $normalized_score = $score / ($count * 5); // assuming max abs score = 5
     return max(min($normalized_score, 1.0), -1.0);
 
-}   
+}
+
+/**
+ * Compute sentiment score using vector embeddings
+ *
+ * Uses cosine similarity between message embedding and sentiment reference embeddings.
+ * More accurate than keyword matching, faster than full AI analysis.
+ *
+ * @param string $message_text The message to analyze
+ * @return float Sentiment score from -1.0 (negative) to 1.0 (positive)
+ */
+function kognetiks_analytics_compute_sentiment_score_vector($message_text) {
+    // Skip empty or very short messages
+    if (empty($message_text) || strlen(trim($message_text)) < 3) {
+        return 0.0;
+    }
+
+    // Check if vector functions are available
+    if (!function_exists('chatbot_vector_generate_embedding')) {
+        error_log('[Chatbot Sentiment] Vector embedding function not available');
+        return 0.0;
+    }
+
+    // Generate embedding for the message
+    $message_embedding = chatbot_vector_generate_embedding($message_text);
+    if (!$message_embedding) {
+        error_log('[Chatbot Sentiment] Failed to generate embedding for message');
+        return 0.0;
+    }
+
+    // Get or generate sentiment reference embeddings (cached in transient)
+    $references = kognetiks_analytics_get_sentiment_reference_embeddings();
+    if (!$references) {
+        error_log('[Chatbot Sentiment] Failed to get reference embeddings');
+        return 0.0;
+    }
+
+    // Calculate cosine similarity to positive and negative references
+    $positive_similarity = kognetiks_analytics_cosine_similarity($message_embedding, $references['positive']);
+    $negative_similarity = kognetiks_analytics_cosine_similarity($message_embedding, $references['negative']);
+    $neutral_similarity = kognetiks_analytics_cosine_similarity($message_embedding, $references['neutral']);
+
+    // Calculate sentiment score based on relative similarities
+    // If more similar to positive, score is positive; if more similar to negative, score is negative
+    $pos_neg_diff = $positive_similarity - $negative_similarity;
+
+    // Weight by how "emotional" the message is (distance from neutral)
+    $emotional_intensity = max($positive_similarity, $negative_similarity) - $neutral_similarity;
+    $emotional_intensity = max(0, $emotional_intensity); // Clamp to 0+
+
+    // Combine: direction from pos/neg difference, magnitude from emotional intensity
+    if ($emotional_intensity < 0.05) {
+        // Very neutral message
+        return 0.0;
+    }
+
+    // Scale the difference to -1 to 1 range
+    // Typical similarity differences are small (0.0 to 0.3), so we amplify
+    $score = $pos_neg_diff * 3;
+
+    // Clamp to valid range
+    return max(-1.0, min(1.0, $score));
+}
+
+/**
+ * Get or generate sentiment reference embeddings
+ * Caches embeddings in transient for performance
+ *
+ * @return array|null Array with 'positive', 'negative', 'neutral' embeddings or null on failure
+ */
+function kognetiks_analytics_get_sentiment_reference_embeddings() {
+    // Check transient cache first (cache for 24 hours)
+    $cached = get_transient('chatbot_sentiment_reference_embeddings');
+    if ($cached !== false) {
+        return $cached;
+    }
+
+    if (!function_exists('chatbot_vector_generate_embedding')) {
+        return null;
+    }
+
+    // Generate reference embeddings for sentiment anchors
+    // Using multiple phrases per sentiment for robustness
+    $positive_phrases = [
+        "I am very happy and satisfied with the service",
+        "Thank you so much, this is excellent and helpful",
+        "Great job, I really appreciate your help",
+        "This is wonderful, exactly what I needed"
+    ];
+
+    $negative_phrases = [
+        "I am frustrated and angry with this terrible service",
+        "This is awful, I hate this and want to complain",
+        "Very disappointed, nothing works properly",
+        "This is unacceptable, I am very upset"
+    ];
+
+    $neutral_phrases = [
+        "I have a question about the service",
+        "Can you tell me more information",
+        "What are the available options",
+        "How does this work"
+    ];
+
+    // Generate and average embeddings for each sentiment
+    $positive_embedding = kognetiks_analytics_average_embeddings($positive_phrases);
+    $negative_embedding = kognetiks_analytics_average_embeddings($negative_phrases);
+    $neutral_embedding = kognetiks_analytics_average_embeddings($neutral_phrases);
+
+    if (!$positive_embedding || !$negative_embedding || !$neutral_embedding) {
+        return null;
+    }
+
+    $references = [
+        'positive' => $positive_embedding,
+        'negative' => $negative_embedding,
+        'neutral' => $neutral_embedding
+    ];
+
+    // Cache for 24 hours
+    set_transient('chatbot_sentiment_reference_embeddings', $references, DAY_IN_SECONDS);
+
+    return $references;
+}
+
+/**
+ * Generate average embedding from multiple phrases
+ *
+ * @param array $phrases Array of text phrases
+ * @return array|null Averaged embedding vector or null on failure
+ */
+function kognetiks_analytics_average_embeddings($phrases) {
+    $embeddings = [];
+
+    foreach ($phrases as $phrase) {
+        $embedding = chatbot_vector_generate_embedding($phrase);
+        if ($embedding) {
+            $embeddings[] = $embedding;
+        }
+        // Small delay to avoid rate limiting
+        usleep(50000); // 50ms
+    }
+
+    if (empty($embeddings)) {
+        return null;
+    }
+
+    // Average the embeddings
+    $dimensions = count($embeddings[0]);
+    $averaged = array_fill(0, $dimensions, 0.0);
+
+    foreach ($embeddings as $embedding) {
+        for ($i = 0; $i < $dimensions; $i++) {
+            $averaged[$i] += $embedding[$i];
+        }
+    }
+
+    $count = count($embeddings);
+    for ($i = 0; $i < $dimensions; $i++) {
+        $averaged[$i] /= $count;
+    }
+
+    return $averaged;
+}
+
+/**
+ * Calculate cosine similarity between two vectors
+ *
+ * @param array $vec1 First vector
+ * @param array $vec2 Second vector
+ * @return float Similarity score from 0 to 1
+ */
+function kognetiks_analytics_cosine_similarity($vec1, $vec2) {
+    if (count($vec1) !== count($vec2)) {
+        return 0.0;
+    }
+
+    $dot_product = 0.0;
+    $norm1 = 0.0;
+    $norm2 = 0.0;
+
+    for ($i = 0; $i < count($vec1); $i++) {
+        $dot_product += $vec1[$i] * $vec2[$i];
+        $norm1 += $vec1[$i] * $vec1[$i];
+        $norm2 += $vec2[$i] * $vec2[$i];
+    }
+
+    $norm1 = sqrt($norm1);
+    $norm2 = sqrt($norm2);
+
+    if ($norm1 == 0 || $norm2 == 0) {
+        return 0.0;
+    }
+
+    return $dot_product / ($norm1 * $norm2);
+}
 
 // Compute the sentiment score for a message using an AI model
 function kognetiks_analytics_compute_sentiment_score_ai_based($message_text) {
