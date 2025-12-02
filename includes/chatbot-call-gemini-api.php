@@ -116,8 +116,68 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     error_log('=== CHATBOT DEBUG: Smart FAQ Search STARTED for message: ' . $message . ' ===');
     prod_trace('NOTICE', 'Smart FAQ Search - Processing message: ' . $message);
 
+    // GENERIC QUESTION DETECTION - Ver 2.4.9
+    // These questions are too vague for FAQ matching - let AI handle them naturally
+    $generic_patterns = [
+        // Greetings and intros
+        '/^(hi|hello|hey|good\s*(morning|afternoon|evening)|greetings)\s*[!.,]?\s*$/i',
+        '/^(hi|hello|hey)\s+(there|bot|chatbot|assistant)?\s*[!.,]?\s*$/i',
+        // Generic help requests
+        '/^(help|help me|i need help|can you help|can you help me)\s*[!?.,]?\s*$/i',
+        '/^how can (you|u) help( me)?\s*[!?]?\s*$/i',
+        '/^what (can|do) (you|u) do\s*[!?]?\s*$/i',
+        '/^what (services|help) (do you|can you) (offer|provide)\s*[!?]?\s*$/i',
+        // Conversational follow-ups (too short/vague)
+        '/^(why|how|what|when|where|who)\s*[!?]?\s*$/i',
+        '/^(why|how come)\s+(that|this|so)\s*[!?]?\s*$/i',
+        '/^(tell me more|go on|continue|explain)\s*[!?]?\s*$/i',
+        // Single word questions
+        '/^(yes|no|ok|okay|sure|thanks|thank you|thx|ty)\s*[!?.,]?\s*$/i',
+    ];
+
+    $is_generic_question = false;
+    $cleaned_message = trim(preg_replace('/\s+/', ' ', $message_lower));
+
+    foreach ($generic_patterns as $pattern) {
+        if (preg_match($pattern, $cleaned_message)) {
+            $is_generic_question = true;
+            error_log('CHATBOT DEBUG: Generic question detected - skipping FAQ search: ' . $message);
+            prod_trace('NOTICE', 'Generic question detected - using pure AI response');
+            break;
+        }
+    }
+
+    // Also detect very short messages (less than 4 words) that aren't specific
+    $word_count = str_word_count($cleaned_message);
+    if ($word_count <= 3 && !preg_match('/(spectrum|verizon|optimum|fios|internet|tv|phone|wifi|router|modem|bill|price|cost|speed|mbps|channel)/i', $cleaned_message)) {
+        $is_generic_question = true;
+        error_log('CHATBOT DEBUG: Short vague message detected - skipping FAQ search: ' . $message);
+        prod_trace('NOTICE', 'Short vague message - using pure AI response');
+    }
+
+    // Detect contextual follow-up questions that reference previous conversation
+    // These should use conversation history, not FAQ search
+    $contextual_patterns = [
+        '/^why\s+(that|this|them|it|those|him|her|they)\s*[!?]?\s*$/i',
+        '/^why\s+\w+\s*[!?]?\s*$/i',  // "why verizon?", "why spectrum?"
+        '/^what about\s+/i',
+        '/^and\s+(what|how|why|when)/i',
+        '/^but\s+(what|how|why|when)/i',
+        '/^(so|then)\s+(what|how|why)/i',
+    ];
+
+    foreach ($contextual_patterns as $pattern) {
+        if (preg_match($pattern, $cleaned_message)) {
+            $is_generic_question = true;
+            error_log('CHATBOT DEBUG: Contextual follow-up detected - using conversation history: ' . $message);
+            prod_trace('NOTICE', 'Contextual follow-up - relying on conversation history');
+            break;
+        }
+    }
+
     // Use vector search for semantic FAQ matching (no fallback to keyword search)
-    if (function_exists('chatbot_vector_faq_search')) {
+    // Skip FAQ search for generic questions
+    if (function_exists('chatbot_vector_faq_search') && !$is_generic_question) {
         error_log('CHATBOT DEBUG: chatbot_vector_faq_search function EXISTS - using semantic search');
         prod_trace('NOTICE', 'chatbot_vector_faq_search function exists - using semantic search');
         $faq_result = chatbot_vector_faq_search($message, true, $session_id, $user_id, $page_id); // Vector search with embeddings
