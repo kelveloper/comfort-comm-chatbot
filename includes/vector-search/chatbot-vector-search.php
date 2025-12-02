@@ -675,43 +675,60 @@ function chatbot_vector_detect_followup($query) {
 
 /**
  * Get conversation context from transient
+ * Updated Ver 2.5.0: Now captures up to last 3 Q&A pairs for better context
  *
- * @return array ['last_question' => string, 'last_answer' => string, 'topic' => string]
+ * @return array ['last_question' => string, 'last_answer' => string, 'topic' => string, 'history' => array]
  */
 function chatbot_vector_get_conversation_context() {
     $context_history = get_transient('chatbot_chatgpt_context_history');
 
     if (empty($context_history) || !is_array($context_history)) {
-        return ['last_question' => '', 'last_answer' => '', 'topic' => ''];
+        return ['last_question' => '', 'last_answer' => '', 'topic' => '', 'history' => []];
     }
 
-    // Get the last 2 entries (should be Q then A)
-    $recent = array_slice($context_history, -2);
+    // Get up to last 6 entries (3 Q&A pairs max)
+    $recent = array_slice($context_history, -6);
 
     $last_question = '';
     $last_answer = '';
+    $history = []; // Store all Q&A pairs found
+    $current_q = '';
 
-    // Parse the context entries
+    // Parse the context entries into Q&A pairs
     foreach ($recent as $entry) {
         if (strpos($entry, 'User:') === 0 || strpos($entry, 'Human:') === 0) {
-            $last_question = preg_replace('/^(User|Human):\s*/', '', $entry);
+            $current_q = preg_replace('/^(User|Human):\s*/', '', $entry);
         } elseif (strpos($entry, 'Assistant:') === 0 || strpos($entry, 'Bot:') === 0) {
-            $last_answer = preg_replace('/^(Assistant|Bot):\s*/', '', $entry);
+            $current_a = preg_replace('/^(Assistant|Bot):\s*/', '', $entry);
+            if (!empty($current_q)) {
+                $history[] = ['question' => $current_q, 'answer' => $current_a];
+                $current_q = '';
+            }
         }
     }
 
-    // Extract topic keywords from last Q&A
+    // Get the most recent Q&A for backwards compatibility
+    if (!empty($history)) {
+        $last_pair = end($history);
+        $last_question = $last_pair['question'];
+        $last_answer = $last_pair['answer'];
+    }
+
+    // Extract topic keywords from all Q&A pairs
     $topic = '';
-    if ($last_question || $last_answer) {
-        $combined = $last_question . ' ' . $last_answer;
-        // Extract key nouns/topics
+    if (!empty($history)) {
+        $combined = '';
+        foreach ($history as $pair) {
+            $combined .= ' ' . $pair['question'] . ' ' . $pair['answer'];
+        }
         $topic = chatbot_vector_extract_topic($combined);
     }
 
     return [
         'last_question' => $last_question,
         'last_answer' => $last_answer,
-        'topic' => $topic
+        'topic' => $topic,
+        'history' => $history
     ];
 }
 
@@ -815,12 +832,19 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
             $used_context = true;
 
             // Build context string for gap question logging (Ver 2.5.0)
+            // Include up to 3 Q&A pairs for full conversation context
             $context_parts = [];
-            if (!empty($context['last_question'])) {
-                $context_parts[] = 'Previous Q: ' . substr($context['last_question'], 0, 200);
-            }
-            if (!empty($context['last_answer'])) {
-                $context_parts[] = 'Previous A: ' . substr($context['last_answer'], 0, 300);
+            if (!empty($context['history'])) {
+                $pair_num = 1;
+                foreach ($context['history'] as $pair) {
+                    if (!empty($pair['question'])) {
+                        $context_parts[] = 'Q' . $pair_num . ': ' . substr($pair['question'], 0, 150);
+                    }
+                    if (!empty($pair['answer'])) {
+                        $context_parts[] = 'A' . $pair_num . ': ' . substr($pair['answer'], 0, 200);
+                    }
+                    $pair_num++;
+                }
             }
             if (!empty($context_parts)) {
                 $context_string = implode(' | ', $context_parts);
@@ -830,7 +854,7 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('[Chatbot Context] Follow-up detected (' . $followup_check['reason'] . '): "' . $query . '"');
                 error_log('[Chatbot Context] Enriched query: "' . $search_query . '"');
-                error_log('[Chatbot Context] Context for gap logging: "' . ($context_string ?? 'none') . '"');
+                error_log('[Chatbot Context] Context for gap logging (' . count($context['history']) . ' pairs): "' . substr($context_string ?? 'none', 0, 200) . '..."');
             }
         }
     }
