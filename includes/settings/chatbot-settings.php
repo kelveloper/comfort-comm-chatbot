@@ -124,9 +124,7 @@ function chatbot_chatgpt_settings_page() {
        <h2 class="nav-tab-wrapper">
             <a href="?page=chatbot-chatgpt&tab=setup" class="nav-tab <?php echo $active_tab == 'setup' || $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Setup</a>
             <a href="?page=chatbot-chatgpt&tab=kn_acquire" class="nav-tab <?php echo $active_tab == 'kn_acquire' ? 'nav-tab-active' : ''; ?>">Knowledge Base</a>
-            <a href="?page=chatbot-chatgpt&tab=reporting" class="nav-tab <?php echo $active_tab == 'reporting' ? 'nav-tab-active' : ''; ?>">Reporting</a>
-            <a href="?page=chatbot-chatgpt&tab=analytics" class="nav-tab <?php echo $active_tab == 'analytics' ? 'nav-tab-active' : ''; ?>">Analytics</a>
-            <a href="?page=chatbot-chatgpt&tab=analytics_new" class="nav-tab <?php echo $active_tab == 'analytics_new' ? 'nav-tab-active' : ''; ?>">Analytics (New)</a>
+            <a href="?page=chatbot-chatgpt&tab=analytics_feedback" class="nav-tab <?php echo $active_tab == 'analytics_feedback' ? 'nav-tab-active' : ''; ?>">Analytics & Feedback</a>
             <a href="?page=chatbot-chatgpt&tab=tools" class="nav-tab <?php echo $active_tab == 'tools' ? 'nav-tab-active' : ''; ?>">Tools</a>
             <a href="?page=chatbot-chatgpt&tab=diagnostics" class="nav-tab <?php echo $active_tab == 'diagnostics' ? 'nav-tab-active' : ''; ?>">Messages</a>
             <a href="?page=chatbot-chatgpt&tab=support" class="nav-tab <?php echo $active_tab == 'support' ? 'nav-tab-active' : ''; ?>">Support</a>
@@ -498,38 +496,6 @@ function chatbot_chatgpt_settings_page() {
                 do_settings_sections('chatbot_chatgpt_faq_import');
                 echo '</div>';
 
-            } elseif ($active_tab == 'reporting') {
-
-                settings_fields('chatbot_chatgpt_reporting');
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_reporting_overview');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_conversation_reporting');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_interaction_reporting');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_token_reporting');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_gap_analysis');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_learning_dashboard');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_reporting');
-                echo '</div>';
-
             } elseif ($active_tab == 'diagnostics') { // AKA Messages tab
 
                 settings_fields('chatbot_chatgpt_diagnostics');
@@ -558,27 +524,15 @@ function chatbot_chatgpt_settings_page() {
                 do_settings_sections('chatbot_chatgpt_beta_features');
                 echo '</div>';
 
-            } elseif ($active_tab == 'analytics') {
+            } elseif ($active_tab == 'analytics_feedback') {
 
-                // Load the actual analytics functionality
-                if (function_exists('kognetiks_analytics_settings_page')) {
-                    kognetiks_analytics_settings_page();
-                } else {
-                    echo '<div class="notice notice-error" style="padding: 20px; margin: 20px 0;">';
-                    echo '<h2 style="margin-top: 0;">⚠️ Analytics System Not Available</h2>';
-                    echo '<p>The analytics system is not properly loaded. Please check that all analytics files are present.</p>';
-                    echo '</div>';
-                }
-
-            } elseif ($active_tab == 'analytics_new') {
-
-                // Load the NEW merged analytics page
+                // Load the Analytics & Feedback page
                 if (function_exists('chatbot_analytics_new_page')) {
                     chatbot_analytics_new_page();
                 } else {
                     echo '<div class="notice notice-error" style="padding: 20px; margin: 20px 0;">';
-                    echo '<h2 style="margin-top: 0;">⚠️ New Analytics Page Not Available</h2>';
-                    echo '<p>The new analytics page is not properly loaded.</p>';
+                    echo '<h2 style="margin-top: 0;">⚠️ Analytics & Feedback Not Available</h2>';
+                    echo '<p>The analytics page is not properly loaded.</p>';
                     echo '</div>';
                 }
 
