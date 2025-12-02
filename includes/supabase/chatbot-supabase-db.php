@@ -370,8 +370,18 @@ function chatbot_supabase_get_total_interactions($days = 30) {
  * Log a gap question (unanswered or low confidence)
  * Now includes vector embedding for semantic clustering
  * Updated Ver 2.4.8: Includes quality_score and validation_flags
+ * Updated Ver 2.5.0: Added conversation_context for follow-up questions
+ *
+ * @param string $question_text The question asked
+ * @param string $session_id Session ID
+ * @param int $user_id User ID
+ * @param int $page_id Page ID
+ * @param float $faq_confidence Confidence score
+ * @param string|null $faq_match_id Matched FAQ ID
+ * @param array|null $quality_data Quality score and flags
+ * @param string|null $conversation_context Previous Q&A context for follow-ups
  */
-function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id = null, $quality_data = null) {
+function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id = null, $quality_data = null, $conversation_context = null) {
     // Get quality data if validator is available and not already provided
     if ($quality_data === null && function_exists('chatbot_validate_gap_question')) {
         $validation = chatbot_validate_gap_question($question_text, $faq_confidence);
@@ -385,7 +395,7 @@ function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id
     $pdo = function_exists('chatbot_vector_get_pg_connection') ? chatbot_vector_get_pg_connection() : null;
 
     if ($pdo) {
-        return chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id, $quality_data);
+        return chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id, $quality_data, $conversation_context);
     }
 
     // Fallback to REST API (without embedding)
@@ -400,6 +410,11 @@ function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id
         'is_clustered' => false,
         'is_resolved' => false
     ];
+
+    // Add conversation context if available (Ver 2.5.0)
+    if (!empty($conversation_context)) {
+        $data['conversation_context'] = $conversation_context;
+    }
 
     // Add quality data if available
     if ($quality_data) {
@@ -424,8 +439,9 @@ function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id
 /**
  * Log gap question using PDO (includes embedding for clustering)
  * Updated Ver 2.4.8: Includes quality_score and validation_flags
+ * Updated Ver 2.5.0: Added conversation_context for follow-up questions
  */
-function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id = null, $quality_data = null) {
+function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id = null, $quality_data = null, $conversation_context = null) {
     try {
         // Generate embedding for the question
         $embedding = null;
@@ -438,12 +454,12 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
         $validation_flags = !empty($quality_data['validation_flags']) ? json_encode($quality_data['validation_flags']) : null;
 
         if ($embedding) {
-            // Insert with embedding and quality data
+            // Insert with embedding and quality data (Ver 2.5.0: added conversation_context)
             $embedding_str = chatbot_vector_to_pg_format($embedding);
             $stmt = $pdo->prepare('
                 INSERT INTO chatbot_gap_questions
-                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, embedding, quality_score, validation_flags)
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?::vector, ?, ?::jsonb)
+                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, embedding, quality_score, validation_flags, conversation_context)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?::vector, ?, ?::jsonb, ?)
             ');
             $stmt->execute([
                 $question_text,
@@ -454,14 +470,15 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
                 $faq_match_id,
                 $embedding_str,
                 $quality_score,
-                $validation_flags
+                $validation_flags,
+                $conversation_context
             ]);
         } else {
-            // Insert without embedding but with quality data
+            // Insert without embedding but with quality data (Ver 2.5.0: added conversation_context)
             $stmt = $pdo->prepare('
                 INSERT INTO chatbot_gap_questions
-                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, quality_score, validation_flags)
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?, ?::jsonb)
+                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, quality_score, validation_flags, conversation_context)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?, ?::jsonb, ?)
             ');
             $stmt->execute([
                 $question_text,
@@ -471,7 +488,8 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
                 $faq_confidence,
                 $faq_match_id,
                 $quality_score,
-                $validation_flags
+                $validation_flags,
+                $conversation_context
             ]);
         }
 

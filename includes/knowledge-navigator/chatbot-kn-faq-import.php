@@ -39,9 +39,19 @@ if ( ! defined( 'WPINC' ) ) {
 /**
  * Log gap question - Ver 2.4.2
  * Updated Ver 2.4.8: Uses Supabase only with question validation
+ * Updated Ver 2.5.0: Added conversation_context for follow-up questions
  * Questions that weren't matched with high confidence
+ *
+ * @param string $question The question asked
+ * @param string|null $faq_match_id Matched FAQ ID (if any)
+ * @param float $confidence_score Confidence score (0-1)
+ * @param string $confidence_level Confidence level (very_high, high, medium, low, none)
+ * @param string|null $session_id Session ID
+ * @param int|null $user_id User ID
+ * @param int|null $page_id Page ID
+ * @param string|null $conversation_context Previous Q&A context for follow-up questions
  */
-function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $confidence_level, $session_id = null, $user_id = null, $page_id = null) {
+function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $confidence_level, $session_id = null, $user_id = null, $page_id = null, $conversation_context = null) {
     // Skip if question is empty
     if (empty($question)) {
         return false;
@@ -77,7 +87,9 @@ function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $
             $user_id ? intval($user_id) : 0,
             $page_id ? intval($page_id) : 0,
             floatval($confidence_score),
-            $faq_match_id
+            $faq_match_id,
+            null, // quality_data - let the function generate it
+            $conversation_context
         );
     }
 

@@ -788,6 +788,7 @@ function chatbot_vector_enrich_query($query, $context) {
  *
  * This is the main entry point for context-aware search.
  * It detects follow-up questions and enriches them with conversation context.
+ * Updated Ver 2.5.0: Logs gap questions WITH conversation context for better analysis
  *
  * @param string $query The user's question
  * @param bool $return_score Whether to return score information
@@ -802,6 +803,8 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
 
     $search_query = $query;
     $used_context = false;
+    $context = null;
+    $context_string = null;
 
     // Step 2: If follow-up, enrich with context
     if ($followup_check['is_followup']) {
@@ -811,10 +814,23 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
             $search_query = chatbot_vector_enrich_query($query, $context);
             $used_context = true;
 
+            // Build context string for gap question logging (Ver 2.5.0)
+            $context_parts = [];
+            if (!empty($context['last_question'])) {
+                $context_parts[] = 'Previous Q: ' . substr($context['last_question'], 0, 200);
+            }
+            if (!empty($context['last_answer'])) {
+                $context_parts[] = 'Previous A: ' . substr($context['last_answer'], 0, 300);
+            }
+            if (!empty($context_parts)) {
+                $context_string = implode(' | ', $context_parts);
+            }
+
             // Debug logging
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('[Chatbot Context] Follow-up detected (' . $followup_check['reason'] . '): "' . $query . '"');
                 error_log('[Chatbot Context] Enriched query: "' . $search_query . '"');
+                error_log('[Chatbot Context] Context for gap logging: "' . ($context_string ?? 'none') . '"');
             }
         }
     }
@@ -831,12 +847,14 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
         $used_context = false; // Mark that we fell back
     }
 
-    // No match found
+    // No match found - log as gap question WITH context (Ver 2.5.0)
     if (!$result) {
-        // Only log as gap if it's not a follow-up (follow-ups without context aren't real gaps)
-        if (!$followup_check['is_followup']) {
-            if (function_exists('chatbot_log_gap_question')) {
-                chatbot_log_gap_question($query, null, 0, 'none', $session_id, $user_id, $page_id);
+        if (function_exists('chatbot_log_gap_question')) {
+            // For follow-ups, include the conversation context so we know what they were asking about
+            chatbot_log_gap_question($query, null, 0, 'none', $session_id, $user_id, $page_id, $context_string);
+
+            if (defined('WP_DEBUG') && WP_DEBUG && $context_string) {
+                error_log('[Chatbot Context] Gap question logged WITH context: "' . $query . '"');
             }
         }
 
@@ -857,8 +875,8 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
         chatbot_track_faq_usage($result['match']['id'], $result['score']);
     }
 
-    // Log gap questions for low confidence matches (but not for follow-ups)
-    if ($result['score'] < 0.6 && !$followup_check['is_followup']) {
+    // Log gap questions for low confidence matches - include context (Ver 2.5.0)
+    if ($result['score'] < 0.6) {
         if (function_exists('chatbot_log_gap_question')) {
             chatbot_log_gap_question(
                 $query,
@@ -867,7 +885,8 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
                 $result['confidence'],
                 $session_id,
                 $user_id,
-                $page_id
+                $page_id,
+                $context_string // Include context for better gap analysis
             );
         }
     }

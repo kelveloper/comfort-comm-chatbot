@@ -72,8 +72,16 @@ The chatbot plugin uses **Supabase** (PostgreSQL + pgvector) as its database.
 | `is_clustered` | BOOLEAN | Whether grouped into a cluster |
 | `cluster_id` | INT | Associated cluster ID |
 | `is_resolved` | BOOLEAN | Whether FAQ was created for this |
+| `conversation_context` | TEXT | Previous Q&A context for follow-up questions (Ver 2.5.0) |
+| `quality_score` | FLOAT | Question quality score (Ver 2.4.8) |
+| `validation_flags` | JSONB | Validation flags (Ver 2.4.8) |
+| `embedding` | vector(1536) | Question embedding for clustering |
 
 **Used by:** Gap analysis, FAQ improvement suggestions
+
+**Note:** The `conversation_context` column (added Ver 2.5.0) stores the previous Q&A when a follow-up question is logged. This helps you understand what the user was asking about. Example:
+- Question: "Can you name them?"
+- Context: "Previous Q: What carriers do you partner with? | Previous A: We partner with T-Mobile, AT&T..."
 
 ---
 
