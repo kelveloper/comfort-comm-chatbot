@@ -51,6 +51,16 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     // PRE-PROCESSING RULES - Guaranteed escalations (no AI needed, $0 cost) - Ver 2.3.7
     $message_lower = strtolower($message);
 
+    // GREETING DETECTION - Mark for fresh start (no old conversation context) - Ver 2.4.9
+    // When user says hi/hello/hey, they likely want to start a new conversation
+    $cleaned_for_greeting = trim(preg_replace('/\s+/', ' ', $message_lower));
+    $is_new_conversation_greeting = preg_match('/^(hi|hello|hey|good\s*(morning|afternoon|evening)|greetings)\s*[!.,]?\s*$/i', $cleaned_for_greeting);
+    if ($is_new_conversation_greeting) {
+        error_log('@@@ CHATBOT: Greeting detected - will skip conversation history for fresh start @@@');
+        // Clear transient history so it starts fresh
+        delete_transient('chatbot_chatgpt_context_history');
+    }
+
     // OFF-TOPIC FILTER - Block questions unrelated to telecommunications - Ver 2.4.4
     $off_topic_keywords = [
         // Cryptocurrency
@@ -118,6 +128,8 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
 
     // GENERIC QUESTION DETECTION - Ver 2.4.9
     // These questions are too vague for FAQ matching - let AI handle them naturally
+    error_log('@@@ CHATBOT GENERIC DETECTION: Starting check for message: "' . $message . '" @@@');
+
     $generic_patterns = [
         // Greetings and intros
         '/^(hi|hello|hey|good\s*(morning|afternoon|evening)|greetings)\s*[!.,]?\s*$/i',
@@ -138,14 +150,18 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     $is_generic_question = false;
     $cleaned_message = trim(preg_replace('/\s+/', ' ', $message_lower));
 
+    error_log('@@@ CHATBOT GENERIC DETECTION: cleaned_message = "' . $cleaned_message . '" @@@');
+
     foreach ($generic_patterns as $pattern) {
         if (preg_match($pattern, $cleaned_message)) {
             $is_generic_question = true;
-            error_log('CHATBOT DEBUG: Generic question detected - skipping FAQ search: ' . $message);
+            error_log('@@@ CHATBOT GENERIC DETECTION: MATCHED pattern ' . $pattern . ' - SKIPPING FAQ SEARCH @@@');
             prod_trace('NOTICE', 'Generic question detected - using pure AI response');
             break;
         }
     }
+
+    error_log('@@@ CHATBOT GENERIC DETECTION: is_generic_question = ' . ($is_generic_question ? 'TRUE' : 'FALSE') . ' @@@');
 
     // Also detect very short messages (less than 4 words) that aren't specific
     $word_count = str_word_count($cleaned_message);
@@ -212,10 +228,12 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
                 $faq_context = "\n\nRELEVANT FAQ:\nQ: " . $faq_match['question'] . "\nA: " . $faq_match['answer'] . "\n\n" .
                               "Use this FAQ as a reference, but ask clarifying questions if the user's intent is unclear.";
             }
-            // TIER 4: Low Confidence (20-40%) - AI-first with weak FAQ hint
+            // TIER 4: Very Low Confidence (<50%) - Don't use FAQ, let AI handle naturally
+            // These matches are too weak and often wrong - they confuse the AI more than help
             else {
-                $faq_context = "\n\nPossibly relevant FAQ: \"" . $faq_match['answer'] . "\"\n" .
-                              "Only mention this if it seems relevant to the user's question.";
+                // Don't add any FAQ context for very low confidence matches
+                $faq_context = '';
+                error_log('CHATBOT DEBUG: Very low confidence FAQ match (score=' . $score . ') - ignoring FAQ context');
             }
         } else {
             prod_trace('NOTICE', 'No FAQ match found - using full AI processing');
@@ -344,16 +362,24 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     } else {
 
         // Original Context Instructions - No Enhanced Context
-        $context = $sys_message . ' ' . $chatgpt_last_response . ' ' . $context . ' ' . $chatbot_chatgpt_kn_conversation_context;
+        // Skip conversation history for greetings
+        if ($is_new_conversation_greeting) {
+            $context = $context . ' ' . $chatbot_chatgpt_kn_conversation_context;
+        } else {
+            $context = $sys_message . ' ' . $chatgpt_last_response . ' ' . $context . ' ' . $chatbot_chatgpt_kn_conversation_context;
+        }
 
     }
 
     // Conversation Continuity
+    // Skip for greetings - they should start fresh without old context confusing the AI
     $chatbot_chatgpt_conversation_continuation = esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'On'));
 
-    if ($chatbot_chatgpt_conversation_continuation == 'On') {
+    if ($chatbot_chatgpt_conversation_continuation == 'On' && !$is_new_conversation_greeting) {
         $conversation_history = chatbot_chatgpt_get_converation_history($session_id);
         $context = $conversation_history . ' ' . $context;
+    } elseif ($is_new_conversation_greeting) {
+        error_log('@@@ CHATBOT: Skipping conversation history for greeting - starting fresh @@@');
     }
 
     // Check the length of the context and truncate if necessary
