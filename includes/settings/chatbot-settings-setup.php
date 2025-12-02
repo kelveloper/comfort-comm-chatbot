@@ -410,6 +410,61 @@ function chatbot_setup_page_content() {
         </div>
     </div>
 
+    <!-- Database Schema Setup Wizard -->
+    <div class="setup-section" id="schema-section">
+        <h3>
+            <span class="status-icon pending" id="schema-status-icon">●</span>
+            Database Schema Setup
+        </h3>
+
+        <p>After connecting to Supabase, you need to create the required database tables. Click the button below to check which tables exist.</p>
+
+        <div class="setup-field">
+            <div class="field-row">
+                <button type="button" class="test-btn" id="check-tables-btn">Check Tables</button>
+                <span class="test-result" id="tables-check-result"></span>
+            </div>
+        </div>
+
+        <!-- Table status will be shown here -->
+        <div id="table-status-container" style="display: none; margin-top: 20px;">
+            <h4>Table Status:</h4>
+            <div id="table-status-list" style="margin: 10px 0;"></div>
+        </div>
+
+        <!-- SQL Setup section (shown when tables are missing) -->
+        <div id="sql-setup-container" style="display: none; margin-top: 20px;">
+            <div class="info-box" style="background: #fff3cd; border-color: #ffc107;">
+                <strong>⚠️ Missing Tables Detected</strong>
+                <p>Some required tables don't exist in your Supabase database. Follow these steps:</p>
+                <ol>
+                    <li>Click "Copy SQL" below to copy the database schema</li>
+                    <li>Open your <a href="#" id="supabase-sql-link" target="_blank">Supabase SQL Editor</a></li>
+                    <li>Paste the SQL and click "Run"</li>
+                    <li>Come back here and click "Check Tables" again to verify</li>
+                </ol>
+            </div>
+
+            <div style="margin: 15px 0;">
+                <button type="button" class="button button-primary" id="copy-sql-btn">📋 Copy SQL to Clipboard</button>
+                <button type="button" class="button" id="show-sql-btn">👁 Show/Hide SQL</button>
+                <span id="copy-result" style="margin-left: 10px; color: green; display: none;">✓ Copied!</span>
+            </div>
+
+            <div id="sql-preview" style="display: none; margin-top: 15px;">
+                <textarea id="schema-sql" readonly style="width: 100%; height: 400px; font-family: monospace; font-size: 12px; background: #f5f5f5; padding: 10px;"><?php echo esc_textarea(chatbot_get_schema_sql()); ?></textarea>
+            </div>
+        </div>
+
+        <!-- Success message (shown when all tables exist) -->
+        <div id="schema-success-container" style="display: none; margin-top: 20px;">
+            <div class="info-box" style="background: #d4edda; border-color: #28a745;">
+                <strong>✓ All Tables Ready</strong>
+                <p>All required database tables exist in your Supabase project. Your chatbot is ready to use!</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Save Section -->
     <div class="save-section">
         <button type="submit" id="setup-save-btn" class="button button-primary">Save Settings</button>
@@ -710,6 +765,102 @@ function chatbot_setup_page_content() {
                 $btn.attr('title', 'Show');
             }
         });
+
+        // ===== Schema Setup Wizard =====
+
+        // Check Tables button
+        $('#check-tables-btn').on('click', function() {
+            var $btn = $(this);
+            var $result = $('#tables-check-result');
+            var projectUrl = $('#chatbot_supabase_project_url').val();
+            var anonKey = $('#chatbot_supabase_anon_key').val();
+
+            if (!projectUrl || !anonKey) {
+                $result.removeClass('success testing').addClass('error').text('✗ Enter Supabase credentials first');
+                return;
+            }
+
+            $btn.prop('disabled', true);
+            $result.removeClass('success error').addClass('testing').text('Checking tables...');
+
+            // Update Supabase SQL Editor link
+            var projectId = projectUrl.replace('https://', '').replace('.supabase.co', '');
+            $('#supabase-sql-link').attr('href', 'https://supabase.com/dashboard/project/' + projectId + '/sql/new');
+
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'chatbot_check_schema_tables',
+                    project_url: projectUrl,
+                    anon_key: anonKey,
+                    nonce: '<?php echo wp_create_nonce('chatbot_setup_test'); ?>'
+                },
+                success: function(response) {
+                    $btn.prop('disabled', false);
+
+                    if (response.success) {
+                        var data = response.data;
+                        var tableHtml = '';
+                        var allExist = true;
+
+                        // Build table status HTML
+                        for (var table in data.tables) {
+                            var exists = data.tables[table];
+                            if (exists) {
+                                tableHtml += '<div style="color: #28a745; margin: 5px 0;">✓ ' + table + '</div>';
+                            } else {
+                                tableHtml += '<div style="color: #dc3232; margin: 5px 0;">✗ ' + table + ' (missing)</div>';
+                                allExist = false;
+                            }
+                        }
+
+                        $('#table-status-list').html(tableHtml);
+                        $('#table-status-container').show();
+
+                        if (allExist) {
+                            $result.removeClass('testing error').addClass('success').text('✓ All tables exist');
+                            $('#schema-status-icon').removeClass('pending error').addClass('success').text('✓');
+                            $('#sql-setup-container').hide();
+                            $('#schema-success-container').show();
+                        } else {
+                            $result.removeClass('testing success').addClass('error').text('✗ Missing tables');
+                            $('#schema-status-icon').removeClass('pending success').addClass('error').text('✗');
+                            $('#sql-setup-container').show();
+                            $('#schema-success-container').hide();
+                        }
+                    } else {
+                        $result.removeClass('testing success').addClass('error').text('✗ ' + (response.data.message || 'Check failed'));
+                        $('#schema-status-icon').removeClass('pending success').addClass('error').text('✗');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $btn.prop('disabled', false);
+                    $result.removeClass('testing success').addClass('error').text('✗ Connection failed');
+                }
+            });
+        });
+
+        // Copy SQL button
+        $('#copy-sql-btn').on('click', function() {
+            var $textarea = $('#schema-sql');
+            $textarea.select();
+            document.execCommand('copy');
+
+            // Also try modern clipboard API
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText($textarea.val());
+            }
+
+            $('#copy-result').fadeIn().delay(2000).fadeOut();
+        });
+
+        // Show/Hide SQL button
+        $('#show-sql-btn').on('click', function() {
+            $('#sql-preview').toggle();
+            $(this).text($('#sql-preview').is(':visible') ? '🙈 Hide SQL' : '👁 Show SQL');
+        });
     });
     </script>
     <?php
@@ -850,3 +1001,87 @@ function chatbot_test_supabase_setup_ajax() {
     }
 }
 add_action('wp_ajax_chatbot_test_db_setup', 'chatbot_test_supabase_setup_ajax');
+
+/**
+ * Get the schema SQL for display
+ */
+function chatbot_get_schema_sql() {
+    $schema_file = plugin_dir_path(dirname(__FILE__)) . 'supabase/supabase-schema.sql';
+
+    if (file_exists($schema_file)) {
+        return file_get_contents($schema_file);
+    }
+
+    // Fallback minimal schema if file not found
+    return '-- Schema file not found. Please check: includes/supabase/supabase-schema.sql';
+}
+
+/**
+ * AJAX handler for checking which tables exist
+ */
+function chatbot_check_schema_tables_ajax() {
+    // Clean any output buffer
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot_setup_test')) {
+        wp_send_json_error(['message' => 'Security check failed']);
+        wp_die();
+    }
+
+    $project_url = isset($_POST['project_url']) ? esc_url_raw(trim(wp_unslash($_POST['project_url']))) : '';
+    $anon_key = isset($_POST['anon_key']) ? trim(wp_unslash($_POST['anon_key'])) : '';
+
+    if (empty($project_url) || empty($anon_key)) {
+        wp_send_json_error(['message' => 'Missing credentials']);
+        wp_die();
+    }
+
+    // Required tables for the chatbot (must match supabase-schema.sql)
+    $required_tables = [
+        'chatbot_faqs',
+        'chatbot_conversations',
+        'chatbot_interactions',
+        'chatbot_gap_questions',
+        'chatbot_gap_clusters',
+        'chatbot_faq_usage',
+        'chatbot_assistants'
+    ];
+
+    $base_url = rtrim($project_url, '/') . '/rest/v1';
+    $table_status = [];
+
+    foreach ($required_tables as $table) {
+        // Try to query the table (just check if it exists)
+        $url = $base_url . '/' . $table . '?select=id&limit=1';
+
+        $response = wp_remote_get($url, [
+            'headers' => [
+                'apikey' => $anon_key,
+                'Authorization' => 'Bearer ' . $anon_key
+            ],
+            'timeout' => 10
+        ]);
+
+        if (is_wp_error($response)) {
+            $table_status[$table] = false;
+            continue;
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+
+        // 200 = table exists (even if empty)
+        // 404 = table doesn't exist
+        // Other codes might indicate permission issues
+        $table_status[$table] = ($code === 200);
+    }
+
+    wp_send_json_success([
+        'tables' => $table_status,
+        'all_exist' => !in_array(false, $table_status, true)
+    ]);
+    wp_die();
+}
+add_action('wp_ajax_chatbot_check_schema_tables', 'chatbot_check_schema_tables_ajax');

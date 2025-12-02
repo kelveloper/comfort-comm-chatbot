@@ -1,8 +1,62 @@
 -- Supabase Schema for Chatbot
--- Run this in Supabase SQL Editor: https://supabase.com/dashboard/project/tlpvjrbmxxggubnjmdhe/sql
+-- Run this in Supabase SQL Editor: https://supabase.com/dashboard/project/YOUR_PROJECT_ID/sql
+-- Replace YOUR_PROJECT_ID with your actual Supabase project ID
 
 -- =============================================================================
--- Table 1: chatbot_conversations (replaces wp_chatbot_chatgpt_conversation_log)
+-- IMPORTANT: Enable pgvector extension FIRST (required for embeddings)
+-- =============================================================================
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- =============================================================================
+-- Helper function: Update updated_at timestamp (create first, used by triggers)
+-- =============================================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- =============================================================================
+-- Table 1: chatbot_faqs (FAQ entries with vector embeddings)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS chatbot_faqs (
+    id BIGSERIAL PRIMARY KEY,
+    faq_id VARCHAR(50) UNIQUE NOT NULL,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    category VARCHAR(255),
+    keywords TEXT,
+
+    -- Vector embeddings (768 dimensions for Gemini text-embedding-004)
+    question_embedding vector(768),
+    answer_embedding vector(768),
+    combined_embedding vector(768),
+
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for FAQs
+CREATE INDEX IF NOT EXISTS idx_faqs_faq_id ON chatbot_faqs(faq_id);
+CREATE INDEX IF NOT EXISTS idx_faqs_category ON chatbot_faqs(category);
+CREATE INDEX IF NOT EXISTS idx_faqs_created_at ON chatbot_faqs(created_at DESC);
+
+-- Vector similarity index (IVFFlat) - for fast semantic search
+CREATE INDEX IF NOT EXISTS idx_faqs_combined_embedding ON chatbot_faqs
+    USING ivfflat (combined_embedding vector_cosine_ops) WITH (lists = 50);
+
+-- Enable RLS
+ALTER TABLE chatbot_faqs ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Allow all operations
+DROP POLICY IF EXISTS "Allow all operations" ON chatbot_faqs;
+CREATE POLICY "Allow all operations" ON chatbot_faqs
+    FOR ALL USING (true) WITH CHECK (true);
+
+-- =============================================================================
+-- Table 2: chatbot_conversations (replaces wp_chatbot_chatgpt_conversation_log)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS chatbot_conversations (
     id BIGSERIAL PRIMARY KEY,
@@ -28,6 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_interaction_time ON chatbot_convers
 ALTER TABLE chatbot_conversations ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Allow all operations with anon key (for your plugin)
+DROP POLICY IF EXISTS "Allow all operations" ON chatbot_conversations;
 CREATE POLICY "Allow all operations" ON chatbot_conversations
     FOR ALL USING (true) WITH CHECK (true);
 
@@ -49,6 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_interactions_date ON chatbot_interactions(date);
 ALTER TABLE chatbot_interactions ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Allow all operations
+DROP POLICY IF EXISTS "Allow all operations" ON chatbot_interactions;
 CREATE POLICY "Allow all operations" ON chatbot_interactions
     FOR ALL USING (true) WITH CHECK (true);
 
@@ -83,6 +139,7 @@ CREATE INDEX IF NOT EXISTS idx_gap_questions_embedding ON chatbot_gap_questions
 ALTER TABLE chatbot_gap_questions ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Allow all operations
+DROP POLICY IF EXISTS "Allow all operations" ON chatbot_gap_questions;
 CREATE POLICY "Allow all operations" ON chatbot_gap_questions
     FOR ALL USING (true) WITH CHECK (true);
 
@@ -111,6 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_clusters_action_type ON chatbot_gap_clusters(acti
 
 ALTER TABLE chatbot_gap_clusters ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow all operations" ON chatbot_gap_clusters;
 CREATE POLICY "Allow all operations" ON chatbot_gap_clusters
     FOR ALL USING (true) WITH CHECK (true);
 
@@ -138,6 +196,7 @@ CREATE INDEX IF NOT EXISTS idx_faq_usage_faq_id ON chatbot_faq_usage(faq_id);
 
 ALTER TABLE chatbot_faq_usage ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow all operations" ON chatbot_faq_usage;
 CREATE POLICY "Allow all operations" ON chatbot_faq_usage
     FOR ALL USING (true) WITH CHECK (true);
 
@@ -166,19 +225,13 @@ CREATE INDEX IF NOT EXISTS idx_assistants_assistant_id ON chatbot_assistants(ass
 
 ALTER TABLE chatbot_assistants ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow all operations" ON chatbot_assistants;
 CREATE POLICY "Allow all operations" ON chatbot_assistants
     FOR ALL USING (true) WITH CHECK (true);
 
 -- =============================================================================
--- Helper function: Update updated_at timestamp
+-- Triggers for updated_at columns
 -- =============================================================================
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
 
 -- Trigger for interactions table
 DROP TRIGGER IF EXISTS update_interactions_updated_at ON chatbot_interactions;
@@ -195,5 +248,13 @@ SELECT
     (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count
 FROM information_schema.tables t
 WHERE table_schema = 'public'
-AND table_name IN ('chatbot_conversations', 'chatbot_interactions', 'chatbot_gap_questions', 'chatbot_faqs')
+AND table_name IN (
+    'chatbot_faqs',
+    'chatbot_conversations',
+    'chatbot_interactions',
+    'chatbot_gap_questions',
+    'chatbot_gap_clusters',
+    'chatbot_faq_usage',
+    'chatbot_assistants'
+)
 ORDER BY table_name;
