@@ -596,3 +596,292 @@ function chatbot_vector_search_by_category($query, $category, $limit = 5) {
         'threshold' => CHATBOT_VECTOR_THRESHOLD_LOW
     ]);
 }
+
+// ============================================
+// Context-Aware Search Functions (Ver 2.5.0)
+// ============================================
+
+/**
+ * Detect if a question is a follow-up that needs context
+ *
+ * @param string $query The user's question
+ * @return array ['is_followup' => bool, 'reason' => string]
+ */
+function chatbot_vector_detect_followup($query) {
+    $query_lower = strtolower(trim($query));
+    $word_count = str_word_count($query_lower);
+
+    // Pattern 1: Pronouns referring to previous topic
+    $pronoun_patterns = [
+        '/\b(them|they|it|that|those|these|this)\b/',
+        '/\b(he|she|his|her|their)\b/',
+    ];
+
+    foreach ($pronoun_patterns as $pattern) {
+        if (preg_match($pattern, $query_lower)) {
+            // Short questions with pronouns are likely follow-ups
+            if ($word_count <= 8) {
+                return ['is_followup' => true, 'reason' => 'pronoun_reference'];
+            }
+        }
+    }
+
+    // Pattern 2: Common follow-up phrases
+    $followup_patterns = [
+        '/^(can you|could you|would you) (name|list|tell me|show me|give me)/',
+        '/^(tell me|show me|give me) (more|about)/',
+        '/^(what|how) about/',
+        '/^(and|but|so|also) /',
+        '/^(yes|no|sure|okay|ok|yeah|yep|nope)[\s,\.!\?]*/',
+        '/^(more|another|other|else)[\s,\.!\?]/',
+        '/\bmore (info|information|details|about)\b/',
+        '/^why[\s\?]*$/',
+        '/^how[\s\?]*$/',
+        '/^which one/',
+        '/^(the|a) (first|second|last|best|cheapest)/',
+    ];
+
+    foreach ($followup_patterns as $pattern) {
+        if (preg_match($pattern, $query_lower)) {
+            return ['is_followup' => true, 'reason' => 'followup_phrase'];
+        }
+    }
+
+    // Pattern 3: Very short questions (1-3 words) are often follow-ups
+    if ($word_count <= 3 && !preg_match('/^(hi|hello|hey|thanks|thank you|bye|goodbye)/', $query_lower)) {
+        // Check if it's a complete question on its own
+        $standalone_short = [
+            '/^what (is|are) .+/',
+            '/^how (do|does|can|much|many) .+/',
+            '/^where (is|are|do|can) .+/',
+            '/^who (is|are) .+/',
+        ];
+
+        $is_standalone = false;
+        foreach ($standalone_short as $pattern) {
+            if (preg_match($pattern, $query_lower)) {
+                $is_standalone = true;
+                break;
+            }
+        }
+
+        if (!$is_standalone) {
+            return ['is_followup' => true, 'reason' => 'short_question'];
+        }
+    }
+
+    return ['is_followup' => false, 'reason' => 'standalone'];
+}
+
+/**
+ * Get conversation context from transient
+ *
+ * @return array ['last_question' => string, 'last_answer' => string, 'topic' => string]
+ */
+function chatbot_vector_get_conversation_context() {
+    $context_history = get_transient('chatbot_chatgpt_context_history');
+
+    if (empty($context_history) || !is_array($context_history)) {
+        return ['last_question' => '', 'last_answer' => '', 'topic' => ''];
+    }
+
+    // Get the last 2 entries (should be Q then A)
+    $recent = array_slice($context_history, -2);
+
+    $last_question = '';
+    $last_answer = '';
+
+    // Parse the context entries
+    foreach ($recent as $entry) {
+        if (strpos($entry, 'User:') === 0 || strpos($entry, 'Human:') === 0) {
+            $last_question = preg_replace('/^(User|Human):\s*/', '', $entry);
+        } elseif (strpos($entry, 'Assistant:') === 0 || strpos($entry, 'Bot:') === 0) {
+            $last_answer = preg_replace('/^(Assistant|Bot):\s*/', '', $entry);
+        }
+    }
+
+    // Extract topic keywords from last Q&A
+    $topic = '';
+    if ($last_question || $last_answer) {
+        $combined = $last_question . ' ' . $last_answer;
+        // Extract key nouns/topics
+        $topic = chatbot_vector_extract_topic($combined);
+    }
+
+    return [
+        'last_question' => $last_question,
+        'last_answer' => $last_answer,
+        'topic' => $topic
+    ];
+}
+
+/**
+ * Extract main topic from text for context enrichment
+ *
+ * @param string $text The text to extract topic from
+ * @return string Extracted topic keywords
+ */
+function chatbot_vector_extract_topic($text) {
+    // Remove common words and extract key terms
+    $text = strtolower($text);
+
+    // Common stop words to remove
+    $stop_words = ['the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+        'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should',
+        'may', 'might', 'must', 'can', 'to', 'of', 'in', 'for', 'on', 'with', 'at',
+        'by', 'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above',
+        'below', 'between', 'under', 'again', 'further', 'then', 'once', 'here',
+        'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few', 'more', 'most',
+        'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so',
+        'than', 'too', 'very', 'just', 'and', 'but', 'if', 'or', 'because', 'until',
+        'while', 'about', 'against', 'i', 'you', 'your', 'we', 'our', 'they', 'their',
+        'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'it',
+        'its', 'yes', 'no', 'okay', 'ok', 'sure', 'please', 'thanks', 'thank'];
+
+    // Split into words
+    $words = preg_split('/\s+/', preg_replace('/[^\w\s]/', '', $text));
+
+    // Filter out stop words and short words
+    $keywords = array_filter($words, function($word) use ($stop_words) {
+        return strlen($word) > 2 && !in_array($word, $stop_words);
+    });
+
+    // Return top keywords (limit to avoid too long query)
+    $keywords = array_slice(array_unique($keywords), 0, 5);
+
+    return implode(' ', $keywords);
+}
+
+/**
+ * Enrich a follow-up query with conversation context
+ *
+ * @param string $query The user's follow-up question
+ * @param array $context Conversation context from chatbot_vector_get_conversation_context()
+ * @return string Enriched query for vector search
+ */
+function chatbot_vector_enrich_query($query, $context) {
+    if (empty($context['topic']) && empty($context['last_question'])) {
+        return $query; // No context available
+    }
+
+    // Build enriched query
+    $enriched_parts = [];
+
+    // Add topic context
+    if (!empty($context['topic'])) {
+        $enriched_parts[] = 'Topic: ' . $context['topic'];
+    }
+
+    // Add the original query
+    $enriched_parts[] = 'Question: ' . $query;
+
+    // If the last question provides better context, include it
+    if (!empty($context['last_question']) && strlen($context['last_question']) > 10) {
+        $enriched_parts[] = 'Context: ' . substr($context['last_question'], 0, 100);
+    }
+
+    return implode('. ', $enriched_parts);
+}
+
+/**
+ * Context-aware FAQ search - handles follow-up questions
+ *
+ * This is the main entry point for context-aware search.
+ * It detects follow-up questions and enriches them with conversation context.
+ *
+ * @param string $query The user's question
+ * @param bool $return_score Whether to return score information
+ * @param string|null $session_id Session ID for analytics
+ * @param int|null $user_id User ID for analytics
+ * @param int|null $page_id Page ID for analytics
+ * @return array|null Match result or null if no match
+ */
+function chatbot_vector_context_aware_search($query, $return_score = false, $session_id = null, $user_id = null, $page_id = null) {
+    // Step 1: Detect if this is a follow-up question
+    $followup_check = chatbot_vector_detect_followup($query);
+
+    $search_query = $query;
+    $used_context = false;
+
+    // Step 2: If follow-up, enrich with context
+    if ($followup_check['is_followup']) {
+        $context = chatbot_vector_get_conversation_context();
+
+        if (!empty($context['topic']) || !empty($context['last_question'])) {
+            $search_query = chatbot_vector_enrich_query($query, $context);
+            $used_context = true;
+
+            // Debug logging
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[Chatbot Context] Follow-up detected (' . $followup_check['reason'] . '): "' . $query . '"');
+                error_log('[Chatbot Context] Enriched query: "' . $search_query . '"');
+            }
+        }
+    }
+
+    // Step 3: Perform the search with (potentially enriched) query
+    $result = chatbot_vector_find_best_match($search_query, CHATBOT_VECTOR_THRESHOLD_MIN);
+
+    // Step 4: If enriched search failed, try original query as fallback
+    if (!$result && $used_context) {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[Chatbot Context] Enriched search failed, trying original query');
+        }
+        $result = chatbot_vector_find_best_match($query, CHATBOT_VECTOR_THRESHOLD_MIN);
+        $used_context = false; // Mark that we fell back
+    }
+
+    // No match found
+    if (!$result) {
+        // Only log as gap if it's not a follow-up (follow-ups without context aren't real gaps)
+        if (!$followup_check['is_followup']) {
+            if (function_exists('chatbot_log_gap_question')) {
+                chatbot_log_gap_question($query, null, 0, 'none', $session_id, $user_id, $page_id);
+            }
+        }
+
+        if ($return_score) {
+            return [
+                'match' => null,
+                'score' => 0,
+                'confidence' => 'none',
+                'used_context' => $used_context,
+                'is_followup' => $followup_check['is_followup']
+            ];
+        }
+        return null;
+    }
+
+    // Track FAQ usage
+    if (function_exists('chatbot_track_faq_usage') && isset($result['match']['id'])) {
+        chatbot_track_faq_usage($result['match']['id'], $result['score']);
+    }
+
+    // Log gap questions for low confidence matches (but not for follow-ups)
+    if ($result['score'] < 0.6 && !$followup_check['is_followup']) {
+        if (function_exists('chatbot_log_gap_question')) {
+            chatbot_log_gap_question(
+                $query,
+                $result['match']['id'] ?? null,
+                $result['score'],
+                $result['confidence'],
+                $session_id,
+                $user_id,
+                $page_id
+            );
+        }
+    }
+
+    if ($return_score) {
+        return [
+            'match' => $result['match'],
+            'score' => $result['score'],
+            'confidence' => $result['confidence'],
+            'match_type' => $result['search_type'],
+            'used_context' => $used_context,
+            'is_followup' => $followup_check['is_followup']
+        ];
+    }
+
+    return $result['match'];
+}

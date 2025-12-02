@@ -191,25 +191,41 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
         }
     }
 
-    // Use vector search for semantic FAQ matching (no fallback to keyword search)
+    // Use CONTEXT-AWARE vector search for semantic FAQ matching (Ver 2.5.0)
+    // This handles follow-up questions like "can you name them?" by enriching with conversation context
     // Skip FAQ search for generic questions
-    if (function_exists('chatbot_vector_faq_search') && !$is_generic_question) {
-        error_log('CHATBOT DEBUG: chatbot_vector_faq_search function EXISTS - using semantic search');
-        prod_trace('NOTICE', 'chatbot_vector_faq_search function exists - using semantic search');
-        $faq_result = chatbot_vector_faq_search($message, true, $session_id, $user_id, $page_id); // Vector search with embeddings
+    if (!$is_generic_question) {
+        // Prefer context-aware search (handles follow-ups), fallback to regular vector search
+        if (function_exists('chatbot_vector_context_aware_search')) {
+            error_log('CHATBOT DEBUG: Using CONTEXT-AWARE vector search (Ver 2.5.0)');
+            prod_trace('NOTICE', 'Using context-aware vector search for semantic matching');
+            $faq_result = chatbot_vector_context_aware_search($message, true, $session_id, $user_id, $page_id);
+        } elseif (function_exists('chatbot_vector_faq_search')) {
+            error_log('CHATBOT DEBUG: Fallback to regular vector search');
+            $faq_result = chatbot_vector_faq_search($message, true, $session_id, $user_id, $page_id);
+        } else {
+            $faq_result = null;
+        }
         error_log('CHATBOT DEBUG: FAQ search result: ' . print_r($faq_result, true));
         prod_trace('NOTICE', 'FAQ search result: ' . print_r($faq_result, true));
+
+        // Log context-aware search details (Ver 2.5.0)
+        if (isset($faq_result['is_followup']) && $faq_result['is_followup']) {
+            error_log('CHATBOT DEBUG: Follow-up question detected - used_context=' . ($faq_result['used_context'] ? 'YES' : 'NO'));
+            prod_trace('NOTICE', 'Follow-up question detected, context enrichment: ' . ($faq_result['used_context'] ? 'applied' : 'not available'));
+        }
 
         if ($faq_result && $faq_result['match'] && !empty($faq_result['match']['answer'])) {
             $confidence = $faq_result['confidence'];
             $score = $faq_result['score'];
-            $match_type = $faq_result['match_type'];
+            $match_type = $faq_result['match_type'] ?? 'vector';
             $faq_match = $faq_result['match'];
 
             // Log the FAQ match with confidence
             prod_trace('NOTICE', sprintf(
-                'FAQ match found: score=%.2f confidence=%s type=%s question="%s"',
-                $score, $confidence, $match_type, $message
+                'FAQ match found: score=%.2f confidence=%s type=%s question="%s"%s',
+                $score, $confidence, $match_type, $message,
+                isset($faq_result['used_context']) && $faq_result['used_context'] ? ' (context-enriched)' : ''
             ));
 
             // TIER 1: Very High Confidence (80%+) - Return FAQ directly, NO AI CALL ($0 cost!)
