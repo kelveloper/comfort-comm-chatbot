@@ -69,34 +69,15 @@ function kognetiks_analytics_settings_page() {
             exit;
         }
 
-        // Check if conversation logging is enabled and table exists
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-        $logging_enabled = get_option('chatbot_chatgpt_enable_conversation_logging', 'Off');
-        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") === $table_name;
-
-        if (!$table_exists || $logging_enabled !== 'On') {
+        // Check if Supabase is configured
+        if (!function_exists('chatbot_supabase_is_configured') || !chatbot_supabase_is_configured()) {
             ?>
             <div class="notice notice-warning" style="padding: 20px; margin: 20px 0;">
-                <h2 style="margin-top: 0;">⚠️ Conversation Logging Required</h2>
-                <p>To use Kognetiks Analytics, you need to enable conversation logging in the Kognetiks Chatbot settings.</p>
-                <p>Please follow these steps:</p>
-                <ol>
-                    <li>Go to <a href="<?php echo esc_url(admin_url('admin.php?page=chatbot-chatgpt&tab=reporting')); ?>">Kognetiks Chatbot Settings</a></li>
-                    <li>Navigate to the "Reporting" tab and scroll down to the "Reporting Settings" section</li>
-                    <li>Set the "Enable Conversation Logging" option to "On"</li>
-                    <li>Choose the "Conversation Log Days to Keep" option to the number of days you want to keep the conversation logs (default is 30 days)</li>
-                    <li>Save your changes by scrolling to the bottom of the page and clicking the "Save Changes" button</li>
-                </ol>
-                <p>Once conversation logging is enabled, you'll be able to view analytics data here.</p>
+                <h2 style="margin-top: 0;">⚠️ Supabase Configuration Required</h2>
+                <p>To use Analytics, you need to configure Supabase in the Setup tab.</p>
             </div>
             <?php
             return;
-        }
-
-        // Ensure sentiment_score column exists for existing installations
-        if ($table_exists && function_exists('chatbot_chatgpt_add_sentiment_score_column')) {
-            chatbot_chatgpt_add_sentiment_score_column();
         }
 
         // Verify nonce for period filter form submission

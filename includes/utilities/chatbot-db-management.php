@@ -292,40 +292,21 @@ function clean_specific_expired_transients() {
 }
 
 // Function to purge conversation log entries that are older than the specified number of days - Ver 1.7.6
+// Updated Ver 2.4.8: Uses Supabase only
 function chatbot_chatgpt_conversation_log_cleanup() {
-
-    global $wpdb;
-
-    // Check if conversation logging is enabled
-    if (esc_attr(get_option('chatbot_chatgpt_enable_conversation_logging')) !== 'On') {
-        // Logging is disabled, so just return without doing anything
-        return;
-    }
 
     // Get the number of days to keep the conversation log
     $days_to_keep = esc_attr(get_option('chatbot_chatgpt_conversation_log_days_to_keep'));
 
     // If the number of days is not set, then set it to 30 days
-    if ($days_to_keep === false) {
+    if ($days_to_keep === false || empty($days_to_keep)) {
         $days_to_keep = 30;
     }
 
-    // Get the date that is $days_to_keep days ago
-    $purge_date = date('Y-m-d', strtotime('-' . $days_to_keep . ' days'));
-
-    // Get the table name
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-
-    // Prepare and execute the SQL statement
-    $delete_result = $wpdb->query($wpdb->prepare("DELETE FROM $table_name WHERE interaction_time < %s", $purge_date));
-
-    // Check if delete was successful
-    if ($delete_result === false) {
-        // DIAG - Diagnostics
-        // back_trace( 'ERROR', "Failed to delete conversation log entries: " . $wpdb->last_error);
-        return false;
+    // Clean Supabase data
+    if (function_exists('chatbot_supabase_delete_old_conversations')) {
+        chatbot_supabase_delete_old_conversations($days_to_keep);
     }
-
     return true;
 
 }

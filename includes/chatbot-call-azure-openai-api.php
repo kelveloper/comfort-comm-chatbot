@@ -143,7 +143,7 @@ function chatbot_call_azure_openai_api($api_key, $message, $user_id = null, $pag
     }
 
     // Conversation Continuity - Ver 2.2.6
-    $chatbot_azure_conversation_continuation = esc_attr(get_option('chatbot_azure_conversation_continuation', 'Off'));
+    $chatbot_azure_conversation_continuation = esc_attr(get_option('chatbot_azure_conversation_continuation', 'On'));
 
     // DIAG Diagnostics - Ver 2.2.6
     // back_trace( 'NOTICE', '$session_id: ' . $session_id);

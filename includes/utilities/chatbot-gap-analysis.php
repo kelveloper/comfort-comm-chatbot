@@ -16,23 +16,17 @@ if ( ! defined( 'WPINC' ) ) {
 /**
  * Run AI clustering analysis on gap questions
  * This function is called by the weekly cron job
+ * Updated Ver 2.4.8: Uses Supabase only
  */
 function chatbot_run_gap_analysis() {
-    global $wpdb;
 
-    $gap_table = $wpdb->prefix . 'chatbot_gap_questions';
-    $cluster_table = $wpdb->prefix . 'chatbot_gap_clusters';
+    // Use Supabase functions for gap analysis
+    if (!function_exists('chatbot_supabase_get_gap_questions')) {
+        error_log('[Chatbot] Supabase gap functions not available');
+        return false;
+    }
 
-    // Get unresolved, unclustered gap questions from the last 30 days
-    $questions = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM $gap_table
-         WHERE is_clustered = 0
-         AND is_resolved = 0
-         AND asked_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-         ORDER BY asked_date DESC
-         LIMIT 100"
-    ), ARRAY_A);
-
+    $questions = chatbot_supabase_get_gap_questions(100, false);
     if (empty($questions)) {
         error_log('[Chatbot] No new gap questions to analyze');
         return false;
@@ -48,81 +42,57 @@ function chatbot_run_gap_analysis() {
         return false;
     }
 
-    // Save clusters to database
+    // Save clusters to Supabase
     foreach ($clusters as $cluster) {
         // Calculate priority score based on question count and recency
         $priority = chatbot_calculate_cluster_priority($cluster);
 
-        // Insert or update cluster
-        $existing_cluster = $wpdb->get_row($wpdb->prepare(
-            "SELECT id FROM $cluster_table WHERE cluster_name = %s",
-            $cluster['name']
-        ), ARRAY_A);
+        // Check if cluster exists by name
+        $existing_cluster = chatbot_supabase_get_gap_cluster_by_name($cluster['name']);
 
         if ($existing_cluster) {
             // Update existing cluster
-            $wpdb->update(
-                $cluster_table,
-                array(
-                    'question_count' => $cluster['count'],
-                    'sample_questions' => json_encode($cluster['sample_questions']),
-                    'suggested_faq' => json_encode($cluster['suggested_faq']),
-                    'priority_score' => $priority,
-                    'updated_at' => current_time('mysql')
-                ),
-                array('id' => $existing_cluster['id']),
-                array('%d', '%s', '%s', '%f', '%s'),
-                array('%d')
-            );
+            chatbot_supabase_update_gap_cluster($existing_cluster['id'], [
+                'question_count' => $cluster['count'],
+                'sample_questions' => $cluster['sample_questions'],
+                'suggested_faq' => $cluster['suggested_faq'] ?? [],
+                'priority_score' => $priority
+            ]);
 
             $cluster_id = $existing_cluster['id'];
         } else {
             // Insert new cluster
             $action_type = $cluster['action_type'] ?? 'create';
-            $insert_data = array(
+            $insert_data = [
                 'cluster_name' => $cluster['name'],
-                'cluster_description' => $cluster['description'],
+                'cluster_description' => $cluster['description'] ?? '',
                 'question_count' => $cluster['count'],
-                'sample_questions' => json_encode($cluster['sample_questions']),
+                'sample_questions' => $cluster['sample_questions'],
                 'action_type' => $action_type,
                 'priority_score' => $priority,
-                'status' => 'new',
-                'created_at' => current_time('mysql'),
-                'updated_at' => current_time('mysql')
-            );
-
-            $insert_format = array('%s', '%s', '%d', '%s', '%s', '%f', '%s', '%s', '%s');
+                'status' => 'new'
+            ];
 
             // Add action-specific fields
             if ($action_type === 'improve') {
                 $existing_faq_id = $cluster['existing_faq_id'] ?? '';
-
-                // Load FAQ details for display
                 $faq_details = chatbot_get_faq_by_id($existing_faq_id);
 
                 $insert_data['existing_faq_id'] = $existing_faq_id;
-                $insert_data['suggested_keywords'] = json_encode($cluster['suggested_keywords'] ?? []);
-                $insert_data['suggested_faq'] = json_encode($faq_details); // Store existing FAQ details for display
-                $insert_format[] = '%s';
-                $insert_format[] = '%s';
-                $insert_format[] = '%s';
+                $insert_data['suggested_keywords'] = $cluster['suggested_keywords'] ?? [];
+                $insert_data['suggested_faq'] = $faq_details;
             } else {
-                $insert_data['suggested_faq'] = json_encode($cluster['suggested_faq'] ?? []);
+                $insert_data['suggested_faq'] = $cluster['suggested_faq'] ?? [];
                 $insert_data['existing_faq_id'] = '';
-                $insert_data['suggested_keywords'] = '';
-                $insert_format[] = '%s';
-                $insert_format[] = '%s';
-                $insert_format[] = '%s';
+                $insert_data['suggested_keywords'] = [];
             }
 
-            $wpdb->insert($cluster_table, $insert_data, $insert_format);
-            $cluster_id = $wpdb->insert_id;
+            $cluster_id = chatbot_supabase_create_gap_cluster($insert_data);
         }
 
-        // Mark questions as clustered
+        // Mark questions as clustered in Supabase
         if ($cluster_id && !empty($cluster['question_ids'])) {
-            $question_ids = implode(',', array_map('intval', $cluster['question_ids']));
-            $wpdb->query("UPDATE $gap_table SET is_clustered = 1, cluster_id = $cluster_id WHERE id IN ($question_ids)");
+            chatbot_supabase_mark_questions_clustered($cluster['question_ids'], $cluster_id);
         }
     }
 
@@ -132,38 +102,41 @@ function chatbot_run_gap_analysis() {
 
 /**
  * Analyze recent conversations with AI
+ * Updated Ver 2.4.8: Uses Supabase only
  */
 function chatbot_analyze_recent_conversations($conversations) {
-    global $wpdb;
-    $conv_table = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
 
     // For each conversation, get response and calculate confidence
     $analyzed = [];
     foreach ($conversations as $conv) {
         $question = $conv['message_text'];
 
-        // Get chatbot response (next message in same session)
-        $response = $wpdb->get_row($wpdb->prepare(
-            "SELECT message_text FROM $conv_table
-             WHERE user_type = 'Chatbot'
-             AND session_id = %s
-             AND interaction_time > %s
-             ORDER BY interaction_time ASC
-             LIMIT 1",
-            $conv['session_id'],
-            $conv['interaction_time']
-        ), ARRAY_A);
+        // Get chatbot response from Supabase (next message in same session)
+        $session_convs = chatbot_supabase_get_conversations($conv['session_id'] ?? '', 100);
+        $response_text = 'No response';
+
+        // Find the chatbot response after this visitor message
+        $found_visitor = false;
+        foreach ($session_convs as $sc) {
+            if ($found_visitor && isset($sc['user_type']) && $sc['user_type'] === 'Chatbot') {
+                $response_text = $sc['message_text'] ?? 'No response';
+                break;
+            }
+            if (isset($sc['id']) && $sc['id'] == ($conv['id'] ?? '')) {
+                $found_visitor = true;
+            }
+        }
 
         // Calculate FAQ confidence
         $faq_result = chatbot_find_best_faq_match($question);
 
         $analyzed[] = [
-            'id' => $conv['id'],
+            'id' => $conv['id'] ?? '',
             'question' => $question,
-            'answer' => $response ? $response['message_text'] : 'No response',
+            'answer' => $response_text,
             'confidence' => $faq_result['confidence'],
             'matched_faq_id' => $faq_result['faq_id'] ?? null,
-            'time' => $conv['interaction_time']
+            'time' => $conv['interaction_time'] ?? ''
         ];
     }
 
@@ -634,56 +607,56 @@ function chatbot_calculate_cluster_priority($cluster) {
 
 /**
  * Get gap analysis dashboard data
+ * Updated Ver 2.4.8: Uses Supabase only
  */
 function chatbot_get_gap_analysis_data($days = 7) {
-    global $wpdb;
 
-    $gap_table = $wpdb->prefix . 'chatbot_gap_questions';
-    $cluster_table = $wpdb->prefix . 'chatbot_gap_clusters';
+    // Get gap questions from Supabase
+    $all_gaps = chatbot_supabase_get_gap_questions(1000, true);
+    $cutoff_date = gmdate('c', strtotime("-{$days} days"));
 
-    // Check if tables exist, create them if not
-    if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $gap_table)) !== $gap_table) {
-        create_chatbot_gap_questions_table();
-        create_chatbot_gap_clusters_table();
-        create_chatbot_faq_usage_table();
+    // Filter by date
+    $recent_gaps = array_filter($all_gaps, function($g) use ($cutoff_date) {
+        return ($g['asked_date'] ?? '') >= $cutoff_date;
+    });
+
+    $total_gaps = count($recent_gaps);
+
+    // Count unresolved
+    $unresolved_gaps = count(array_filter($recent_gaps, function($g) {
+        return empty($g['is_resolved']) || $g['is_resolved'] === false;
+    }));
+
+    // Get active clusters from Supabase
+    $all_clusters = chatbot_supabase_get_gap_clusters(null, 100);
+    $active_clusters = array_filter($all_clusters, function($c) {
+        return in_array($c['status'] ?? '', ['new', 'reviewed']);
+    });
+    $active_clusters = array_slice(array_values($active_clusters), 0, 10);
+
+    // Get top unclustered gap questions
+    $unclustered = array_filter($recent_gaps, function($g) {
+        return empty($g['is_clustered']) && empty($g['is_resolved']);
+    });
+
+    // Group by question text and count
+    $question_counts = [];
+    foreach ($unclustered as $g) {
+        $text = $g['question_text'] ?? '';
+        if (!isset($question_counts[$text])) {
+            $question_counts[$text] = 0;
+        }
+        $question_counts[$text]++;
     }
+    arsort($question_counts);
 
-    // Get total gap questions in the period
-    $total_gaps = $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM $gap_table
-         WHERE asked_date >= DATE_SUB(NOW(), INTERVAL %d DAY)",
-        $days
-    ));
-
-    // Get unresolved gap questions
-    $unresolved_gaps = $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM $gap_table
-         WHERE is_resolved = 0
-         AND asked_date >= DATE_SUB(NOW(), INTERVAL %d DAY)",
-        $days
-    ));
-
-    // Get active clusters (status = 'new' or 'reviewed')
-    $active_clusters = $wpdb->get_results(
-        "SELECT * FROM $cluster_table
-         WHERE status IN ('new', 'reviewed')
-         ORDER BY priority_score DESC
-         LIMIT 10",
-        ARRAY_A
-    );
-
-    // Get top gap questions (not yet clustered)
-    $top_gaps = $wpdb->get_results($wpdb->prepare(
-        "SELECT question_text, COUNT(*) as count
-         FROM $gap_table
-         WHERE is_clustered = 0
-         AND is_resolved = 0
-         AND asked_date >= DATE_SUB(NOW(), INTERVAL %d DAY)
-         GROUP BY question_text
-         ORDER BY count DESC
-         LIMIT 10",
-        $days
-    ), ARRAY_A);
+    $top_gaps = [];
+    $i = 0;
+    foreach ($question_counts as $text => $count) {
+        if ($i >= 10) break;
+        $top_gaps[] = ['question_text' => $text, 'count' => $count];
+        $i++;
+    }
 
     return [
         'total_gaps' => intval($total_gaps),
@@ -695,55 +668,35 @@ function chatbot_get_gap_analysis_data($days = 7) {
 
 /**
  * Mark a cluster as resolved (FAQ created)
+ * Updated Ver 2.4.8: Uses Supabase only
  */
 function chatbot_resolve_gap_cluster($cluster_id) {
-    global $wpdb;
 
-    $cluster_table = $wpdb->prefix . 'chatbot_gap_clusters';
-    $gap_table = $wpdb->prefix . 'chatbot_gap_questions';
+    // Update cluster status in Supabase
+    $result = chatbot_supabase_update_gap_cluster_status($cluster_id, 'faq_created');
 
-    // Update cluster status
-    $result = $wpdb->update(
-        $cluster_table,
-        array('status' => 'faq_created', 'updated_at' => current_time('mysql')),
-        array('id' => intval($cluster_id)),
-        array('%s', '%s'),
-        array('%d')
-    );
-
-    if ($result === false) {
+    if (!$result) {
         return false;
     }
 
     // Mark all questions in this cluster as resolved
-    $wpdb->update(
-        $gap_table,
-        array('is_resolved' => 1),
-        array('cluster_id' => intval($cluster_id)),
-        array('%d'),
-        array('%d')
-    );
+    $all_questions = chatbot_supabase_get_gap_questions(1000, true);
+    foreach ($all_questions as $q) {
+        if (isset($q['cluster_id']) && intval($q['cluster_id']) === intval($cluster_id)) {
+            chatbot_supabase_resolve_gap_question($q['id']);
+        }
+    }
 
     return true;
 }
 
 /**
  * Dismiss a cluster
+ * Updated Ver 2.4.8: Uses Supabase only
  */
 function chatbot_dismiss_gap_cluster($cluster_id) {
-    global $wpdb;
 
-    $cluster_table = $wpdb->prefix . 'chatbot_gap_clusters';
-
-    $result = $wpdb->update(
-        $cluster_table,
-        array('status' => 'dismissed', 'updated_at' => current_time('mysql')),
-        array('id' => intval($cluster_id)),
-        array('%s', '%s'),
-        array('%d')
-    );
-
-    return $result !== false;
+    return chatbot_supabase_update_gap_cluster_status($cluster_id, 'dismissed');
 }
 
 // Hook gap analysis to cron event
@@ -808,10 +761,9 @@ function chatbot_ajax_run_gap_analysis_manual() {
     $result = chatbot_run_gap_analysis();
 
     if ($result) {
-        // Count how many clusters were created/updated
-        global $wpdb;
-        $cluster_table = $wpdb->prefix . 'chatbot_gap_clusters';
-        $cluster_count = $wpdb->get_var("SELECT COUNT(*) FROM $cluster_table WHERE status IN ('new', 'reviewed')");
+        // Count how many clusters were created/updated from Supabase
+        $summary = chatbot_supabase_get_gap_clusters_summary();
+        $cluster_count = ($summary['new'] ?? 0) + ($summary['reviewed'] ?? 0);
 
         wp_send_json_success([
             'message' => 'Gap analysis completed successfully',
@@ -824,17 +776,13 @@ function chatbot_ajax_run_gap_analysis_manual() {
 add_action('wp_ajax_chatbot_run_gap_analysis_manual', 'chatbot_ajax_run_gap_analysis_manual');
 
 // AJAX: Generate mock data for testing
+// Updated Ver 2.4.8: Uses Supabase only
 function chatbot_ajax_generate_mock_gap_data() {
     check_ajax_referer('chatbot_gap_analysis', 'nonce');
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error('Unauthorized');
     }
-
-    global $wpdb;
-
-    $gap_table = $wpdb->prefix . 'chatbot_gap_questions';
-    $cluster_table = $wpdb->prefix . 'chatbot_gap_clusters';
 
     // Create mock gap questions
     $mock_questions = [
@@ -849,52 +797,43 @@ function chatbot_ajax_generate_mock_gap_data() {
     $inserted = 0;
     foreach ($mock_questions as $index => $q) {
         $days_ago = rand(0, 6);
-        $wpdb->insert($gap_table, [
-            'question_text' => $q[0],
-            'session_id' => 'mock_' . $index,
-            'user_id' => rand(1, 5),
-            'page_id' => rand(1, 3),
-            'faq_confidence' => $q[1],
-            'faq_match_id' => null,
-            'asked_date' => date('Y-m-d H:i:s', strtotime("-{$days_ago} days")),
-            'is_clustered' => 0,
-            'is_resolved' => 0
-        ], ['%s', '%s', '%d', '%d', '%f', '%s', '%s', '%d', '%d']);
-        if ($wpdb->insert_id) $inserted++;
+        $result = chatbot_supabase_log_gap_question(
+            $q[0],
+            'mock_' . $index,
+            rand(1, 5),
+            rand(1, 3),
+            $q[1],
+            null
+        );
+        if ($result) $inserted++;
     }
 
     // Create mock clusters
     $mock_clusters = [
         [
-            'name' => 'Router & Equipment',
-            'description' => 'Questions about using own equipment',
-            'count' => 4,
-            'samples' => ["Can I use my own router?", "Do you provide equipment?"],
-            'faq' => ['question' => 'Can I use my own router?', 'answer' => 'Yes! You can use your own equipment. We recommend DOCSIS 3.1 modems for best speeds.']
+            'cluster_name' => 'Router & Equipment',
+            'cluster_description' => 'Questions about using own equipment',
+            'question_count' => 4,
+            'sample_questions' => ["Can I use my own router?", "Do you provide equipment?"],
+            'suggested_faq' => ['question' => 'Can I use my own router?', 'answer' => 'Yes! You can use your own equipment. We recommend DOCSIS 3.1 modems for best speeds.'],
+            'priority_score' => 80,
+            'status' => 'new'
         ],
         [
-            'name' => 'Senior Discounts',
-            'description' => 'Questions about senior pricing',
-            'count' => 2,
-            'samples' => ["Do you offer senior discounts?", "Any discounts for students?"],
-            'faq' => ['question' => 'Do you offer senior discounts?', 'answer' => 'Yes! We offer up to 15% off for seniors 65+ and students with valid ID.']
+            'cluster_name' => 'Senior Discounts',
+            'cluster_description' => 'Questions about senior pricing',
+            'question_count' => 2,
+            'sample_questions' => ["Do you offer senior discounts?", "Any discounts for students?"],
+            'suggested_faq' => ['question' => 'Do you offer senior discounts?', 'answer' => 'Yes! We offer up to 15% off for seniors 65+ and students with valid ID.'],
+            'priority_score' => 40,
+            'status' => 'new'
         ]
     ];
 
     $cluster_inserted = 0;
     foreach ($mock_clusters as $c) {
-        $wpdb->insert($cluster_table, [
-            'cluster_name' => $c['name'],
-            'cluster_description' => $c['description'],
-            'question_count' => $c['count'],
-            'sample_questions' => json_encode($c['samples']),
-            'suggested_faq' => json_encode($c['faq']),
-            'priority_score' => $c['count'] * 20,
-            'status' => 'new',
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql')
-        ], ['%s', '%s', '%d', '%s', '%s', '%f', '%s', '%s', '%s']);
-        if ($wpdb->insert_id) $cluster_inserted++;
+        $result = chatbot_supabase_create_gap_cluster($c);
+        if ($result) $cluster_inserted++;
     }
 
     wp_send_json_success([
@@ -938,36 +877,23 @@ function chatbot_ajax_analyze_last_10_gaps() {
         wp_send_json_error('Unauthorized');
     }
 
-    global $wpdb;
-    $conv_table = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-
-    // Check if table exists
-    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$conv_table'");
-    error_log("🔍 Conversation table exists: " . ($table_exists ? 'YES' : 'NO'));
-    error_log("🔍 Table name: $conv_table");
-
-    if (!$table_exists) {
-        wp_send_json_error('Conversation logging table does not exist. Please enable conversation logging in Analytics settings first.');
+    // Use Supabase for conversations
+    if (function_exists('chatbot_supabase_get_recent_conversations')) {
+        $all_conversations = chatbot_supabase_get_recent_conversations(30, 1000);
+        // Filter for visitor messages only
+        $conversations = array();
+        foreach ($all_conversations as $conv) {
+            if (isset($conv['user_type']) && $conv['user_type'] === 'Visitor') {
+                $conversations[] = $conv;
+            }
+        }
+        // Get last 4
+        $conversations = array_slice($conversations, 0, 4);
+        error_log("🔍 Found " . count($conversations) . " conversations (Supabase)");
+    } else {
+        wp_send_json_error('Supabase conversation functions not available');
+        return;
     }
-
-    // Count total rows
-    $total_rows = $wpdb->get_var("SELECT COUNT(*) FROM $conv_table");
-    error_log("🔍 Total rows in conversation log: $total_rows");
-
-    // Count visitor messages
-    $visitor_count = $wpdb->get_var("SELECT COUNT(*) FROM $conv_table WHERE user_type = 'Visitor'");
-    error_log("🔍 Visitor messages: $visitor_count");
-
-    // Get last 4 visitor questions
-    $conversations = $wpdb->get_results("
-        SELECT id, message_text, session_id, interaction_time
-        FROM $conv_table
-        WHERE user_type = 'Visitor'
-        ORDER BY interaction_time DESC
-        LIMIT 4
-    ", ARRAY_A);
-
-    error_log("🔍 Found " . count($conversations) . " conversations");
 
     if (empty($conversations)) {
         wp_send_json_error('No recent conversations found. Conversation logging may not be enabled. Please check Analytics > Conversation Logging settings.');
@@ -984,35 +910,26 @@ function chatbot_ajax_analyze_last_10_gaps() {
 
     $clusters = $analyzed_data['suggestions'];
 
-    // Save clusters to database
-    $cluster_table = $wpdb->prefix . 'chatbot_gap_clusters';
+    // Save clusters to Supabase
     $saved_count = 0;
 
     foreach ($clusters as $cluster) {
-        $result = $wpdb->insert($cluster_table, [
+        $cluster_id = chatbot_supabase_create_gap_cluster([
             'cluster_name' => $cluster['cluster_name'],
             'cluster_description' => $cluster['cluster_description'],
             'question_count' => $cluster['question_count'],
-            'sample_questions' => json_encode($cluster['sample_questions']),
-            'suggested_faq' => json_encode($cluster['suggested_faq']),
+            'sample_questions' => $cluster['sample_questions'],
+            'suggested_faq' => $cluster['suggested_faq'],
             'priority_score' => $cluster['priority_score'],
-            'status' => 'new',
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql')
-        ], ['%s', '%s', '%d', '%s', '%s', '%f', '%s', '%s', '%s']);
+            'status' => 'new'
+        ]);
 
-        if ($result) {
+        if ($cluster_id) {
             $saved_count++;
 
             // Mark questions as clustered
-            $cluster_id = $wpdb->insert_id;
-            foreach ($cluster['question_ids'] as $q_id) {
-                $wpdb->update($gap_table,
-                    ['is_clustered' => 1, 'cluster_id' => $cluster_id],
-                    ['id' => $q_id],
-                    ['%d', '%d'],
-                    ['%d']
-                );
+            if (!empty($cluster['question_ids'])) {
+                chatbot_supabase_mark_questions_clustered($cluster['question_ids'], $cluster_id);
             }
         }
     }

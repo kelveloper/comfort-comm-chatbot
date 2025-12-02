@@ -49,15 +49,11 @@ function kognetiks_analytics_stop_scoring() {
 
 }
 
-// Reset all sentiment scores
+// Reset all sentiment scores (Supabase only)
 function kognetiks_analytics_reset_scoring() {
 
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-    // Reset all sentiment scores to NULL
-    $wpdb->query("UPDATE $table_name SET sentiment_score = NULL WHERE user_type IN ('Visitor', 'Chatbot')");
-    kognetiks_analytics_set_scoring_lock(false); // Clear lock on reset
-    // back_trace( 'NOTICE', 'All sentiment scores have been reset');
+    // Sentiment scoring for Supabase is handled during conversation logging
+    kognetiks_analytics_set_scoring_lock(false);
 
 }
 
@@ -69,240 +65,22 @@ function kognetiks_analytics_restart_scoring() {
 
 }
 
-// Score conversations without a sentiment score
+// Score conversations without a sentiment score (Supabase handles this during logging)
 function kognetiks_analytics_score_conversations_without_sentiment_score() {
 
-    // DIAG - Diagnostics
-    // back_trace( 'NOTICE', 'Starting simple sentiment scoring process');
-    
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-    $batch_size = 100; // Process 100 records at a time
-
-    // Get the last scoring date
-    $last_scoring_date = get_option('kognetiks_analytics_last_scoring_date');
-    $date_condition = '';
-    if (!empty($last_scoring_date)) {
-        $date_condition = $wpdb->prepare(" AND c.interaction_time >= %s", $last_scoring_date);
-    }
-
-    // Prevent concurrent runs
-    if (kognetiks_analytics_is_scoring_locked()) {
-        // back_trace( 'NOTICE', 'Scoring is already running. Exiting.');
-        return;
-    }
-
-    kognetiks_analytics_set_scoring_lock(true);
-
-    // Check if scoring is stopped
-    if (kognetiks_analytics_get_scoring_status() === 'stopped') {
-        // back_trace( 'NOTICE', 'Sentiment scoring process is stopped');
-        kognetiks_analytics_set_scoring_lock(false);
-        return;
-    }
-
-    // Create a temporary table to track processed IDs
-    $temp_table = $wpdb->prefix . 'temp_processed_sentiment';
-    $wpdb->query("CREATE TEMPORARY TABLE IF NOT EXISTS $temp_table (id bigint(20) PRIMARY KEY)");
-
-    $total_processed = 0;
-    $batch_number = 1;
-
-    do {
-        // Check if scoring has been stopped
-        if (kognetiks_analytics_get_scoring_status() === 'stopped') {
-            // back_trace( 'NOTICE', 'Sentiment scoring process stopped after processing ' . $total_processed . ' conversations');
-            break;
-        }
-
-        // Query for the next batch of records that haven't been processed
-        $conversations = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT c.* FROM $table_name c 
-                LEFT JOIN $temp_table t ON c.id = t.id 
-                WHERE t.id IS NULL 
-                AND (c.sentiment_score IS NULL OR c.sentiment_score = '' OR c.sentiment_score = 0)
-                AND (c.user_type = 'Visitor' OR c.user_type = 'Chatbot')
-                $date_condition
-                ORDER BY c.id ASC 
-                LIMIT %d",
-                $batch_size
-            ),
-            ARRAY_A
-        );
-
-        // DIAG - Diagnostics
-        // back_trace( 'NOTICE', 'Processing batch #' . $batch_number . ' with ' . count($conversations) . ' conversations');
-
-        if (empty($conversations)) {
-            break;
-        }
-
-        foreach ($conversations as $conversation) {
-            // Check if scoring has been stopped
-            if (kognetiks_analytics_get_scoring_status() === 'stopped') {
-                break;
-            }
-
-            $message_text = $conversation['message_text'];
-            $sentiment_score = kognetiks_analytics_compute_sentiment_score($message_text);
-
-            // Update the conversation with the sentiment score
-            $wpdb->update(
-                $table_name,
-                array('sentiment_score' => $sentiment_score),
-                array('id' => $conversation['id'])
-            );
-
-            // Mark this ID as processed
-            $wpdb->insert($temp_table, array('id' => $conversation['id']));
-
-            // DIAG - Diagnostics
-            // back_trace( 'NOTICE', 'Conversation ' . $conversation['id'] . ' scored with a sentiment score of ' . $sentiment_score);
-        }
-
-        $total_processed += count($conversations);
-        $batch_number++;
-
-        // DIAG - Diagnostics
-        // back_trace( 'NOTICE', 'Completed batch #' . ($batch_number - 1) . '. Total processed so far: ' . $total_processed);
-
-    } while (count($conversations) > 0);
-
-    // Clean up temporary table
-    $wpdb->query("DROP TEMPORARY TABLE IF EXISTS $temp_table");
-
-    // Set status to stopped when complete
-    kognetiks_analytics_set_scoring_status('stopped');
-    kognetiks_analytics_set_scoring_lock(false); // Clear lock at end
-
-    // Set the last scoring date/time in the options table
-    update_option('kognetiks_analytics_last_scoring_date', date('Y-m-d H:i:s'));
-
-    // DIAG - Diagnostics
-    // back_trace( 'NOTICE', 'Completed scoring ' . $total_processed . ' conversations without a sentiment score');
-
-    // DIAG - Diagnostics
-    // back_trace( 'NOTICE', 'Simple sentiment scoring process completed');
+    // Sentiment scoring for Supabase is handled during conversation logging
+    // This function is no longer needed as sentiment is computed when messages are logged
+    return;
 
 }
 
-// Score conversations without a sentiment score
+// Score conversations without a sentiment score (AI-based)
+// Updated Ver 2.4.8: Sentiment scoring is now handled during conversation logging in Supabase
 function kognetiks_analytics_score_conversations_without_sentiment_score_ai_based() {
 
-    // DIAG - Diagnostics
-    // back_trace( 'NOTICE', 'Starting AI-basedsentiment scoring process');
-
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-    $batch_size = 100; // Process 100 records at a time
-
-    // Get the last scoring date
-    $last_scoring_date = get_option('kognetiks_analytics_last_scoring_date');
-    $date_condition = '';
-    if (!empty($last_scoring_date)) {
-        $date_condition = $wpdb->prepare(" AND interaction_time >= %s", $last_scoring_date);
-    }
-
-    // Prevent concurrent runs
-    if (kognetiks_analytics_is_scoring_locked()) {
-        // back_trace( 'NOTICE', 'Scoring is already running. Exiting.');
-        return;
-    }
-    kognetiks_analytics_set_scoring_lock(true);
-
-    // Check if scoring is stopped
-    if (kognetiks_analytics_get_scoring_status() === 'stopped') {
-        // back_trace( 'NOTICE', 'Sentiment scoring process is stopped');
-        kognetiks_analytics_set_scoring_lock(false);
-        return;
-    }
-
-    // Check if any conversations have not been scored
-    $conversations = $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT * FROM $table_name 
-            WHERE (sentiment_score IS NULL OR sentiment_score = '' OR sentiment_score = 0)
-            AND (user_type = 'Visitor' OR user_type = 'Chatbot')
-            $date_condition
-            ORDER BY id ASC
-            LIMIT %d",
-            $batch_size
-        ),
-        ARRAY_A
-    );
-
-    // If there are no conversations to score, set the status to stopped
-    if (empty($conversations)) {
-        kognetiks_analytics_set_scoring_status('stopped');
-        kognetiks_analytics_set_scoring_lock(false);
-        // back_trace( 'NOTICE', 'No conversations to score');
-        return;
-    }
-
-    // If there are conversations to score, set the status to running
-    kognetiks_analytics_set_scoring_status('running');
-
-    $total_processed = 0;
-    $batch_number = 1;
-
-    do {
-        // Check if scoring has been stopped
-        if (kognetiks_analytics_get_scoring_status() === 'stopped') {
-            // back_trace( 'NOTICE', 'Sentiment scoring process stopped after processing ' . $total_processed . ' conversations');
-            break;
-        }
-        // Query for the next batch of records with empty or NULL sentiment scores (no OFFSET!)
-        $conversations = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM $table_name 
-                WHERE (sentiment_score IS NULL OR sentiment_score = '' OR sentiment_score = 0) 
-                AND (user_type = 'Visitor' OR user_type = 'Chatbot')
-                $date_condition
-                ORDER BY id ASC
-                LIMIT %d",
-                $batch_size
-            ),
-            ARRAY_A
-        );
-        // DIAG - Diagnostics
-        // back_trace( 'NOTICE', 'Processing batch #' . $batch_number . ' with ' . count($conversations) . ' conversations');
-        if (empty($conversations)) {
-            break;
-        }
-        foreach ($conversations as $conversation) {
-            // Check if scoring has been stopped
-            if (kognetiks_analytics_get_scoring_status() === 'stopped') {
-                break;
-            }
-            $message_text = $conversation['message_text'];
-            $sentiment_score = $conversation['sentiment_score'];
-            // Score the conversation using the sentiment analysis model
-            $sentiment_score = kognetiks_analytics_compute_sentiment_score_ai_based($message_text);
-            // Update the conversation with the sentiment score
-            $wpdb->update(
-                $table_name,
-                array('sentiment_score' => $sentiment_score),
-                array('id' => $conversation['id'])
-            );
-            // DIAG - Diagnostics
-            // back_trace( 'NOTICE', 'Conversation ' . $conversation['id'] . ' scored with a sentiment score of ' . $sentiment_score);
-        }
-        $total_processed += count($conversations);
-        $batch_number++;
-        // DIAG - Diagnostics
-        // back_trace( 'NOTICE', 'Completed batch #' . ($batch_number - 1) . '. Total processed so far: ' . $total_processed);
-    } while (count($conversations) > 0);
-
-    // Set status to stopped when complete
-    kognetiks_analytics_set_scoring_status('stopped');
-    kognetiks_analytics_set_scoring_lock(false); // Clear lock at end
-    
-    // DIAG - Diagnostics
-    // back_trace( 'NOTICE', 'Completed scoring ' . $total_processed . ' conversations without a sentiment score');
-
-    // DIAG - Diagnostics
-    // back_trace( 'NOTICE', 'AI-based sentiment scoring process completed');
+    // Sentiment scoring for Supabase is handled during conversation logging
+    // This function is no longer needed as sentiment is computed when messages are logged
+    return;
 
 }
 

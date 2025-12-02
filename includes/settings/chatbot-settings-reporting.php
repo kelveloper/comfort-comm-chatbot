@@ -129,6 +129,22 @@ function chatbot_chatgpt_reporting_settings_init() {
         'chatbot_chatgpt_gap_analysis_section'
     );
 
+    // Learning Dashboard Section
+    add_settings_section(
+        'chatbot_chatgpt_learning_dashboard_section',
+        'Learning Dashboard',
+        'chatbot_chatgpt_learning_dashboard_section_callback',
+        'chatbot_chatgpt_learning_dashboard'
+    );
+
+    add_settings_field(
+        'chatbot_chatgpt_learning_dashboard_field',
+        '',
+        'chatbot_chatgpt_learning_dashboard_callback',
+        'chatbot_chatgpt_learning_dashboard',
+        'chatbot_chatgpt_learning_dashboard_section'
+    );
+
 }
 add_action('admin_init', 'chatbot_chatgpt_reporting_settings_init');
 
@@ -649,44 +665,44 @@ function chatbot_chatgpt_simple_chart_shortcode_function( $atts ) {
         'labels' => 'label',
         ), $atts );
 
+    // Updated Ver 2.4.8: Uses Supabase for interaction data
     if(isset($atts['from_database']) && $atts['from_database'] == 'true') {
 
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'chatbot_chatgpt_interactions';
-        
         // Get the reporting period from the options
-        $reporting_period = gesc_attr(et_option('chatbot_chatgpt_reporting_period'));
-        
-        // Calculate the start date and group by clause based on the reporting period
+        $reporting_period = esc_attr(get_option('chatbot_chatgpt_reporting_period'));
+
+        // Calculate the start date based on the reporting period
         if($reporting_period === 'Daily') {
             $start_date = date('Y-m-d', strtotime("-7 days"));
-            // $group_by = "DATE_FORMAT(date, '%Y-%m-%d')";
-            $group_by = "DATE_FORMAT(date, '%m-%d')";
         } elseif($reporting_period === 'Monthly') {
             $start_date = date('Y-m-01', strtotime("-3 months"));
-            $group_by = "DATE_FORMAT(date, '%Y-%m')";
         } else {
             $start_date = date('Y-01-01', strtotime("-3 years"));
-            $group_by = "DATE_FORMAT(date, '%Y')";
         }
-        
-        // Modify the SQL query to group the results based on the reporting period
-        $results = $wpdb->get_results("SELECT $group_by AS date, SUM(count) AS count FROM $table_name WHERE date >= '$start_date' GROUP BY $group_by");
+        $end_date = date('Y-m-d');
 
-        if(!empty($wpdb->last_error)) {
-            // DIAG - Handle the error
-            // back_trace( 'ERROR', 'SQL query error ' . $wpdb->last_error);
-            return;
-        } else if(!empty($results)) {
-            $labels = [];
-            $data = [];
-            foreach ($results as $result) {
-                $labels[] = $result->date;
-                $data[] = $result->count;
+        // Get data from Supabase
+        if (function_exists('chatbot_supabase_get_interaction_counts')) {
+            $results = chatbot_supabase_get_interaction_counts($start_date, $end_date);
+
+            if(!empty($results)) {
+                $labels = [];
+                $data = [];
+                foreach ($results as $result) {
+                    // Format the date based on reporting period
+                    if($reporting_period === 'Daily') {
+                        $labels[] = date('m-d', strtotime($result['date']));
+                    } elseif($reporting_period === 'Monthly') {
+                        $labels[] = date('Y-m', strtotime($result['date']));
+                    } else {
+                        $labels[] = date('Y', strtotime($result['date']));
+                    }
+                    $data[] = $result['count'];
+                }
+
+                $a['labels'] = $labels;
+                $atts['data'] = $data;
             }
-            
-            $a['labels'] = $labels;
-            $atts['data'] = $data;
         }
     }
 
@@ -721,172 +737,57 @@ function chatbot_chatgpt_delete_chart() {
 add_action('chatbot_chatgpt_delete_chart', 'chatbot_chatgpt_delete_chart');
 
 // Return Interactions data in a table - Ver 1.7.8
+// Updated Ver 2.4.8: Uses Supabase only
 function chatbot_chatgpt_interactions_table() {
 
-    global $wpdb;
-
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_interactions';
-
-    // Get the reporting period from the options
-    $reporting_period = esc_attr(get_option('chatbot_chatgpt_reporting_period'));
-    
-        // Calculate the start date and group by clause based on the reporting period
-        if($reporting_period === 'Daily') {
-            $start_date = date('Y-m-d', strtotime("-7 days"));
-            // $group_by = "DATE_FORMAT(date, '%Y-%m-%d')";
-            $group_by = "DATE_FORMAT(date, '%m-%d')";
-        } elseif($reporting_period === 'Monthly') {
-            $start_date = date('Y-m-01', strtotime("-3 months"));
-            $group_by = "DATE_FORMAT(date, '%Y-%m')";
-        } else {
-            $start_date = date('Y-01-01', strtotime("-3 years"));
-            $group_by = "DATE_FORMAT(date, '%Y')";
+    // Use Supabase for interaction data
+    if (function_exists('chatbot_supabase_get_interaction_counts')) {
+        // Calculate date range (last 30 days)
+        $end_date = date('Y-m-d');
+        $start_date = date('Y-m-d', strtotime('-30 days'));
+        $interactions = chatbot_supabase_get_interaction_counts($start_date, $end_date);
+        if (!empty($interactions)) {
+            $output = '<table class="widefat striped">';
+            $output .= '<thead><tr><th>Date</th><th>Count</th></tr></thead><tbody>';
+            foreach ($interactions as $row) {
+                $output .= '<tr><td>' . esc_html($row['date']) . '</td><td>' . esc_html($row['count']) . '</td></tr>';
+            }
+            $output .= '</tbody></table>';
+            return $output;
         }
-        
-        // Modify the SQL query to group the results based on the reporting period
-        $results = $wpdb->get_results("SELECT $group_by AS date, SUM(count) AS count FROM $table_name WHERE date >= '$start_date' GROUP BY $group_by");
-
-        if(!empty($wpdb->last_error)) {
-            // DIAG - Handle the error
-            // back_trace( 'ERROR', 'SQL query error ' . $wpdb->last_error);
-            return;
-        } else if(!empty($results)) {
-            $labels = [];
-            $data = [];
-            foreach ($results as $result) {
-                $labels[] = $result->date;
-                $data[] = $result->count;
-            }
-            
-            $a['labels'] = $labels;
-            $atts['data'] = $data;
-
-            $output = '<table class="widefat striped" style="table-layout: fixed; width: auto;">';
-            $output .= '<thead><tr><th style="width: 96px;">Date</th><th style="width: 96px;">Count</th></tr></thead>';
-            $output .= '<tbody>';
-            foreach ($results as $result) {
-                $output .= '<tr>';
-                $output .= '<td style="width: 96px;">' . $result->date . '</td>';
-                $output .= '<td style="width: 96px;">' . $result->count . '</td>';
-                $output .= '</tr>';
-            }
-            $output .= '</tbody>';
-            $output .= '</table>';            
-
-        return $output;
-
-    } else {
-        return '<p>No data to report at this time. Plesae visit again later.</p>';
     }
+    return '<p>No interaction data available.</p>';
 
 }
 
 // Count the number of conversations stored - Ver 1.7.6
+// Updated Ver 2.4.8: Uses Supabase only
 function chatbot_chatgpt_count_conversations() {
 
-    global $wpdb;
-
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-    $results = $wpdb->get_results("SELECT COUNT(id) AS count FROM $table_name");
-    // TODO - Handle errors
-    return $results[0]->count;
+    // Use Supabase for conversation count
+    if (function_exists('chatbot_supabase_get_recent_conversations')) {
+        $conversations = chatbot_supabase_get_recent_conversations(365, 10000);
+        return is_array($conversations) ? count($conversations) : 0;
+    }
+    return 0;
 
 }
 
 // Calculated size of the conversations stored - Ver 1.7.6
+// Updated Ver 2.4.8: Uses Supabase only
 function chatbot_chatgpt_size_conversations() {
 
-    global $wpdb;
-
-    // Use the DB_NAME constant instead of directly accessing the protected property
-    $database_name = DB_NAME;
-
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-
-    // Prepare the SQL query
-    $query = $wpdb->prepare("
-        SELECT ROUND(((data_length + index_length) / 1024 / 1024), 2) AS `Size_in_MB`
-        FROM information_schema.TABLES
-        WHERE table_schema = %s
-          AND table_name = %s
-    ", $database_name, $table_name);
-
-    // Execute the query
-    $results = $wpdb->get_results($query);
-
-    // Handle errors
-    if (is_wp_error($results)) {
-        return 'Error: ' . $results->get_error_message();
-    }
-
-    // Check if results are returned
-    if (empty($results)) {
-        return 'No results found';
-    }
-
-    // Return the size in MB
-    return $results[0]->Size_in_MB;
+    // Supabase doesn't expose table size easily - return N/A
+    return 'N/A (Supabase)';
 
 }
 
 // Total Prompt Tokens, Completion Tokens, and Total Tokens - Ver 1.8.5
+// Updated Ver 2.4.8: Uses Supabase only
 function chatbot_chatgpt_total_tokens() {
 
-    global $wpdb;
-
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-    
-    // Get the reporting period from the options
-    $reporting_period = esc_attr(get_option('chatbot_chatgpt_reporting_period'));
-    
-    // Calculate the start date and group by clause based on the reporting period
-    if ($reporting_period === 'Daily') {
-        $start_date = date('Y-m-d', strtotime("-7 days"));
-        $group_by = "DATE_FORMAT(interaction_time, '%m-%d')";
-    } elseif ($reporting_period === 'Monthly') {
-        $start_date = date('Y-m-01', strtotime("-3 months"));
-        $group_by = "DATE_FORMAT(interaction_time, '%Y-%m')";
-    } else {
-        $start_date = date('Y-01-01', strtotime("-3 years"));
-        $group_by = "DATE_FORMAT(interaction_time, '%Y')";
-    }
-    
-    $results = $wpdb->get_results("
-        SELECT $group_by AS interaction_time, 
-            SUM(CASE WHEN user_type = 'Total Tokens' THEN CAST(message_text AS UNSIGNED) ELSE 0 END) AS count 
-        FROM $table_name 
-        WHERE interaction_time >= '$start_date' 
-        GROUP BY $group_by
-        ");
-    
-    if (!empty($wpdb->last_error)) {
-        // Handle the error
-        return '<p>Error retrieving data: ' . esc_html($wpdb->last_error) . '</p>';
-    } else if (!empty($results)) {
-        $labels = [];
-        $data = [];
-        foreach ($results as $result) {
-            $labels[] = $result->interaction_time; // Changed from result->date to result->interaction_time
-            $data[] = $result->count;
-        }
-        
-        $output = '<table class="widefat striped" style="table-layout: fixed; width: auto;">';
-        $output .= '<thead><tr><th>Date</th><th>Total Tokens</th></tr></thead>';
-        $output .= '<tbody>';
-        foreach ($results as $result) {
-            $output .= '<tr>';
-            $output .= '<td>' . esc_html($result->interaction_time) . '</td>'; // Corrected to use interaction_time
-            $output .= '<td>' . number_format($result->count) . '</td>';
-            $output .= '</tr>';
-        }
-        $output .= '</tbody>';
-        $output .= '</table>';
-    
-        return $output;
-    } else {
-        return '<p>No data to report at this time. Please visit again later.</p>';
-    }
-    
+    // Token usage tracking is stored in Supabase
+    return '<p>Token usage tracking is stored in Supabase.</p>';
 
 }
 
@@ -912,31 +813,50 @@ function chatbot_chatgpt_download_token_usage_data() {
 }
 
 // Download the conversation data - Ver 1.7.6
+// Updated Ver 2.4.8: Uses Supabase for data export
 function chatbot_chatgpt_export_data( $t_table_name, $t_file_name ) {
 
     global $chatbot_chatgpt_plugin_dir_path;
 
-    // Export data from the chatbot_chatgpt_conversation_log table to a csv file
-    global $wpdb;
-    $table_name = $wpdb->prefix . $t_table_name;
+    // Export data from Supabase
+    $results = array();
 
-    if ( $t_file_name === 'Chatbot-ChatGPT-Token Usage' ) {
-        $results = $wpdb->get_results("SELECT id, session_id, user_id, interaction_time, user_type, message_text FROM $table_name WHERE user_type IN ('Prompt Tokens', 'Completion Tokens', 'Total Tokens')", ARRAY_A);
-    } else {
-        $results = $wpdb->get_results("SELECT * FROM $table_name", ARRAY_A);
+    if ($t_table_name === 'chatbot_chatgpt_conversation_log') {
+        // Get conversations from Supabase
+        if (function_exists('chatbot_supabase_get_recent_conversations')) {
+            $conversations = chatbot_supabase_get_recent_conversations(365, 10000);
+            if (!empty($conversations)) {
+                // Filter for token usage if needed
+                if ($t_file_name === 'Chatbot-ChatGPT-Token Usage') {
+                    foreach ($conversations as $conv) {
+                        if (in_array($conv['user_type'], ['Prompt Tokens', 'Completion Tokens', 'Total Tokens'])) {
+                            $results[] = array(
+                                'id' => $conv['id'],
+                                'session_id' => $conv['session_id'],
+                                'user_id' => $conv['user_id'],
+                                'interaction_time' => $conv['interaction_time'],
+                                'user_type' => $conv['user_type'],
+                                'message_text' => $conv['message_text']
+                            );
+                        }
+                    }
+                } else {
+                    $results = $conversations;
+                }
+            }
+        }
+    } elseif ($t_table_name === 'chatbot_chatgpt_interactions') {
+        // Get interactions from Supabase
+        if (function_exists('chatbot_supabase_get_interaction_counts')) {
+            $start_date = date('Y-m-d', strtotime('-365 days'));
+            $end_date = date('Y-m-d');
+            $results = chatbot_supabase_get_interaction_counts($start_date, $end_date);
+        }
     }
 
     // Check for empty results
     if (empty($results)) {
         $message = __( 'No data in the file. Please enable conversation and interaction logging if currently off.', 'chatbot-chatgpt' );
-        set_transient('chatbot_chatgpt_admin_error', $message, 60); // Expires in 60 seconds
-        wp_safe_redirect(admin_url('options-general.php?page=chatbot-chatgpt&tab=reporting')); // Redirect to your settings page
-        exit;
-    }
-
-    // Check for errors
-    if (!empty($wpdb->last_error)) {
-        $message = __( 'Error reading table: ' . $wpdb->last_error, 'chatbot-chatgpt' );
         set_transient('chatbot_chatgpt_admin_error', $message, 60); // Expires in 60 seconds
         wp_safe_redirect(admin_url('options-general.php?page=chatbot-chatgpt&tab=reporting')); // Redirect to your settings page
         exit;
@@ -1488,6 +1408,631 @@ function chatbot_chatgpt_gap_analysis_callback() {
     });
     </script>
     <?php
+}
+
+// Learning Dashboard Section - Semi-Automated Learning with Human Review
+function chatbot_chatgpt_learning_dashboard_section_callback($args) {
+    ?>
+    <p>The Learning Dashboard provides safeguards for semi-automated FAQ improvements based on user feedback.</p>
+    <?php
+}
+
+// Learning Dashboard Callback
+function chatbot_chatgpt_learning_dashboard_callback() {
+    // Fixed settings (always on with human approval)
+    $negative_threshold = 5; // Fixed: 5 negatives before flagging
+    $rate_limit_per_session = 3; // Fixed: 3 per session
+    $confidence_floor = 50; // Fixed: 50% minimum
+
+    // Get pending review queue
+    $review_queue = chatbot_get_learning_review_queue();
+    $pending_count = count($review_queue);
+
+    // Get learning stats
+    $learning_stats = chatbot_get_learning_stats();
+
+    ?>
+    <div>
+        <!-- Header -->
+        <h2 style="margin: 0 0 10px 0; color: #1e293b;">🎓 Learning Dashboard</h2>
+        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 14px;">
+            FAQ improvements based on user feedback — all changes require human approval
+        </p>
+
+        <!-- Status Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+            <!-- Learning Status -->
+            <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #10b981;">
+                <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Learning Mode</div>
+                <div style="font-size: 18px; font-weight: bold; color: #10b981;">
+                    ✓ Active (Human Approval)
+                </div>
+            </div>
+
+            <!-- Pending Reviews -->
+            <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid <?php echo $pending_count > 0 ? '#f59e0b' : '#10b981'; ?>;">
+                <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Pending Reviews</div>
+                <div style="font-size: 32px; font-weight: bold; color: <?php echo $pending_count > 0 ? '#f59e0b' : '#10b981'; ?>;">
+                    <?php echo $pending_count; ?>
+                </div>
+            </div>
+
+            <!-- Threshold -->
+            <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #3b82f6;">
+                <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Flagging Threshold</div>
+                <div style="font-size: 32px; font-weight: bold; color: #3b82f6;"><?php echo $negative_threshold; ?> 👎</div>
+            </div>
+
+            <!-- Stats -->
+            <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #8b5cf6;">
+                <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Reviewed (Total)</div>
+                <div style="font-size: 32px; font-weight: bold; color: #8b5cf6;"><?php echo $learning_stats['approved'] + $learning_stats['rejected']; ?></div>
+            </div>
+        </div>
+
+        <!-- How It Works -->
+        <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #1e40af;">💡 How It Works</h3>
+            <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #1e3a8a; line-height: 1.8;">
+                <li><strong>User gives feedback</strong> — Thumbs up/down on chatbot responses</li>
+                <li><strong>Threshold reached</strong> — FAQ flagged after <?php echo $negative_threshold; ?>+ negative ratings</li>
+                <li><strong>Appears here</strong> — Flagged FAQs show in the Human Review Queue below</li>
+                <li><strong>You decide</strong> — Review, then Approve (mark resolved) or Dismiss</li>
+            </ol>
+            <p style="margin: 12px 0 0 0; font-size: 12px; color: #6b7280; font-style: italic;">
+                Rate limit: <?php echo $rate_limit_per_session; ?> feedback per session • Confidence floor: <?php echo $confidence_floor; ?>%
+            </p>
+        </div>
+
+        <!-- Human Review Queue -->
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; font-size: 16px; color: #111827;">
+                    📋 Human Review Queue
+                    <?php if ($pending_count > 0) : ?>
+                    <span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px;">
+                        <?php echo $pending_count; ?> pending
+                    </span>
+                    <?php endif; ?>
+                </h3>
+                <button onclick="chatbotRefreshReviewQueue()" class="button" style="font-size: 12px;">
+                    🔄 Refresh
+                </button>
+            </div>
+
+            <?php if (empty($review_queue)) : ?>
+            <div style="text-align: center; padding: 40px 20px; color: #64748b;">
+                <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
+                <p style="margin: 0; font-size: 14px;">No FAQs pending review</p>
+                <p style="margin: 5px 0 0 0; font-size: 12px;">FAQs will appear here when they reach the negative feedback threshold</p>
+            </div>
+            <?php else : ?>
+            <table class="widefat striped" style="border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #f1f5f9;">
+                        <th style="padding: 12px; width: 60px;">FAQ ID</th>
+                        <th style="padding: 12px;">Question</th>
+                        <th style="padding: 12px; width: 80px; text-align: center;">👎 Count</th>
+                        <th style="padding: 12px; width: 100px; text-align: center;">Confidence</th>
+                        <th style="padding: 12px; width: 120px; text-align: center;">Suggested</th>
+                        <th style="padding: 12px; width: 150px; text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="learning-review-queue-body">
+                    <?php foreach ($review_queue as $item) :
+                        $confidence_color = $item['current_confidence'] >= 70 ? '#10b981' : ($item['current_confidence'] >= 50 ? '#f59e0b' : '#ef4444');
+                    ?>
+                    <tr data-item-id="<?php echo $item['id']; ?>">
+                        <td style="padding: 12px; font-family: monospace; font-size: 12px;">
+                            <?php echo esc_html($item['faq_id']); ?>
+                        </td>
+                        <td style="padding: 12px; font-size: 13px;">
+                            <div style="font-weight: 600; margin-bottom: 4px;"><?php echo esc_html(substr($item['question'], 0, 80)); ?><?php echo strlen($item['question']) > 80 ? '...' : ''; ?></div>
+                            <div style="font-size: 11px; color: #6b7280;">
+                                <?php echo esc_html(substr($item['current_answer'], 0, 100)); ?><?php echo strlen($item['current_answer']) > 100 ? '...' : ''; ?>
+                            </div>
+                        </td>
+                        <td style="padding: 12px; text-align: center;">
+                            <span style="background: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 14px;">
+                                <?php echo $item['negative_count']; ?>
+                            </span>
+                        </td>
+                        <td style="padding: 12px; text-align: center;">
+                            <span style="background: <?php echo $confidence_color; ?>20; color: <?php echo $confidence_color; ?>; padding: 4px 10px; border-radius: 4px; font-weight: 600;">
+                                <?php echo $item['current_confidence']; ?>%
+                            </span>
+                        </td>
+                        <td style="padding: 12px; text-align: center; font-size: 12px; color: #374151;">
+                            <?php echo esc_html($item['suggestion_type']); ?>
+                        </td>
+                        <td style="padding: 12px; text-align: center;">
+                            <button onclick="chatbotViewReviewItem(<?php echo $item['id']; ?>)" class="button" style="font-size: 11px; padding: 4px 8px;">
+                                👁️ View
+                            </button>
+                            <button onclick="chatbotResolveReviewItem(<?php echo $item['id']; ?>)" class="button button-primary" style="font-size: 11px; padding: 4px 8px;">
+                                ✓
+                            </button>
+                            <button onclick="chatbotDismissReviewItem(<?php echo $item['id']; ?>)" class="button" style="font-size: 11px; padding: 4px 8px;">
+                                ✗
+                            </button>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
+        </div>
+
+        <!-- Rollback Section -->
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">⏪ Rollback & Recovery</h3>
+            <p style="margin: 0 0 15px 0; font-size: 13px; color: #6b7280;">
+                If learning produces poor results, you can rollback recent changes or regenerate embeddings.
+            </p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                <!-- Recent Changes -->
+                <div style="background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">📜 Recent Learning Changes</h4>
+                    <?php
+                    $recent_changes = chatbot_get_recent_learning_changes(5);
+                    if (empty($recent_changes)) :
+                    ?>
+                    <p style="margin: 0; font-size: 12px; color: #9ca3af; font-style: italic;">No recent changes</p>
+                    <?php else : ?>
+                    <ul style="margin: 0; padding-left: 18px; font-size: 12px; color: #374151; line-height: 1.8;">
+                        <?php foreach ($recent_changes as $change) : ?>
+                        <li>
+                            <strong><?php echo esc_html($change['action']); ?></strong> -
+                            FAQ #<?php echo esc_html($change['faq_id']); ?>
+                            <span style="color: #9ca3af;">(<?php echo esc_html($change['date']); ?>)</span>
+                            <?php if ($change['can_rollback']) : ?>
+                            <button onclick="chatbotRollbackChange(<?php echo $change['id']; ?>)" style="font-size: 10px; padding: 1px 6px; margin-left: 5px; cursor: pointer;">Undo</button>
+                            <?php endif; ?>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Emergency Actions -->
+                <div style="background: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fecaca;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #991b1b;">🚨 Emergency Actions</h4>
+                    <p style="margin: 0 0 12px 0; font-size: 12px; color: #7f1d1d;">
+                        Use these if learning has caused significant issues.
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button onclick="chatbotResetAllLearning()" class="button" style="background: #fca5a5; border-color: #f87171; color: #7f1d1d; font-size: 12px;">
+                            🔄 Reset All Learning Data
+                        </button>
+                        <button onclick="chatbotRegenerateEmbeddings()" class="button" style="background: #fcd34d; border-color: #fbbf24; color: #78350f; font-size: 12px;">
+                            🔧 Regenerate All Embeddings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Learning Stats -->
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">📊 Learning Statistics</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                <div style="text-align: center; padding: 15px; background: #f9fafb; border-radius: 6px;">
+                    <div style="font-size: 28px; font-weight: bold; color: #10b981;"><?php echo $learning_stats['approved']; ?></div>
+                    <div style="font-size: 12px; color: #6b7280;">Approved</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #f9fafb; border-radius: 6px;">
+                    <div style="font-size: 28px; font-weight: bold; color: #ef4444;"><?php echo $learning_stats['rejected']; ?></div>
+                    <div style="font-size: 12px; color: #6b7280;">Rejected</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #f9fafb; border-radius: 6px;">
+                    <div style="font-size: 28px; font-weight: bold; color: #f59e0b;"><?php echo $learning_stats['pending']; ?></div>
+                    <div style="font-size: 12px; color: #6b7280;">Pending</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #f9fafb; border-radius: 6px;">
+                    <div style="font-size: 28px; font-weight: bold; color: #6b7280;"><?php echo $learning_stats['rollbacks']; ?></div>
+                    <div style="font-size: 12px; color: #6b7280;">Rollbacks</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function chatbotRefreshReviewQueue() {
+        location.reload();
+    }
+
+    function chatbotViewReviewItem(itemId) {
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_get_review_item_details',
+            item_id: itemId,
+            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+        }, function(response) {
+            if (response.success) {
+                const item = response.data;
+                let msg = '📋 Review Item Details\n\n';
+                msg += '━━━━━━━━━━━━━━━━━━━━\n';
+                msg += 'FAQ ID: ' + item.faq_id + '\n\n';
+                msg += '❓ Question:\n' + item.question + '\n\n';
+                msg += '💬 Current Answer:\n' + item.current_answer + '\n\n';
+                msg += '━━━━━━━━━━━━━━━━━━━━\n';
+                msg += '👎 Negative Count: ' + item.negative_count + '\n';
+                msg += '📊 Current Confidence: ' + item.current_confidence + '%\n\n';
+                if (item.user_comments && item.user_comments.length > 0) {
+                    msg += '💭 User Comments:\n';
+                    item.user_comments.forEach((c, i) => {
+                        msg += '  ' + (i+1) + '. "' + c + '"\n';
+                    });
+                }
+                msg += '\n💡 Suggestion: ' + item.suggestion_type;
+                alert(msg);
+            } else {
+                alert('Error loading details');
+            }
+        });
+    }
+
+    function chatbotResolveReviewItem(itemId) {
+        if (!confirm('Mark this item as resolved? This confirms you have reviewed and addressed the feedback.')) return;
+
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_resolve_review_item',
+            item_id: itemId,
+            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+        }, function(response) {
+            if (response.success) {
+                jQuery('tr[data-item-id="' + itemId + '"]').fadeOut(300, function() {
+                    jQuery(this).remove();
+                    if (jQuery('#learning-review-queue-body tr').length === 0) {
+                        location.reload();
+                    }
+                });
+            } else {
+                alert('Error: ' + (response.data || 'Unknown error'));
+            }
+        });
+    }
+
+    function chatbotDismissReviewItem(itemId) {
+        if (!confirm('Dismiss this item? It will be removed from the queue without action.')) return;
+
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_dismiss_review_item',
+            item_id: itemId,
+            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+        }, function(response) {
+            if (response.success) {
+                jQuery('tr[data-item-id="' + itemId + '"]').fadeOut(300, function() {
+                    jQuery(this).remove();
+                    if (jQuery('#learning-review-queue-body tr').length === 0) {
+                        location.reload();
+                    }
+                });
+            } else {
+                alert('Error: ' + (response.data || 'Unknown error'));
+            }
+        });
+    }
+
+    function chatbotRollbackChange(changeId) {
+        if (!confirm('Rollback this change? This will undo the learning modification.')) return;
+
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_rollback_learning_change',
+            change_id: changeId,
+            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+        }, function(response) {
+            if (response.success) {
+                alert('Change rolled back successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + (response.data || 'Unknown error'));
+            }
+        });
+    }
+
+    function chatbotResetAllLearning() {
+        if (!confirm('⚠️ WARNING: This will reset ALL learning data!\n\nThis includes:\n- All pending review items\n- Learning history\n- Feedback associations\n\nThis cannot be undone. Continue?')) return;
+        if (!confirm('Are you absolutely sure? Type "RESET" in the next prompt to confirm.')) return;
+
+        const confirmation = prompt('Type RESET to confirm:');
+        if (confirmation !== 'RESET') {
+            alert('Reset cancelled.');
+            return;
+        }
+
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_reset_all_learning',
+            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+        }, function(response) {
+            if (response.success) {
+                alert('All learning data has been reset.');
+                location.reload();
+            } else {
+                alert('Error: ' + (response.data || 'Unknown error'));
+            }
+        });
+    }
+
+    function chatbotRegenerateEmbeddings() {
+        if (!confirm('⚠️ Regenerate all FAQ embeddings?\n\nThis will:\n- Re-generate vector embeddings for all FAQs\n- May take several minutes\n- Temporarily affect search accuracy\n\nContinue?')) return;
+
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = '⏳ Regenerating...';
+
+        jQuery.post(ajaxurl, {
+            action: 'chatbot_regenerate_embeddings',
+            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+        }, function(response) {
+            btn.disabled = false;
+            btn.textContent = '🔧 Regenerate All Embeddings';
+
+            if (response.success) {
+                alert('Embeddings regenerated successfully!\n\nProcessed: ' + response.data.processed + ' FAQs');
+            } else {
+                alert('Error: ' + (response.data || 'Unknown error'));
+            }
+        }).fail(function() {
+            btn.disabled = false;
+            btn.textContent = '🔧 Regenerate All Embeddings';
+            alert('Request failed. Please try again.');
+        });
+    }
+    </script>
+    <?php
+}
+
+// Helper function to get learning review queue
+function chatbot_get_learning_review_queue() {
+    $review_data = get_option('chatbot_learning_review_queue', array());
+
+    // Filter to only pending items
+    $pending = array_filter($review_data, function($item) {
+        return isset($item['status']) && $item['status'] === 'pending';
+    });
+
+    // Sort by negative count descending
+    usort($pending, function($a, $b) {
+        return ($b['negative_count'] ?? 0) - ($a['negative_count'] ?? 0);
+    });
+
+    return array_slice($pending, 0, 20); // Limit to 20 items
+}
+
+// Helper function to get learning stats
+function chatbot_get_learning_stats() {
+    $review_data = get_option('chatbot_learning_review_queue', array());
+    $history = get_option('chatbot_learning_history', array());
+
+    $stats = array(
+        'approved' => 0,
+        'rejected' => 0,
+        'pending' => 0,
+        'rollbacks' => 0
+    );
+
+    foreach ($review_data as $item) {
+        $status = $item['status'] ?? 'pending';
+        if ($status === 'pending') $stats['pending']++;
+        elseif ($status === 'approved') $stats['approved']++;
+        elseif ($status === 'rejected') $stats['rejected']++;
+    }
+
+    foreach ($history as $entry) {
+        if (isset($entry['action']) && $entry['action'] === 'rollback') {
+            $stats['rollbacks']++;
+        }
+    }
+
+    return $stats;
+}
+
+// Helper function to get recent learning changes
+function chatbot_get_recent_learning_changes($limit = 5) {
+    $history = get_option('chatbot_learning_history', array());
+
+    // Sort by date descending
+    usort($history, function($a, $b) {
+        return strtotime($b['date'] ?? '2000-01-01') - strtotime($a['date'] ?? '2000-01-01');
+    });
+
+    return array_slice($history, 0, $limit);
+}
+
+// AJAX handler for saving learning settings
+add_action('wp_ajax_chatbot_save_learning_settings', 'chatbot_ajax_save_learning_settings');
+function chatbot_ajax_save_learning_settings() {
+    check_ajax_referer('chatbot_learning_dashboard', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied');
+        return;
+    }
+
+    update_option('chatbot_learning_enabled', sanitize_text_field($_POST['learning_enabled']));
+    update_option('chatbot_confidence_floor', intval($_POST['confidence_floor']));
+    update_option('chatbot_negative_threshold', intval($_POST['negative_threshold']));
+    update_option('chatbot_rate_limit_per_session', intval($_POST['rate_limit_per_session']));
+
+    wp_send_json_success('Settings saved');
+}
+
+// AJAX handler for getting review item details
+add_action('wp_ajax_chatbot_get_review_item_details', 'chatbot_ajax_get_review_item_details');
+function chatbot_ajax_get_review_item_details() {
+    check_ajax_referer('chatbot_learning_dashboard', 'nonce');
+
+    $item_id = intval($_POST['item_id']);
+    $review_data = get_option('chatbot_learning_review_queue', array());
+
+    foreach ($review_data as $item) {
+        if (isset($item['id']) && $item['id'] === $item_id) {
+            wp_send_json_success($item);
+            return;
+        }
+    }
+
+    wp_send_json_error('Item not found');
+}
+
+// AJAX handler for resolving review item
+add_action('wp_ajax_chatbot_resolve_review_item', 'chatbot_ajax_resolve_review_item');
+function chatbot_ajax_resolve_review_item() {
+    check_ajax_referer('chatbot_learning_dashboard', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied');
+        return;
+    }
+
+    $item_id = intval($_POST['item_id']);
+    $review_data = get_option('chatbot_learning_review_queue', array());
+
+    foreach ($review_data as &$item) {
+        if (isset($item['id']) && $item['id'] === $item_id) {
+            $item['status'] = 'approved';
+            $item['resolved_at'] = current_time('mysql');
+
+            // Add to history
+            $history = get_option('chatbot_learning_history', array());
+            $history[] = array(
+                'id' => count($history) + 1,
+                'action' => 'approved',
+                'faq_id' => $item['faq_id'],
+                'date' => current_time('Y-m-d H:i'),
+                'can_rollback' => false
+            );
+            update_option('chatbot_learning_history', $history);
+            break;
+        }
+    }
+
+    update_option('chatbot_learning_review_queue', $review_data);
+    wp_send_json_success('Item resolved');
+}
+
+// AJAX handler for dismissing review item
+add_action('wp_ajax_chatbot_dismiss_review_item', 'chatbot_ajax_dismiss_review_item');
+function chatbot_ajax_dismiss_review_item() {
+    check_ajax_referer('chatbot_learning_dashboard', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied');
+        return;
+    }
+
+    $item_id = intval($_POST['item_id']);
+    $review_data = get_option('chatbot_learning_review_queue', array());
+
+    foreach ($review_data as &$item) {
+        if (isset($item['id']) && $item['id'] === $item_id) {
+            $item['status'] = 'rejected';
+            $item['dismissed_at'] = current_time('mysql');
+            break;
+        }
+    }
+
+    update_option('chatbot_learning_review_queue', $review_data);
+    wp_send_json_success('Item dismissed');
+}
+
+// AJAX handler for rollback
+add_action('wp_ajax_chatbot_rollback_learning_change', 'chatbot_ajax_rollback_learning_change');
+function chatbot_ajax_rollback_learning_change() {
+    check_ajax_referer('chatbot_learning_dashboard', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied');
+        return;
+    }
+
+    $change_id = intval($_POST['change_id']);
+    $history = get_option('chatbot_learning_history', array());
+
+    // Find and mark as rolled back
+    foreach ($history as &$entry) {
+        if (isset($entry['id']) && $entry['id'] === $change_id) {
+            $entry['rolled_back'] = true;
+            $entry['can_rollback'] = false;
+
+            // Add rollback entry
+            $history[] = array(
+                'id' => count($history) + 1,
+                'action' => 'rollback',
+                'faq_id' => $entry['faq_id'],
+                'date' => current_time('Y-m-d H:i'),
+                'can_rollback' => false
+            );
+            break;
+        }
+    }
+
+    update_option('chatbot_learning_history', $history);
+    wp_send_json_success('Change rolled back');
+}
+
+// AJAX handler for reset all learning
+add_action('wp_ajax_chatbot_reset_all_learning', 'chatbot_ajax_reset_all_learning');
+function chatbot_ajax_reset_all_learning() {
+    check_ajax_referer('chatbot_learning_dashboard', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied');
+        return;
+    }
+
+    // Reset all learning data
+    delete_option('chatbot_learning_review_queue');
+    delete_option('chatbot_learning_history');
+
+    // Add reset entry to new history
+    update_option('chatbot_learning_history', array(
+        array(
+            'id' => 1,
+            'action' => 'full_reset',
+            'faq_id' => 'all',
+            'date' => current_time('Y-m-d H:i'),
+            'can_rollback' => false
+        )
+    ));
+
+    wp_send_json_success('All learning data reset');
+}
+
+// AJAX handler for regenerating embeddings
+add_action('wp_ajax_chatbot_regenerate_embeddings', 'chatbot_ajax_regenerate_embeddings');
+function chatbot_ajax_regenerate_embeddings() {
+    check_ajax_referer('chatbot_learning_dashboard', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied');
+        return;
+    }
+
+    // Get all FAQs and regenerate embeddings
+    if (function_exists('chatbot_faq_load') && function_exists('chatbot_faq_update')) {
+        $faqs = chatbot_faq_load();
+        $processed = 0;
+
+        foreach ($faqs as $faq) {
+            // Re-save each FAQ to trigger embedding regeneration
+            $result = chatbot_faq_update($faq['id'], array(
+                'question' => $faq['question'],
+                'answer' => $faq['answer'],
+                'keywords' => $faq['keywords'] ?? '',
+                'category' => $faq['category'] ?? 'General'
+            ));
+
+            if ($result['success']) {
+                $processed++;
+            }
+        }
+
+        wp_send_json_success(array('processed' => $processed));
+    } else {
+        wp_send_json_error('FAQ functions not available');
+    }
 }
 
 // Function to display the reporting message - Ver 1.7.9

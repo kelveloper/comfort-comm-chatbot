@@ -159,48 +159,21 @@ function chatbot_chatgpt_call_flow_api($api_key, $message, $user_id = null, $pag
 }
 
 // Get the Answers from the Conversation Log
+// Updated Ver 2.4.8: Uses Supabase only
 function chatbot_chatgpt_retrieve_answers($session_id, $user_id, $page_id, $assistant_id, $max_answers) {
 
-    global $wpdb;
-
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-
-    // Get the answers from the conversation log
-    $answers = $wpdb->get_results("SELECT message_text
-                                    FROM $table_name
-                                    WHERE session_id = '$session_id'
-                                    AND user_id = '$user_id'
-                                    AND page_id = '$page_id'
-                                    AND assistant_id = '$assistant_id'
-                                    AND user_type = 'Visitor'
-                                    ORDER BY thread_id DESC
-                                    LIMIT $max_answers;
-                                ");
-
-    // Initialize the answers array
-    $answers_array = array();
-
-    // if $answers is empty, return an empty array
-    if (empty($answers)) {
-        // DIAG - Diagnostics
-        // back_trace( 'NOTICE', 'chatbot_chatgpt_retrieve_answers() - $answers is empty');
+    // Use Supabase for conversation retrieval
+    if (function_exists('chatbot_supabase_get_conversations')) {
+        $conversations = chatbot_supabase_get_conversations($session_id, $max_answers);
+        $answers_array = array();
+        foreach ($conversations as $conv) {
+            if (isset($conv['user_type']) && $conv['user_type'] === 'Visitor') {
+                $answers_array[] = $conv['message_text'] ?? '';
+            }
+        }
         return $answers_array;
     }
-
-    // if $answer is an error, return an empty array
-    if (is_wp_error($answers)) {
-        // DIAG - Diagnostics
-        // back_trace( 'NOTICE', 'chatbot_chatgpt_retrieve_answers() - $answers is an error' . $answers->get_error_message());
-        return $answers_array;
-    }
-
-    // Loop through the answers and add them to the answers array
-    foreach ($answers as $answer) {
-        $answers_array[] = $answer->message_text;
-    }
-
-    // Return the answers array
-    return $answers_array;
+    return array();
 
 }
 

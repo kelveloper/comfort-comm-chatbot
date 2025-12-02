@@ -48,7 +48,7 @@ function chatbot_chatgpt_settings_page() {
     // Localize the settings - Added back in for Ver 1.8.5
     chatbot_chatgpt_localize();
 
-    $active_tab = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : 'general';
+    $active_tab = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : 'setup';
    
     if (isset($_GET['settings-updated']) && $_GET['settings-updated']) {
         add_settings_error('chatbot_chatgpt_messages', 'chatbot_chatgpt_message', 'Settings Saved', 'updated');
@@ -122,13 +122,11 @@ function chatbot_chatgpt_settings_page() {
        </script>
 
        <h2 class="nav-tab-wrapper">
-            <a href="?page=chatbot-chatgpt&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">General</a>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'OpenAI') { ?><a href="?page=chatbot-chatgpt&tab=api_chatgpt" class="nav-tab <?php echo $active_tab == 'api_chatgpt' ? 'nav-tab-active' : ''; ?>">API/OpenAI</a> <?php } ?>
-            <?php if (esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI')) == 'Gemini') { ?><a href="?page=chatbot-chatgpt&tab=api_gemini" class="nav-tab <?php echo $active_tab == 'api_gemini' ? 'nav-tab-active' : ''; ?>">API/Gemini</a> <?php } ?>
-            <a href="?page=chatbot-chatgpt&tab=database" class="nav-tab <?php echo $active_tab == 'database' ? 'nav-tab-active' : ''; ?>">Database</a>
+            <a href="?page=chatbot-chatgpt&tab=setup" class="nav-tab <?php echo $active_tab == 'setup' || $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Setup</a>
             <a href="?page=chatbot-chatgpt&tab=kn_acquire" class="nav-tab <?php echo $active_tab == 'kn_acquire' ? 'nav-tab-active' : ''; ?>">Knowledge Base</a>
             <a href="?page=chatbot-chatgpt&tab=reporting" class="nav-tab <?php echo $active_tab == 'reporting' ? 'nav-tab-active' : ''; ?>">Reporting</a>
             <a href="?page=chatbot-chatgpt&tab=analytics" class="nav-tab <?php echo $active_tab == 'analytics' ? 'nav-tab-active' : ''; ?>">Analytics</a>
+            <a href="?page=chatbot-chatgpt&tab=analytics_new" class="nav-tab <?php echo $active_tab == 'analytics_new' ? 'nav-tab-active' : ''; ?>">Analytics (New)</a>
             <a href="?page=chatbot-chatgpt&tab=tools" class="nav-tab <?php echo $active_tab == 'tools' ? 'nav-tab-active' : ''; ?>">Tools</a>
             <a href="?page=chatbot-chatgpt&tab=diagnostics" class="nav-tab <?php echo $active_tab == 'diagnostics' ? 'nav-tab-active' : ''; ?>">Messages</a>
             <a href="?page=chatbot-chatgpt&tab=support" class="nav-tab <?php echo $active_tab == 'support' ? 'nav-tab-active' : ''; ?>">Support</a>
@@ -139,31 +137,12 @@ function chatbot_chatgpt_settings_page() {
 
             $chatbot_ai_platform_choice = esc_attr(get_option('chatbot_ai_platform_choice', 'OpenAI'));
 
-            if ($active_tab == 'general') {
+            if ($active_tab == 'setup' || $active_tab == 'general') {
 
-                settings_fields('chatbot_chatgpt_settings');
+                settings_fields('chatbot_chatgpt_setup');
 
-                // General Settings and Chatbot Settings sections removed - bot name hardcoded to "Steven"
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_ai_engine_settings');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_message_limits_settings');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_greetings_settings');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_additional_setup_settings');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_advanced_search_settings');
-                echo '</div>';
+                // Render the unified Setup page
+                chatbot_setup_page_content();
 
             } elseif ($active_tab == 'api_chatgpt' && $chatbot_ai_platform_choice == 'OpenAI') {
 
@@ -509,30 +488,12 @@ function chatbot_chatgpt_settings_page() {
 
                 settings_fields('chatbot_chatgpt_knowledge_navigator');
 
+                // FAQ Vector System Introduction
                 echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
                 do_settings_sections('chatbot_chatgpt_knowledge_navigator');
                 echo '</div>';
 
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_kn_status');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_kn_scheduling');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_kn_include_exclude');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_kn_enhanced_response');
-                echo '</div>';
-              
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_kn_analysis');
-                echo '</div>';
-
+                // FAQ Import/Management
                 echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
                 do_settings_sections('chatbot_chatgpt_faq_import');
                 echo '</div>';
@@ -559,6 +520,10 @@ function chatbot_chatgpt_settings_page() {
 
                 echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
                 do_settings_sections('chatbot_chatgpt_gap_analysis');
+                echo '</div>';
+
+                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
+                do_settings_sections('chatbot_chatgpt_learning_dashboard');
                 echo '</div>';
 
                 echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
@@ -604,7 +569,19 @@ function chatbot_chatgpt_settings_page() {
                     echo '<p>The analytics system is not properly loaded. Please check that all analytics files are present.</p>';
                     echo '</div>';
                 }
-                
+
+            } elseif ($active_tab == 'analytics_new') {
+
+                // Load the NEW merged analytics page
+                if (function_exists('chatbot_analytics_new_page')) {
+                    chatbot_analytics_new_page();
+                } else {
+                    echo '<div class="notice notice-error" style="padding: 20px; margin: 20px 0;">';
+                    echo '<h2 style="margin-top: 0;">⚠️ New Analytics Page Not Available</h2>';
+                    echo '<p>The new analytics page is not properly loaded.</p>';
+                    echo '</div>';
+                }
+
             } elseif ($active_tab == 'tools') {
 
                 settings_fields('chatbot_chatgpt_tools');
@@ -637,17 +614,7 @@ function chatbot_chatgpt_settings_page() {
                 // do_settings_sections('chatbot_chatgpt_capability_tools');
                 // echo '</div>';
 
-            } elseif ($active_tab == 'database') {
-
-                settings_fields('chatbot_chatgpt_supabase');
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_supabase');
-                echo '</div>';
-
-                echo '<div style="background-color: #f9f9f9; padding: 20px; margin-top: 10px; border: 1px solid #ccc;">';
-                do_settings_sections('chatbot_chatgpt_supabase_status');
-                echo '</div>';
+            // Database tab removed - merged into Setup tab
 
             } elseif ($active_tab == 'support') {
 
@@ -659,7 +626,10 @@ function chatbot_chatgpt_settings_page() {
 
             }
 
-            submit_button('Save Settings');
+            // Only show submit button for tabs that don't have their own (Setup has its own)
+            if ($active_tab !== 'setup' && $active_tab !== 'general') {
+                submit_button('Save Settings');
+            }
             ?>
        </form>
     </div>

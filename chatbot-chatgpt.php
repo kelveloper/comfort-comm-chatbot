@@ -142,6 +142,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-k
 require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-kn-scheduler.php';           // Knowledge Navigator - Scheduler - Ver 1.6.3
 require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-kn-settings.php';            // Knowledge Navigator - Settings - Ver 1.6.1
 require_once plugin_dir_path(__FILE__) . 'includes/knowledge-navigator/chatbot-kn-faq-import.php';          // Knowledge Navigator - FAQ Import - Ver 2.3.7
+require_once plugin_dir_path(__FILE__) . 'includes/utilities/chatbot-question-validator.php';               // Question Validator - Ver 2.4.8
 
 // Include necessary files - Markov Chain - Ver 2.1.9
 require_once plugin_dir_path(__FILE__) . 'includes/markov-chain/chatbot-markov-chain-decode.php';           // Functions - Ver 2.1.9
@@ -179,6 +180,8 @@ require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-reg
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-registration-kn.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-registration.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-reporting.php';
+require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-analytics-new.php';
+require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-setup.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-supabase.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-support.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings/chatbot-settings-tools.php';
@@ -224,6 +227,7 @@ require_once plugin_dir_path(__FILE__) . 'tools/chatbot-options-exporter.php';
 require_once plugin_dir_path(__FILE__) . 'tools/chatbot-shortcode-tester.php';
 require_once plugin_dir_path(__FILE__) . 'tools/chatbot-shortcode-tester-tool.php';
 require_once plugin_dir_path(__FILE__) . 'tools/chatbot-test-gap-analysis.php';  // Gap Analysis Test Tool - Ver 2.4.3
+require_once plugin_dir_path(__FILE__) . 'tools/test-supabase-ajax.php';  // Supabase Test Tool - Ver 2.4.8
 
 // Include necessary files - Analytics - Ver 2.3.6
 require_once plugin_dir_path(__FILE__) . 'includes/analytics/analytics-settings.php';
@@ -1042,7 +1046,7 @@ function chatbot_chatgpt_enqueue_scripts() {
         'chatbot_chatgpt_avatar_icon_setting' => esc_attr(get_option('chatbot_chatgpt_avatar_icon_setting', '')),
         'chatbot_chatgpt_custom_avatar_icon_setting' => esc_attr(get_option('chatbot_chatgpt_custom_avatar_icon_setting', '')),
         'chatbot_chatgpt_avatar_greeting_setting' => esc_attr(get_option('chatbot_chatgpt_avatar_greeting_setting', 'Howdy!!! Great to see you today! How can I help you?')),
-        'chatbot_chatgpt_force_page_reload' => esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'No')),
+        'chatbot_chatgpt_force_page_reload' => esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'Yes')),
         'chatbot_chatgpt_custom_error_message' => esc_attr(get_option('chatbot_chatgpt_custom_error_message', 'Your custom error message goes here.')),
     ));
 

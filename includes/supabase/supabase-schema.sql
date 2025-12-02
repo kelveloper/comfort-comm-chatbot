@@ -87,7 +87,42 @@ CREATE POLICY "Allow all operations" ON chatbot_gap_questions
     FOR ALL USING (true) WITH CHECK (true);
 
 -- =============================================================================
--- Table 4: chatbot_faq_usage (tracks FAQ hit counts)
+-- Table 4: chatbot_gap_clusters (groups similar gap questions)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS chatbot_gap_clusters (
+    id BIGSERIAL PRIMARY KEY,
+    cluster_name VARCHAR(255),
+    cluster_description TEXT,
+    question_count INTEGER DEFAULT 0,
+    sample_questions JSONB,
+    suggested_faq JSONB,
+    action_type VARCHAR(20) DEFAULT 'create' CHECK (action_type IN ('create', 'improve')),
+    existing_faq_id VARCHAR(50),
+    suggested_keywords JSONB,
+    priority_score FLOAT,
+    status VARCHAR(20) DEFAULT 'new' CHECK (status IN ('new', 'reviewed', 'faq_created', 'dismissed')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_clusters_status ON chatbot_gap_clusters(status);
+CREATE INDEX IF NOT EXISTS idx_clusters_priority ON chatbot_gap_clusters(priority_score);
+CREATE INDEX IF NOT EXISTS idx_clusters_action_type ON chatbot_gap_clusters(action_type);
+
+ALTER TABLE chatbot_gap_clusters ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all operations" ON chatbot_gap_clusters
+    FOR ALL USING (true) WITH CHECK (true);
+
+-- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_clusters_updated_at ON chatbot_gap_clusters;
+CREATE TRIGGER update_clusters_updated_at
+    BEFORE UPDATE ON chatbot_gap_clusters
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- =============================================================================
+-- Table 5: chatbot_faq_usage (tracks FAQ hit counts)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS chatbot_faq_usage (
     id BIGSERIAL PRIMARY KEY,

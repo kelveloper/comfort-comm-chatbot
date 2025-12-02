@@ -686,7 +686,7 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
         'chatbot_chatgpt_avatar_icon_setting' => esc_attr(get_option('chatbot_chatgpt_avatar_icon_setting', '')),
         'chatbot_chatgpt_custom_avatar_icon_setting' => esc_attr(get_option('chatbot_chatgpt_custom_avatar_icon_setting', '')),
         'chatbot_chatgpt_avatar_greeting_setting' => esc_attr(get_option('chatbot_chatgpt_avatar_greeting_setting', 'Howdy!!! Great to see you today! How can I help you?')),
-        'chatbot_chatgpt_force_page_reload' => esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'No')),
+        'chatbot_chatgpt_force_page_reload' => esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'Yes')),
         'chatbot_chatgpt_custom_error_message' => esc_attr(get_option('chatbot_chatgpt_custom_error_message', 'Your custom error message goes here.')),
         'chatbot_chatgpt_appearance_open_icon' => esc_attr(get_option('chatbot_chatgpt_appearance_open_icon', '')),
         'chatbot_chatgpt_appearance_collapse_icon' => esc_attr(get_option('chatbot_chatgpt_appearance_collapse_icon', '')),
@@ -829,10 +829,10 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
     $chatbot_chatgpt_allow_download_transcript = isset($assistant_details['allow_transcript_downloads']) && !empty($assistant_details['allow_transcript_downloads']) ? $assistant_details['allow_transcript_downloads'] : $chatbot_chatgpt_allow_download_transcript;
 
     // Force Page Reload on Conversation Clear - Ver 2.0.4
-    $chatbot_chatgpt_force_page_reload = esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'No'));
+    $chatbot_chatgpt_force_page_reload = esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'Yes'));
 
     // Conversation Continuation - Ver 2.0.7
-    $chatbot_chatgpt_conversation_continuation = esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'Off'));
+    $chatbot_chatgpt_conversation_continuation = esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'On'));
 
     // Assistant's Table Override - Ver 2.0.4
     // FIXME - FORCE PAGE RELOAD
@@ -1004,10 +1004,10 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
     $assistant_details['additional_instructions'] = !empty($assistant_details['additional_instructions']) ? $assistant_details['additional_instructions'] : esc_attr(get_option('chatbot_chatgpt_additional_instructions', ''));
     $kchat_settings['chatbot_chatgpt_additional_instructions'] = $assistant_details['additional_instructions'];
 
-    $assistant_details['force_page_reload'] = !empty($assistant_details['force_page_reload']) ? $assistant_details['force_page_reload'] : esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'No'));
+    $assistant_details['force_page_reload'] = !empty($assistant_details['force_page_reload']) ? $assistant_details['force_page_reload'] : esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'Yes'));
     $kchat_settings['chatbot_chatgpt_force_page_reload'] = $assistant_details['force_page_reload'];
 
-    $assistant_details['conversation_continuation'] = !empty($assistant_details['conversation_continuation']) ? $assistant_details['conversation_continuation'] : esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'Off'));
+    $assistant_details['conversation_continuation'] = !empty($assistant_details['conversation_continuation']) ? $assistant_details['conversation_continuation'] : esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'On'));
     $kchat_settings['chatbot_chatgpt_conversation_continuation'] = $assistant_details['conversation_continuation'];
 
     $assistant_details['width'] = !empty($assistant_details['width']) ? $assistant_details['width'] : esc_attr(get_option('chatbot_chatgpt_width_setting', '300'));
@@ -1083,8 +1083,7 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
     // Generate a unique cache-busting parameter
     $cache_buster = '?cb=' . time();
 
-    // Speech Recognition - Ver 2.1.5.1
-    $chatbot_chatgpt_speech_recognition = esc_attr(get_option('chatbot_chatgpt_speech_recognition', 'No'));
+    // Speech Recognition removed - feature disabled
 
     // back_trace( 'NOTICE', '$chatbot_chatgpt_display_style: ' . $chatbot_chatgpt_display_style);
 
@@ -1220,16 +1219,6 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
                     <img decoding="async" src="<?php echo chatbot_chatgpt_appearance_icon_path('read_aloud_icon'); ?>" alt="Read Out Loud">
                 </button>
             <?php endif; ?>
-            <?php if ($chatbot_chatgpt_speech_recognition == 'Yes'): ?>
-                <button id="chatbot-chatgpt-speech-recognition-btn" title="Use your microphone">
-                    <img decoding="async" src="<?php echo chatbot_chatgpt_appearance_icon_path('mic_enabled_icon'); ?>" alt="Speech Recognition">
-                </button>
-            <?php endif; ?>
-            <?php if ($chatbot_chatgpt_allow_download_transcript == 'Yes'): ?>
-                <button id="chatbot-chatgpt-download-transcript-btn" title="Download Transcript">
-                    <img decoding="async" src="<?php echo chatbot_chatgpt_appearance_icon_path('download_icon'); ?>" alt="Download Transcript">
-                </button>
-            <?php endif; ?>
             </div>
             <?php
             $chatbot_chatgpt_enable_custom_buttons = esc_attr(get_option('chatbot_chatgpt_enable_custom_buttons', 'Off'));
@@ -1355,16 +1344,6 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
                         <img decoding="async" src="<?php echo chatbot_chatgpt_appearance_icon_path('read_aloud_icon'); ?>" alt="Read Out Loud">
                     </button>
                 <?php endif; ?>
-                <?php if ($chatbot_chatgpt_speech_recognition == 'Yes'): ?>
-                    <button id="chatbot-chatgpt-speech-recognition-btn" title="Use your microphone">
-                        <img decoding="async" src="<?php echo chatbot_chatgpt_appearance_icon_path('mic_enabled_icon'); ?>" alt="Speech Recognition">
-                    </button>
-                <?php endif; ?>
-                <?php if ($chatbot_chatgpt_allow_download_transcript == 'Yes'): ?>
-                    <button id="chatbot-chatgpt-download-transcript-btn" title="Download Transcript">
-                        <img decoding="async" src="<?php echo chatbot_chatgpt_appearance_icon_path('download_icon'); ?>" alt="Download Transcript">
-                    </button>
-                <?php endif; ?>
             </div>
             <?php
             $chatbot_chatgpt_enable_custom_buttons = esc_attr(get_option('chatbot_chatgpt_enable_custom_buttons', 'Off'));
@@ -1386,32 +1365,28 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
 
 }
 
-// Dynamic Shortcode - Ver 2.0.6 - - Ver 2.3.0 Update 2025 04 23
+// Dynamic Shortcode - Ver 2.0.6 - Ver 2.3.0 Update 2025 04 23
+// Updated Ver 2.4.8: Uses Supabase for assistant count
 function register_chatbot_shortcodes($number_of_shortcodes = null) {
 
-    // Make sure the number of shortcodes is set
-    global $wpdb;
+    // Check if the table exists - use option as cache to avoid repeated queries
+    $number_of_shortcodes = get_option('chatbot_chatgpt_number_of_shortcodes', null);
 
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_assistants';
-
-    // Check if the table exists
-    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
-
-    if ($table_exists) {
-        // The table exists, proceed with the original query
-        $number_of_shortcodes = $wpdb->get_var("SELECT MAX(id) FROM $table_name");
-
-        // If the query fails for any other reason, set $number_of_shortcodes to 0
-        if ($number_of_shortcodes === NULL || $number_of_shortcodes === FALSE) {
-            $number_of_shortcodes = 0;
-        }
-    } else {
-        // The table doesn't exist, set $number_of_shortcodes to 0 directly
+    // Only query if we haven't cached the value yet
+    if ($number_of_shortcodes === null) {
         $number_of_shortcodes = 0;
-    }
 
-    // Update the option with the number of shortcodes
-    update_option('chatbot_chatgpt_number_of_shortcodes', $number_of_shortcodes);
+        // Try to get count from Supabase
+        if (function_exists('chatbot_supabase_get_assistant_count')) {
+            $result = chatbot_supabase_get_assistant_count();
+            if ($result !== false && $result > 0) {
+                $number_of_shortcodes = (int) $result;
+            }
+        }
+
+        // Cache the result
+        update_option('chatbot_chatgpt_number_of_shortcodes', $number_of_shortcodes);
+    }
 
     // Base shortcode names - only register if not already registered
     $base_shortcodes = [

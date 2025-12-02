@@ -250,7 +250,7 @@ function chatbot_chatgpt_allow_download_transcript_callback($args) {
 
 // Option to force page reload on conversation cleared - Ver 2.0.4
 function chatbot_chatgpt_force_page_reload_callback($args) {
-    $chatbot_chatgpt_force_page_reload = esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'No'));
+    $chatbot_chatgpt_force_page_reload = esc_attr(get_option('chatbot_chatgpt_force_page_reload', 'Yes'));
     ?>
     <select id="chatbot_chatgpt_force_page_reload" name="chatbot_chatgpt_force_page_reload">
         <option value="Yes" <?php selected( $chatbot_chatgpt_force_page_reload, 'Yes' ); ?>><?php echo esc_html( 'Yes' ); ?></option>
@@ -261,7 +261,7 @@ function chatbot_chatgpt_force_page_reload_callback($args) {
 
 // Conversation Continuation - Ver 2.0.7
 function chatbot_chatgpt_conversation_continuation_callback($args) {
-    $chatbot_chatgpt_conversation_continuation = esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'Off'));
+    $chatbot_chatgpt_conversation_continuation = esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'On'));
     ?>
     <select id="chatbot_chatgpt_conversation_continuation" name="chatbot_chatgpt_conversation_continuation">
         <option value="On" <?php selected( $chatbot_chatgpt_conversation_continuation, 'On' ); ?>><?php echo esc_html( 'On' ); ?></option>
@@ -385,164 +385,17 @@ function chatbot_chatgpt_settings_setup_init() {
     );
 
     // Chatbot Settings section removed - bot name hardcoded to "Steven", start status uses defaults
-
-    add_settings_section(
-        'chatbot_chatgpt_message_limits_section',
-        'Message Limit Settings',
-        'chatbot_chatgpt_message_limits_section_callback',
-        'chatbot_chatgpt_message_limits_settings'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_display_message_count',
-        'Display Message Count',
-        'chatbot_chatgpt_display_message_count_callback',
-        'chatbot_chatgpt_message_limits_settings',
-        'chatbot_chatgpt_message_limits_section'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_user_message_limit_setting',
-        'User Message Limit per Period',
-        'chatbot_chatgpt_user_message_limit_setting_callback',
-        'chatbot_chatgpt_message_limits_settings',
-        'chatbot_chatgpt_message_limits_section'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_user_message_limit_period_setting',
-        'User Message Limit Period',
-        'chatbot_chatgpt_user_message_limit_period_setting_callback',
-        'chatbot_chatgpt_message_limits_settings',
-        'chatbot_chatgpt_message_limits_section'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_visitor_message_limit_setting',
-        'Visitor Message Limit per Period',
-        'chatbot_chatgpt_visitor_message_limit_setting_callback',
-        'chatbot_chatgpt_message_limits_settings',
-        'chatbot_chatgpt_message_limits_section'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_visitor_message_limit_period_setting',
-        'Visitor Message Limit Period',
-        'chatbot_chatgpt_visitor_message_limit_period_setting_callback',
-        'chatbot_chatgpt_message_limits_settings',
-        'chatbot_chatgpt_message_limits_section'
-    );
-
-    // Chatbot Prompts and Greetings: Chatbot Prompt, Initial Greeting, Subsequent Greeting
-    add_settings_section(
-        'chatbot_chatgpt_greetings_section',
-        'Prompts and Greetings',
-        'chatbot_chatgpt_greetings_section_callback',
-        'chatbot_chatgpt_greetings_settings'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_bot_prompt',
-        'Chatbot Prompt',
-        'chatbot_chatgpt_bot_prompt_callback',
-        'chatbot_chatgpt_greetings_settings',
-        'chatbot_chatgpt_greetings_section'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_initial_greeting',
-        'Initial Greeting',
-        'chatbot_chatgpt_initial_greeting_callback',
-        'chatbot_chatgpt_greetings_settings',
-        'chatbot_chatgpt_greetings_section'
-    );
-
-    // Additional Settings: Disclaimer, Audience, Input Rows
-    add_settings_section(
-        'chatbot_chatgpt_additional_setup_section',
-        'Additional Settings',
-        'chatbot_chatgpt_additional_setup_section_callback',
-        'chatbot_chatgpt_additional_setup_settings'
-    );
-
-    // Speech Recognition - Ver 2.1.5.1
-    add_settings_field(
-        'chatbot_chatgpt_speech_recognition',
-        'Allow Speech Recognition',
-        'chatbot_chatgpt_speech_recognition_callback',
-        'chatbot_chatgpt_additional_setup_settings',
-        'chatbot_chatgpt_additional_setup_section'
-    );
-
-    // Option to allow downloading transcripts - Ver 2.0.3
-    add_settings_field(
-        'chatbot_chatgpt_allow_download_transcript',
-        'Allow Downloading Transcripts',
-        'chatbot_chatgpt_allow_download_transcript_callback',
-        'chatbot_chatgpt_additional_setup_settings',
-        'chatbot_chatgpt_additional_setup_section'
-    );
-
-    // Option to force page reload on conversation cleared - Ver 2.0.3
-    add_settings_field(
-        'chatbot_chatgpt_force_page_reload',
-        'Force Page Reload on Conversation Cleared',
-        'chatbot_chatgpt_force_page_reload_callback',
-        'chatbot_chatgpt_additional_setup_settings',
-        'chatbot_chatgpt_additional_setup_section'
-    );
-
-    // Conversation Continuation - Ver 2.0.7
-    add_settings_field(
-        'chatbot_chatgpt_conversation_continuation',
-        'Conversation Continuation',
-        'chatbot_chatgpt_conversation_continuation_callback',
-        'chatbot_chatgpt_additional_setup_settings',
-        'chatbot_chatgpt_additional_setup_section'
-    );
-
-    // Option to remove the OpenAI disclaimer - Ver 1.4.1
-    add_settings_field(
-        'chatbot_chatgpt_disclaimer_setting',
-        'Include "As an AI language model" disclaimer',
-        'chatbot_chatgpt_disclaimer_setting_callback',
-        'chatbot_chatgpt_additional_setup_settings',
-        'chatbot_chatgpt_additional_setup_section'
-    );
-
-    // Audience setting - Ver 1.9.0
-    add_settings_field(
-        'chatbot_chatgpt_audience_choice',
-        'Audience for Chatbot',
-        'chatbot_chatgpt_audience_choice_callback',
-        'chatbot_chatgpt_additional_setup_settings',
-        'chatbot_chatgpt_additional_setup_section'
-    );
-
-    // Input rows setting - Ver 1.9.9
-    add_settings_field(
-        'chatbot_chatgpt_input_rows',
-        'Input Rows',
-        'chatbot_chatgpt_input_rows_callback',
-        'chatbot_chatgpt_additional_setup_settings',
-        'chatbot_chatgpt_additional_setup_section'
-    );   
-
-    // Chatbot Settings - Advanced Search Settings
-    add_settings_section(
-        'chatbot_chatgpt_advanced_search_settings_section',
-        'Advanced Search Settings',
-        'chatbot_chatgpt_advanced_search_settings_callback',
-        'chatbot_chatgpt_advanced_search_settings'
-    );
-
-    add_settings_field(
-        'chatbot_chatgpt_use_advanced_content_search',
-        'Enable Advanced Content Search',
-        'chatbot_chatgpt_use_advanced_content_search_callback',
-        'chatbot_chatgpt_advanced_search_settings',
-        'chatbot_chatgpt_advanced_search_settings_section'
-    );
+    // Message Limit Settings removed from UI - using defaults (999/Lifetime)
+    // Prompts and Greetings section removed - using hardcoded defaults
+    // Additional Settings section removed from UI:
+    //   - Speech Recognition: disabled
+    //   - Download Transcripts: disabled
+    //   - Force Page Reload: handled in code
+    //   - Conversation Continuation: enabled (On)
+    //   - AI Disclaimer: enabled (Yes)
+    //   - Audience: hardcoded to 'all'
+    //   - Input rows: using fixed default
+    // Advanced Search Settings removed from UI - disabled (No)
 
 }
 add_action('admin_init', 'chatbot_chatgpt_settings_setup_init');

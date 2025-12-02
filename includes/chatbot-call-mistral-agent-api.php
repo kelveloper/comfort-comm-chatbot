@@ -268,7 +268,7 @@ function chatbot_mistral_agent_call_api($api_key, $message, $assistant_id, $thre
     }
 
     // Conversation Continuity - Ver 2.1.8
-    $chatbot_chatgpt_conversation_continuation = esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'Off'));
+    $chatbot_chatgpt_conversation_continuation = esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'On'));
     
     // DIAG - Diagnostics - Ver 2.3.1
     // back_trace( 'NOTICE', '$session_id: ' . $session_id);

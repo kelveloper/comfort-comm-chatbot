@@ -51,7 +51,7 @@ function chatbot_chatgpt_erase_conversation_handler() {
 
     // Get page_id from POST (this is safe as it's just identifying the page)
     $page_id = isset($_POST['page_id']) ? sanitize_text_field($_POST['page_id']) : '';
-    $chatbot_chatgpt_force_page_reload = isset($_POST['chatbot_chatgpt_force_page_reload']) ? sanitize_text_field($_POST['chatbot_chatgpt_force_page_reload']) : 'No';
+    $chatbot_chatgpt_force_page_reload = isset($_POST['chatbot_chatgpt_force_page_reload']) ? sanitize_text_field($_POST['chatbot_chatgpt_force_page_reload']) : 'Yes';
     
     if (empty($page_id)) {
         wp_send_json_error('Page ID is required.', 400);
@@ -194,42 +194,12 @@ function verify_session_ownership($session_id) {
 /**
  * Verify conversation ownership
  * This function checks if the user actually owns the conversation they're trying to delete
+ * Updated Ver 2.4.8: Uses Supabase only
  */
 function verify_conversation_ownership($user_id, $page_id) {
-    global $wpdb;
-    
-    // Check if there are any conversation records for this user/page combination
-    // This is a basic check - you might want to enhance this based on your data structure
-    
-    // Check for conversation logs
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
-        $count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_name WHERE user_id = %s AND page_id = %s",
-            $user_id,
-            $page_id
-        ));
-        
-        // If there are conversation records, allow deletion
-        if ($count > 0) {
-            return true;
-        }
-    }
-    
-    // Check for transients related to this conversation
-    $transient_keys = [
-        'chatbot_chatgpt_thread_id_' . $user_id . '_' . $page_id,
-        'chatbot_chatgpt_assistant_id_' . $user_id . '_' . $page_id,
-    ];
-    
-    foreach ($transient_keys as $key) {
-        if (get_transient($key) !== false) {
-            return true;
-        }
-    }
-    
-    // If no conversation data found, still allow access (might be a new conversation)
-    // This is a design decision - for new conversations, we should allow access
-    // The session ownership validation above already ensures the user is legitimate
+
+    // For Supabase, we allow access (ownership verified through session)
+    // This is a design decision - for conversations, we should allow access
+    // The session ownership validation already ensures the user is legitimate
     return true;
 }

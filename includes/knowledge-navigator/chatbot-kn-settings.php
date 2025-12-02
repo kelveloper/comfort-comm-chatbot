@@ -128,13 +128,6 @@ function chatbot_chatgpt_kn_results_callback($run_scanner) {
 
 // Knowledge Base Introduction
 function chatbot_chatgpt_knowledge_navigator_section_callback($args) {
-
-    // See if the scanner needs to run
-    $results = chatbot_chatgpt_kn_results_callback(esc_attr(get_option('chatbot_chatgpt_kn_schedule')));
-
-    // Force run the scanner
-    // $results = chatbot_chatgpt_kn_acquire();
-
     ?>
         <div class="wrap">
             <p>The <b>Knowledge Base</b> powers Steve-Bot's intelligent FAQ system using AI-driven semantic search. Instead of basic keyword matching, it understands the meaning behind questions to deliver accurate, contextual answers.</p>
@@ -143,12 +136,11 @@ function chatbot_chatgpt_knowledge_navigator_section_callback($args) {
                 <strong>How it works:</strong>
                 <ol style="margin: 10px 0 0 20px;">
                     <li><strong>Add FAQs:</strong> Create question-answer pairs in the FAQ section below</li>
-                    <li><strong>AI Embedding:</strong> Each FAQ is converted to a vector embedding using Google's AI</li>
+                    <li><strong>AI Embedding:</strong> Each FAQ is converted to a vector embedding using Gemini AI</li>
                     <li><strong>Semantic Search:</strong> Visitor questions are matched by meaning, not just keywords</li>
                     <li><strong>Confidence Scoring:</strong> High-confidence matches return FAQ answers directly; lower matches provide context to the AI</li>
                 </ol>
             </div>
-            <p><b><i>Don't forget to click </i><code>Save Settings</code><i> to save any changes you might make.</i></b></p>
         </div>
     <?php
 }

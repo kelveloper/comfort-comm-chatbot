@@ -144,7 +144,7 @@ function chatbot_chatgpt_call_mistral_api($api_key, $message, $user_id = null, $
     }
 
     // Conversation Continuity - Ver 2.1.8
-    $chatbot_chatgpt_conversation_continuation = esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'Off'));
+    $chatbot_chatgpt_conversation_continuation = esc_attr(get_option('chatbot_chatgpt_conversation_continuation', 'On'));
 
     // DIAG Diagnostics - Ver 2.1.8
     // back_trace( 'NOTICE', '$session_id: ' . $session_id);

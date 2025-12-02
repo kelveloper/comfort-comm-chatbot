@@ -38,13 +38,35 @@ if ( ! defined( 'WPINC' ) ) {
 
 /**
  * Log gap question - Ver 2.4.2
- * Updated Ver 2.4.8: Uses Supabase only
+ * Updated Ver 2.4.8: Uses Supabase only with question validation
  * Questions that weren't matched with high confidence
  */
 function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $confidence_level, $session_id = null, $user_id = null, $page_id = null) {
-    // Skip if question is empty or too short
-    if (empty($question) || strlen(trim($question)) < 3) {
+    // Skip if question is empty
+    if (empty($question)) {
         return false;
+    }
+
+    // Validate question quality (spam, gibberish, off-topic detection)
+    if (function_exists('chatbot_should_log_gap_question')) {
+        $validation = chatbot_should_log_gap_question($question, floatval($confidence_score), [
+            'session_id' => $session_id,
+            'user_id' => $user_id,
+            'page_id' => $page_id
+        ]);
+
+        if (!$validation['should_log']) {
+            // Log rejection for debugging (optional)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[Chatbot Gap] Question rejected: ' . $validation['reason'] . ' - "' . substr($question, 0, 50) . '..."');
+            }
+            return false;
+        }
+    } else {
+        // Fallback: basic length check if validator not loaded
+        if (strlen(trim($question)) < 10) {
+            return false;
+        }
     }
 
     // Use Supabase for all gap question logging

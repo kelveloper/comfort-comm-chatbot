@@ -44,25 +44,24 @@ function format_duration($seconds) {
 }
 
 // Widget content function
+// Updated Ver 2.4.8: Uses Supabase only
 function chatbot_chatgpt_dashboard_widget_content() {
 
-    global $wpdb;
-    
     // Get the current period setting
     $period = get_option('chatbot_chatgpt_dashboard_period', '24h');
     $view_type = get_option('chatbot_chatgpt_dashboard_view', 'sessions');
-    
+
     // Handle form submission
     if (isset($_POST['chatbot_chatgpt_dashboard_period'])) {
         $period = sanitize_text_field($_POST['chatbot_chatgpt_dashboard_period']);
         update_option('chatbot_chatgpt_dashboard_period', $period);
     }
-    
+
     if (isset($_POST['chatbot_chatgpt_dashboard_view'])) {
         $view_type = sanitize_text_field($_POST['chatbot_chatgpt_dashboard_view']);
         update_option('chatbot_chatgpt_dashboard_view', $view_type);
     }
-    
+
     // Calculate the start date based on the period
     $start_date = '';
     switch ($period) {
@@ -82,154 +81,46 @@ function chatbot_chatgpt_dashboard_widget_content() {
             $start_date = date('Y-m-d H:i:s', strtotime('-365 days'));
             break;
     }
-    
-    // Debug: Log the calculated start date
-    // back_trace( 'NOTICE', 'Dashboard widget - Period: ' . $period . ', Start date: ' . $start_date);
-    
-    // Get chat statistics
-    $table_name = $wpdb->prefix . 'chatbot_chatgpt_conversation_log';
-    
-    // Check if table exists first
-    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'");
-    if (!$table_exists) {
-        prod_trace( 'ERROR', 'Table ' . $table_name . ' does not exist');
-        $chat_count = 0;
-        $daily_chats = array();
-        $token_stats = array();
-        $avg_duration = null;
-    } else {
-        if ($view_type === 'sessions') {
-            $chat_count = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(DISTINCT session_id) FROM $table_name WHERE interaction_time >= %s",
-                $start_date
-            ));
-        
-            // Get daily chat counts for the graph
-            if ($period === '24h') {
-                // Use simpler query for 24h period to avoid placeholder issues
-                $daily_chats = $wpdb->get_results($wpdb->prepare(
-                    "SELECT 
-                        DATE_FORMAT(interaction_time, '%%Y-%%m-%%d %%H:00:00') as date,
-                        COUNT(DISTINCT session_id) as count
-                    FROM $table_name 
-                    WHERE interaction_time >= %s
-                    GROUP BY DATE_FORMAT(interaction_time, '%%Y-%%m-%%d %%H:00:00')
-                    ORDER BY date ASC",
-                    $start_date
-                ));
-            } else {
-                // Use simpler query for daily periods to avoid placeholder issues
-                $daily_chats = $wpdb->get_results($wpdb->prepare(
-                    "SELECT 
-                        DATE(interaction_time) as date,
-                        COUNT(DISTINCT session_id) as count
-                    FROM $table_name 
-                    WHERE interaction_time >= %s
-                    GROUP BY DATE(interaction_time)
-                    ORDER BY date ASC",
-                    $start_date
-                ));
+
+    // Get data from Supabase
+    $days = 7; // Default
+    switch ($period) {
+        case '24h': $days = 1; break;
+        case '7d': $days = 7; break;
+        case '30d': $days = 30; break;
+        case '90d': $days = 90; break;
+        case '365d': $days = 365; break;
+    }
+
+    if (function_exists('chatbot_supabase_get_recent_conversations')) {
+        $conversations = chatbot_supabase_get_recent_conversations($days, 10000);
+        if (is_array($conversations)) {
+            $unique_sessions = array_unique(array_column($conversations, 'session_id'));
+            $chat_count = count($unique_sessions);
+
+            // Group by date for daily_chats
+            $daily_counts = array();
+            foreach ($conversations as $conv) {
+                $date = isset($conv['interaction_time']) ? substr($conv['interaction_time'], 0, 10) : date('Y-m-d');
+                if (!isset($daily_counts[$date])) {
+                    $daily_counts[$date] = array();
+                }
+                $daily_counts[$date][$conv['session_id'] ?? ''] = true;
+            }
+            $daily_chats = array();
+            foreach ($daily_counts as $date => $sessions) {
+                $daily_chats[] = (object)array('date' => $date, 'count' => count($sessions));
             }
         } else {
-            $chat_count = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) / 2 FROM $table_name 
-                WHERE interaction_time >= %s 
-                AND user_type IN ('Chatbot', 'Visitor')",
-                $start_date
-            ));
-        
-        // Get daily interaction counts for the graph
-        if ($period === '24h') {
-            // Use simpler query for 24h period to avoid placeholder issues
-            $daily_chats = $wpdb->get_results($wpdb->prepare(
-                "SELECT 
-                    DATE_FORMAT(interaction_time, '%%Y-%%m-%%d %%H:00:00') as date,
-                    COUNT(*) / 2 as count
-                FROM $table_name 
-                WHERE interaction_time >= %s AND user_type IN ('Chatbot', 'Visitor')
-                GROUP BY DATE_FORMAT(interaction_time, '%%Y-%%m-%%d %%H:00:00')
-                ORDER BY date ASC",
-                $start_date
-            ));
-        } else {
-            // Use simpler query for daily periods to avoid placeholder issues
-            $daily_chats = $wpdb->get_results($wpdb->prepare(
-                "SELECT 
-                    DATE(interaction_time) as date,
-                    COUNT(*) / 2 as count
-                FROM $table_name 
-                WHERE interaction_time >= %s AND user_type IN ('Chatbot', 'Visitor')
-                GROUP BY DATE(interaction_time)
-                ORDER BY date ASC",
-                $start_date
-            ));
-        }
-    }
-    
-    // Close the table existence check
-    }
-    
-    // DIAG - Diagnostics - Ver 2.3.4
-    // if (empty($daily_chats)) {
-        
-    //     prod_trace( 'NOTICE', 'No data in daily_chats. Period: ' . $period . ', Start date: ' . $start_date);
-    //     prod_trace( 'NOTICE', 'Total chats count: ' . $chat_count);
-        
-    //     // Check if table exists and has data
-    //     if (isset($table_exists) && !$table_exists) {
-    //         prod_trace( 'ERROR', 'Table ' . $table_name . ' does not exist');
-    //     } else {
-    //         $total_rows = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
-    //         prod_trace( 'NOTICE', 'Table exists with ' . $total_rows . ' total rows');
-            
-    //         // Check for recent data
-    //         $recent_data = $wpdb->get_var($wpdb->prepare(
-    //             "SELECT COUNT(*) FROM $table_name WHERE interaction_time >= %s",
-    //             $start_date
-    //         ));
-    //         prod_trace( 'NOTICE', 'Recent data count: ' . $recent_data);
-    //     }
-    // }
-    
-    // Get token usage - only if table exists
-    if (isset($table_exists) && $table_exists) {
-        $token_stats = $wpdb->get_results($wpdb->prepare(
-            "SELECT 
-                SUM(CASE WHEN user_type = 'Prompt Tokens' THEN CAST(message_text AS UNSIGNED) ELSE 0 END) as prompt_tokens,
-                SUM(CASE WHEN user_type = 'Completion Tokens' THEN CAST(message_text AS UNSIGNED) ELSE 0 END) as completion_tokens,
-                SUM(CASE WHEN user_type = 'Total Tokens' THEN CAST(message_text AS UNSIGNED) ELSE 0 END) as total_tokens
-            FROM $table_name 
-            WHERE interaction_time >= %s",
-            $start_date
-        ));
-        
-        // Check for query errors
-        if ($wpdb->last_error) {
-            prod_trace( 'ERROR', 'Token stats query error: ' . $wpdb->last_error);
-            $token_stats = array();
-        }
-        
-        // Get average conversation duration
-        $avg_duration = $wpdb->get_var($wpdb->prepare(
-            "SELECT AVG(duration) FROM (
-                SELECT session_id, 
-                       TIMESTAMPDIFF(SECOND, MIN(interaction_time), MAX(interaction_time)) as duration
-                FROM $table_name 
-                WHERE interaction_time >= %s
-                GROUP BY session_id
-            ) as durations",
-            $start_date
-        ));
-        
-        // Check for query errors
-        if ($wpdb->last_error) {
-            prod_trace( 'ERROR', 'Average duration query error: ' . $wpdb->last_error);
-            $avg_duration = null;
+            $chat_count = 0;
+            $daily_chats = array();
         }
     } else {
-        $token_stats = array();
-        $avg_duration = null;
+        $chat_count = 0;
+        $daily_chats = array();
     }
+    $token_stats = array();
+    $avg_duration = null;
     
     // Output the statistics
     ?>

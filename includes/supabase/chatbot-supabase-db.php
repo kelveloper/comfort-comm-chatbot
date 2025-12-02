@@ -189,6 +189,37 @@ function chatbot_supabase_get_conversations($session_id, $limit = 100) {
 }
 
 /**
+ * Get conversations for a specific user (for conversation history shortcode)
+ */
+function chatbot_supabase_get_user_conversations($user_id, $limit = 1000) {
+    $query_params = [
+        'user_id' => 'eq.' . $user_id,
+        'user_type' => 'in.(Chatbot,Visitor)',
+        'order' => 'interaction_time.desc',
+        'limit' => $limit
+    ];
+
+    $result = chatbot_supabase_request('chatbot_conversations', 'GET', null, $query_params);
+
+    if ($result['success'] && !empty($result['data'])) {
+        // Convert to objects for compatibility with existing code
+        return array_map(function($c) {
+            return (object)array(
+                'message_text' => $c['message_text'] ?? '',
+                'user_type' => $c['user_type'] ?? '',
+                'thread_id' => $c['thread_id'] ?? '',
+                'interaction_time' => $c['interaction_time'] ?? '',
+                'assistant_id' => $c['assistant_id'] ?? '',
+                'assistant_name' => $c['assistant_name'] ?? '',
+                'interaction_date' => isset($c['interaction_time']) ? substr($c['interaction_time'], 0, 10) : date('Y-m-d')
+            );
+        }, $result['data']);
+    }
+
+    return [];
+}
+
+/**
  * Get recent conversations (for reporting)
  */
 function chatbot_supabase_get_recent_conversations($days = 30, $limit = 1000) {
@@ -338,13 +369,23 @@ function chatbot_supabase_get_total_interactions($days = 30) {
 /**
  * Log a gap question (unanswered or low confidence)
  * Now includes vector embedding for semantic clustering
+ * Updated Ver 2.4.8: Includes quality_score and validation_flags
  */
-function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id = null) {
+function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id = null, $quality_data = null) {
+    // Get quality data if validator is available and not already provided
+    if ($quality_data === null && function_exists('chatbot_validate_gap_question')) {
+        $validation = chatbot_validate_gap_question($question_text, $faq_confidence);
+        $quality_data = [
+            'quality_score' => $validation['quality_score'] ?? null,
+            'validation_flags' => $validation['flags'] ?? []
+        ];
+    }
+
     // Try PDO first for proper vector handling
     $pdo = function_exists('chatbot_vector_get_pg_connection') ? chatbot_vector_get_pg_connection() : null;
 
     if ($pdo) {
-        return chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id);
+        return chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id, $quality_data);
     }
 
     // Fallback to REST API (without embedding)
@@ -360,19 +401,31 @@ function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id
         'is_resolved' => false
     ];
 
-    $result = chatbot_supabase_request('chatbot_gap_questions', 'POST', $data);
-
-    if (!$result['success']) {
-        error_log('[Chatbot Supabase] Failed to log gap question: ' . ($result['error'] ?? 'Unknown'));
+    // Add quality data if available
+    if ($quality_data) {
+        if (isset($quality_data['quality_score'])) {
+            $data['quality_score'] = $quality_data['quality_score'];
+        }
+        if (!empty($quality_data['validation_flags'])) {
+            $data['validation_flags'] = json_encode($quality_data['validation_flags']);
+        }
     }
 
-    return $result['success'];
+    $result = chatbot_supabase_request('chatbot_gap_questions', 'POST', $data);
+
+    if (!isset($result['success']) || !$result['success']) {
+        error_log('[Chatbot Supabase] Failed to log gap question: ' . ($result['error'] ?? 'Unknown'));
+        return false;
+    }
+
+    return true;
 }
 
 /**
  * Log gap question using PDO (includes embedding for clustering)
+ * Updated Ver 2.4.8: Includes quality_score and validation_flags
  */
-function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id = null) {
+function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id = null, $quality_data = null) {
     try {
         // Generate embedding for the question
         $embedding = null;
@@ -380,13 +433,17 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
             $embedding = chatbot_vector_generate_embedding($question_text);
         }
 
+        // Prepare quality data
+        $quality_score = isset($quality_data['quality_score']) ? $quality_data['quality_score'] : null;
+        $validation_flags = !empty($quality_data['validation_flags']) ? json_encode($quality_data['validation_flags']) : null;
+
         if ($embedding) {
-            // Insert with embedding
+            // Insert with embedding and quality data
             $embedding_str = chatbot_vector_to_pg_format($embedding);
             $stmt = $pdo->prepare('
                 INSERT INTO chatbot_gap_questions
-                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, embedding)
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?::vector)
+                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, embedding, quality_score, validation_flags)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?::vector, ?, ?::jsonb)
             ');
             $stmt->execute([
                 $question_text,
@@ -395,14 +452,16 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
                 (int)$page_id,
                 $faq_confidence,
                 $faq_match_id,
-                $embedding_str
+                $embedding_str,
+                $quality_score,
+                $validation_flags
             ]);
         } else {
-            // Insert without embedding
+            // Insert without embedding but with quality data
             $stmt = $pdo->prepare('
                 INSERT INTO chatbot_gap_questions
-                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved)
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false)
+                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, quality_score, validation_flags)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?, ?::jsonb)
             ');
             $stmt->execute([
                 $question_text,
@@ -410,7 +469,9 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
                 (int)$user_id,
                 (int)$page_id,
                 $faq_confidence,
-                $faq_match_id
+                $faq_match_id,
+                $quality_score,
+                $validation_flags
             ]);
         }
 
@@ -879,6 +940,175 @@ function chatbot_supabase_get_faq_usage($limit = 100) {
 }
 
 // =============================================================================
+// GAP CLUSTERS MANAGEMENT
+// =============================================================================
+
+/**
+ * Get all gap clusters from Supabase
+ */
+function chatbot_supabase_get_gap_clusters($status = null, $limit = 100) {
+    $query_params = [
+        'order' => 'priority_score.desc',
+        'limit' => $limit
+    ];
+
+    if ($status) {
+        $query_params['status'] = 'eq.' . $status;
+    }
+
+    $result = chatbot_supabase_request('chatbot_gap_clusters', 'GET', null, $query_params);
+
+    if (isset($result['success']) && $result['success']) {
+        return $result['data'] ?? [];
+    }
+
+    return [];
+}
+
+/**
+ * Get gap cluster by ID
+ */
+function chatbot_supabase_get_gap_cluster($id) {
+    $query_params = ['id' => 'eq.' . $id];
+    $result = chatbot_supabase_request('chatbot_gap_clusters', 'GET', null, $query_params);
+
+    if (isset($result['success']) && $result['success'] && !empty($result['data'])) {
+        return $result['data'][0];
+    }
+
+    return null;
+}
+
+/**
+ * Get gap cluster by name
+ */
+function chatbot_supabase_get_gap_cluster_by_name($name) {
+    $query_params = ['cluster_name' => 'eq.' . $name];
+    $result = chatbot_supabase_request('chatbot_gap_clusters', 'GET', null, $query_params);
+
+    if (isset($result['success']) && $result['success'] && !empty($result['data'])) {
+        return $result['data'][0];
+    }
+
+    return null;
+}
+
+/**
+ * Create a new gap cluster
+ * @return array|false Returns the created cluster data or false on failure
+ */
+function chatbot_supabase_create_gap_cluster($data) {
+    $insert_data = [
+        'cluster_name' => $data['cluster_name'] ?? '',
+        'cluster_description' => $data['cluster_description'] ?? '',
+        'question_count' => intval($data['question_count'] ?? 0),
+        'sample_questions' => $data['sample_questions'] ?? '[]',
+        'suggested_faq' => $data['suggested_faq'] ?? '{}',
+        'action_type' => $data['action_type'] ?? 'create',
+        'existing_faq_id' => $data['existing_faq_id'] ?? '',
+        'suggested_keywords' => $data['suggested_keywords'] ?? '[]',
+        'priority_score' => floatval($data['priority_score'] ?? 0),
+        'status' => $data['status'] ?? 'new'
+    ];
+
+    $result = chatbot_supabase_request('chatbot_gap_clusters', 'POST', $insert_data);
+
+    if (isset($result['success']) && $result['success'] && !empty($result['data'])) {
+        return $result['data'][0];
+    }
+
+    error_log('[Chatbot Supabase] Failed to create gap cluster: ' . json_encode($result));
+    return false;
+}
+
+/**
+ * Update a gap cluster
+ */
+function chatbot_supabase_update_gap_cluster($id, $data) {
+    $query_params = ['id' => 'eq.' . $id];
+
+    $update_data = [];
+    $allowed_fields = ['cluster_name', 'cluster_description', 'question_count', 'sample_questions',
+                       'suggested_faq', 'action_type', 'existing_faq_id', 'suggested_keywords',
+                       'priority_score', 'status'];
+
+    foreach ($allowed_fields as $field) {
+        if (isset($data[$field])) {
+            $update_data[$field] = $data[$field];
+        }
+    }
+
+    $result = chatbot_supabase_request('chatbot_gap_clusters', 'PATCH', $update_data, $query_params);
+
+    return isset($result['success']) && $result['success'];
+}
+
+/**
+ * Update gap cluster status
+ */
+function chatbot_supabase_update_gap_cluster_status($id, $status) {
+    return chatbot_supabase_update_gap_cluster($id, ['status' => $status]);
+}
+
+/**
+ * Delete a gap cluster
+ */
+function chatbot_supabase_delete_gap_cluster($id) {
+    $query_params = ['id' => 'eq.' . $id];
+
+    $result = chatbot_supabase_request('chatbot_gap_clusters', 'DELETE', null, $query_params);
+
+    return isset($result['success']) && $result['success'];
+}
+
+/**
+ * Get gap clusters summary (counts by status)
+ */
+function chatbot_supabase_get_gap_clusters_summary() {
+    $all_clusters = chatbot_supabase_get_gap_clusters(null, 1000);
+
+    $summary = [
+        'total' => count($all_clusters),
+        'new' => 0,
+        'reviewed' => 0,
+        'faq_created' => 0,
+        'dismissed' => 0,
+        'total_questions' => 0
+    ];
+
+    foreach ($all_clusters as $cluster) {
+        $status = $cluster['status'] ?? 'new';
+        if (isset($summary[$status])) {
+            $summary[$status]++;
+        }
+        $summary['total_questions'] += intval($cluster['question_count'] ?? 0);
+    }
+
+    return $summary;
+}
+
+/**
+ * Mark gap questions as clustered
+ */
+function chatbot_supabase_mark_questions_clustered($question_ids, $cluster_id) {
+    if (empty($question_ids)) {
+        return false;
+    }
+
+    // Supabase doesn't support IN directly, so we update one by one
+    foreach ($question_ids as $qid) {
+        $query_params = ['id' => 'eq.' . intval($qid)];
+        $data = [
+            'is_clustered' => true,
+            'cluster_id' => intval($cluster_id)
+        ];
+        chatbot_supabase_request('chatbot_gap_questions', 'PATCH', $data, $query_params);
+    }
+
+    return true;
+}
+
+// =============================================================================
 // ASSISTANTS MANAGEMENT
 // =============================================================================
 
@@ -1016,4 +1246,383 @@ function chatbot_supabase_get_diagnostics() {
     }
 
     return $diagnostics;
+}
+
+// =============================================================================
+// ANALYTICS FUNCTIONS FOR SUPABASE
+// =============================================================================
+
+/**
+ * Get time-based conversation counts from Supabase
+ * This replaces kognetiks_analytics_get_time_based_conversation_counts for Supabase
+ */
+function chatbot_supabase_get_time_based_conversation_counts($period = 'Week') {
+    // Define period ranges
+    $periods = array(
+        'Today' => array(
+            'current_start' => gmdate('Y-m-d\T00:00:00\Z'),
+            'current_end' => gmdate('Y-m-d\T23:59:59\Z'),
+            'previous_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('-1 day')),
+            'previous_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('-1 day')),
+            'current_label' => 'Today',
+            'previous_label' => 'Yesterday'
+        ),
+        'Week' => array(
+            'current_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('monday this week')),
+            'current_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('sunday this week')),
+            'previous_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('monday last week')),
+            'previous_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('sunday last week')),
+            'current_label' => 'This Week',
+            'previous_label' => 'Last Week'
+        ),
+        'Month' => array(
+            'current_start' => gmdate('Y-m-01\T00:00:00\Z'),
+            'current_end' => gmdate('Y-m-t\T23:59:59\Z'),
+            'previous_start' => gmdate('Y-m-01\T00:00:00\Z', strtotime('first day of last month')),
+            'previous_end' => gmdate('Y-m-t\T23:59:59\Z', strtotime('last day of last month')),
+            'current_label' => 'This Month',
+            'previous_label' => 'Last Month'
+        ),
+        'Quarter' => array(
+            'current_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('first day of ' . ceil(date('n')/3)*3-2 . ' month this year')),
+            'current_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('last day of ' . ceil(date('n')/3)*3 . ' month this year')),
+            'previous_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('-3 months', strtotime('first day of ' . ceil(date('n')/3)*3-2 . ' month this year'))),
+            'previous_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('-3 months', strtotime('last day of ' . ceil(date('n')/3)*3 . ' month this year'))),
+            'current_label' => 'This Quarter',
+            'previous_label' => 'Last Quarter'
+        ),
+        'Year' => array(
+            'current_start' => gmdate('Y-01-01\T00:00:00\Z'),
+            'current_end' => gmdate('Y-12-31\T23:59:59\Z'),
+            'previous_start' => gmdate('Y-01-01\T00:00:00\Z', strtotime('-1 year')),
+            'previous_end' => gmdate('Y-12-31\T23:59:59\Z', strtotime('-1 year')),
+            'current_label' => 'This Year',
+            'previous_label' => 'Last Year'
+        )
+    );
+
+    $period_info = $periods[$period] ?? $periods['Week'];
+
+    // Get current period conversations
+    $current_data = chatbot_supabase_get_conversations_in_range(
+        $period_info['current_start'],
+        $period_info['current_end']
+    );
+
+    // Get previous period conversations
+    $previous_data = chatbot_supabase_get_conversations_in_range(
+        $period_info['previous_start'],
+        $period_info['previous_end']
+    );
+
+    return array(
+        'current' => $current_data,
+        'previous' => $previous_data,
+        'current_period_label' => $period_info['current_label'],
+        'previous_period_label' => $period_info['previous_label']
+    );
+}
+
+/**
+ * Get conversations in a date range from Supabase
+ */
+function chatbot_supabase_get_conversations_in_range($start_date, $end_date) {
+    if (!chatbot_supabase_is_configured()) {
+        return array('total' => 0, 'unique_visitors' => 0);
+    }
+
+    $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    // Query for all conversations in range
+    $query_params = http_build_query([
+        'select' => 'session_id,user_type',
+        'interaction_time' => 'gte.' . $start_date,
+        'order' => 'interaction_time.asc'
+    ]);
+
+    // Add the end date filter
+    $url = $base_url . '/chatbot_conversations?' . $query_params . '&interaction_time=lte.' . $end_date;
+
+    $headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+        'Content-Type: application/json'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code >= 200 && $http_code < 300) {
+        $data = json_decode($response, true);
+        if (is_array($data)) {
+            $unique_sessions = array_unique(array_column($data, 'session_id'));
+            return array(
+                'total' => count($unique_sessions),
+                'unique_visitors' => count($unique_sessions)
+            );
+        }
+    }
+
+    return array('total' => 0, 'unique_visitors' => 0);
+}
+
+/**
+ * Get message statistics from Supabase
+ */
+function chatbot_supabase_get_message_statistics($period = 'Week') {
+    // Define period ranges (same as above)
+    $periods = array(
+        'Today' => array(
+            'current_start' => gmdate('Y-m-d\T00:00:00\Z'),
+            'current_end' => gmdate('Y-m-d\T23:59:59\Z'),
+            'previous_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('-1 day')),
+            'previous_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('-1 day')),
+            'current_label' => 'Today',
+            'previous_label' => 'Yesterday'
+        ),
+        'Week' => array(
+            'current_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('monday this week')),
+            'current_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('sunday this week')),
+            'previous_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('monday last week')),
+            'previous_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('sunday last week')),
+            'current_label' => 'This Week',
+            'previous_label' => 'Last Week'
+        ),
+        'Month' => array(
+            'current_start' => gmdate('Y-m-01\T00:00:00\Z'),
+            'current_end' => gmdate('Y-m-t\T23:59:59\Z'),
+            'previous_start' => gmdate('Y-m-01\T00:00:00\Z', strtotime('first day of last month')),
+            'previous_end' => gmdate('Y-m-t\T23:59:59\Z', strtotime('last day of last month')),
+            'current_label' => 'This Month',
+            'previous_label' => 'Last Month'
+        ),
+        'Quarter' => array(
+            'current_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('first day of ' . ceil(date('n')/3)*3-2 . ' month this year')),
+            'current_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('last day of ' . ceil(date('n')/3)*3 . ' month this year')),
+            'previous_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('-3 months', strtotime('first day of ' . ceil(date('n')/3)*3-2 . ' month this year'))),
+            'previous_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('-3 months', strtotime('last day of ' . ceil(date('n')/3)*3 . ' month this year'))),
+            'current_label' => 'This Quarter',
+            'previous_label' => 'Last Quarter'
+        ),
+        'Year' => array(
+            'current_start' => gmdate('Y-01-01\T00:00:00\Z'),
+            'current_end' => gmdate('Y-12-31\T23:59:59\Z'),
+            'previous_start' => gmdate('Y-01-01\T00:00:00\Z', strtotime('-1 year')),
+            'previous_end' => gmdate('Y-12-31\T23:59:59\Z', strtotime('-1 year')),
+            'current_label' => 'This Year',
+            'previous_label' => 'Last Year'
+        )
+    );
+
+    $period_info = $periods[$period] ?? $periods['Week'];
+
+    // Get current period messages
+    $current_data = chatbot_supabase_get_messages_in_range(
+        $period_info['current_start'],
+        $period_info['current_end']
+    );
+
+    // Get previous period messages
+    $previous_data = chatbot_supabase_get_messages_in_range(
+        $period_info['previous_start'],
+        $period_info['previous_end']
+    );
+
+    return array(
+        'current' => $current_data,
+        'previous' => $previous_data,
+        'current_period_label' => $period_info['current_label'],
+        'previous_period_label' => $period_info['previous_label']
+    );
+}
+
+/**
+ * Get message counts in a date range from Supabase
+ */
+function chatbot_supabase_get_messages_in_range($start_date, $end_date) {
+    if (!chatbot_supabase_is_configured()) {
+        return array('total_messages' => 0, 'visitor_messages' => 0, 'chatbot_messages' => 0);
+    }
+
+    $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    // Query for all messages in range
+    $query_params = http_build_query([
+        'select' => 'user_type',
+        'interaction_time' => 'gte.' . $start_date,
+        'order' => 'interaction_time.asc'
+    ]);
+
+    $url = $base_url . '/chatbot_conversations?' . $query_params . '&interaction_time=lte.' . $end_date;
+
+    $headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+        'Content-Type: application/json'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code >= 200 && $http_code < 300) {
+        $data = json_decode($response, true);
+        if (is_array($data)) {
+            $total = count($data);
+            $visitor_messages = count(array_filter($data, function($msg) {
+                return ($msg['user_type'] ?? '') === 'Visitor';
+            }));
+            $chatbot_messages = count(array_filter($data, function($msg) {
+                return ($msg['user_type'] ?? '') === 'Chatbot';
+            }));
+            return array(
+                'total_messages' => $total,
+                'visitor_messages' => $visitor_messages,
+                'chatbot_messages' => $chatbot_messages
+            );
+        }
+    }
+
+    return array('total_messages' => 0, 'visitor_messages' => 0, 'chatbot_messages' => 0);
+}
+
+/**
+ * Get sentiment statistics from Supabase
+ */
+function chatbot_supabase_get_sentiment_statistics($period = 'Week') {
+    // Define period ranges
+    $periods = array(
+        'Today' => array(
+            'current_start' => gmdate('Y-m-d\T00:00:00\Z'),
+            'current_end' => gmdate('Y-m-d\T23:59:59\Z'),
+            'previous_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('-1 day')),
+            'previous_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('-1 day')),
+            'current_label' => 'Today',
+            'previous_label' => 'Yesterday'
+        ),
+        'Week' => array(
+            'current_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('monday this week')),
+            'current_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('sunday this week')),
+            'previous_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('monday last week')),
+            'previous_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('sunday last week')),
+            'current_label' => 'This Week',
+            'previous_label' => 'Last Week'
+        ),
+        'Month' => array(
+            'current_start' => gmdate('Y-m-01\T00:00:00\Z'),
+            'current_end' => gmdate('Y-m-t\T23:59:59\Z'),
+            'previous_start' => gmdate('Y-m-01\T00:00:00\Z', strtotime('first day of last month')),
+            'previous_end' => gmdate('Y-m-t\T23:59:59\Z', strtotime('last day of last month')),
+            'current_label' => 'This Month',
+            'previous_label' => 'Last Month'
+        ),
+        'Quarter' => array(
+            'current_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('first day of ' . ceil(date('n')/3)*3-2 . ' month this year')),
+            'current_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('last day of ' . ceil(date('n')/3)*3 . ' month this year')),
+            'previous_start' => gmdate('Y-m-d\T00:00:00\Z', strtotime('-3 months', strtotime('first day of ' . ceil(date('n')/3)*3-2 . ' month this year'))),
+            'previous_end' => gmdate('Y-m-d\T23:59:59\Z', strtotime('-3 months', strtotime('last day of ' . ceil(date('n')/3)*3 . ' month this year'))),
+            'current_label' => 'This Quarter',
+            'previous_label' => 'Last Quarter'
+        ),
+        'Year' => array(
+            'current_start' => gmdate('Y-01-01\T00:00:00\Z'),
+            'current_end' => gmdate('Y-12-31\T23:59:59\Z'),
+            'previous_start' => gmdate('Y-01-01\T00:00:00\Z', strtotime('-1 year')),
+            'previous_end' => gmdate('Y-12-31\T23:59:59\Z', strtotime('-1 year')),
+            'current_label' => 'This Year',
+            'previous_label' => 'Last Year'
+        )
+    );
+
+    $period_info = $periods[$period] ?? $periods['Week'];
+
+    // Get current period sentiment
+    $current_data = chatbot_supabase_get_sentiment_in_range(
+        $period_info['current_start'],
+        $period_info['current_end']
+    );
+
+    // Get previous period sentiment
+    $previous_data = chatbot_supabase_get_sentiment_in_range(
+        $period_info['previous_start'],
+        $period_info['previous_end']
+    );
+
+    return array(
+        'current' => $current_data,
+        'previous' => $previous_data,
+        'current_period_label' => $period_info['current_label'],
+        'previous_period_label' => $period_info['previous_label']
+    );
+}
+
+/**
+ * Get sentiment data in a date range from Supabase
+ */
+function chatbot_supabase_get_sentiment_in_range($start_date, $end_date) {
+    if (!chatbot_supabase_is_configured()) {
+        return array('avg_score' => 0, 'positive_percent' => 0);
+    }
+
+    $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    // Query for messages with sentiment scores
+    $query_params = http_build_query([
+        'select' => 'sentiment_score',
+        'interaction_time' => 'gte.' . $start_date,
+        'sentiment_score' => 'not.is.null'
+    ]);
+
+    $url = $base_url . '/chatbot_conversations?' . $query_params . '&interaction_time=lte.' . $end_date;
+
+    $headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+        'Content-Type: application/json'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code >= 200 && $http_code < 300) {
+        $data = json_decode($response, true);
+        if (is_array($data) && count($data) > 0) {
+            $scores = array_filter(array_column($data, 'sentiment_score'), function($s) {
+                return $s !== null && $s !== '';
+            });
+
+            if (count($scores) > 0) {
+                $avg_score = array_sum($scores) / count($scores);
+                $positive = count(array_filter($scores, function($s) { return floatval($s) > 0; }));
+                $positive_percent = ($positive / count($scores)) * 100;
+
+                return array(
+                    'avg_score' => round($avg_score, 2),
+                    'positive_percent' => round($positive_percent, 1)
+                );
+            }
+        }
+    }
+
+    return array('avg_score' => 0, 'positive_percent' => 0);
 }

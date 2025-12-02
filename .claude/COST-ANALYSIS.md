@@ -469,3 +469,143 @@ Choose based on your actual traffic:
 **Need help with anything? Let me know!**
 
 **Last Updated**: November 25, 2025
+
+---
+
+## 💵 **Budget Tiers - What You Get** (Added Dec 2025)
+
+### $20/Month Tier
+
+| Model | Messages/Month | Features Included |
+|-------|---------------|-------------------|
+| **Gemini 2.0 Flash** | ~10,000 | All features |
+| **GPT-4o-mini** | ~6,500 | All features |
+| **GPT-3.5-turbo** | ~2,000 | All features |
+
+**$20/month breakdown:**
+| Component | Cost |
+|-----------|------|
+| Chat (Gemini Flash) | ~$20.00 |
+| Embeddings | FREE |
+| Off-Topic Detection (Vector) | FREE |
+| Off-Topic AI Verification | ~$0.03 |
+| Gap Analysis (2x runs) | ~$0.02 |
+| **Total** | **~$20.05** |
+
+**Best for:** Small business, 300-500 messages/day
+
+---
+
+### $30/Month Tier
+
+| Model | Messages/Month | Features Included |
+|-------|---------------|-------------------|
+| **Gemini 2.0 Flash** | ~15,000 | All features |
+| **GPT-4o-mini** | ~10,000 | All features |
+| **Mixed (Gemini + GPT)** | ~12,000 | All features |
+
+**$30/month breakdown:**
+| Component | Cost |
+|-----------|------|
+| Chat (Gemini Flash) | ~$30.00 |
+| Embeddings | FREE |
+| Off-Topic Detection (Vector) | FREE |
+| Off-Topic AI Verification | ~$0.05 |
+| Gap Analysis (4x runs) | ~$0.04 |
+| **Total** | **~$30.09** |
+
+**Best for:** Medium business, 500-750 messages/day
+
+---
+
+## 🏷️ **Pricing Model - All Pay-As-You-Go**
+
+| Provider | Model | Pricing Type | How It Works |
+|----------|-------|--------------|--------------|
+| **OpenAI** | GPT-4o, GPT-4o-mini | **Pay-as-you-go** | Charged per token used, no monthly fee |
+| **OpenAI** | GPT-3.5-turbo | **Pay-as-you-go** | Charged per token used, no monthly fee |
+| **Google** | Gemini Flash/Pro | **Pay-as-you-go** | Charged per token, FREE tier available |
+| **Google** | Gemini Embeddings | **FREE** | Free up to generous limits |
+| **Anthropic** | Claude Sonnet | **Pay-as-you-go** | Charged per token used |
+
+### All APIs are Pay-As-You-Go
+
+**There are NO monthly subscriptions required.** You only pay for what you use:
+
+- **No usage = $0 cost**
+- **Light usage = pennies**
+- **Heavy usage = scales with usage**
+
+### Free Tier Limits (Google Gemini)
+
+| Feature | Free Limit |
+|---------|------------|
+| Gemini Flash | 15 RPM, 1M tokens/day |
+| Gemini Pro | 2 RPM, 32K tokens/day |
+| Embeddings | 1500 requests/day |
+
+**RPM = Requests Per Minute**
+
+For most small-medium sites, you may stay within FREE limits for embeddings entirely.
+
+---
+
+## 🛡️ **Off-Topic Detection Costs** (Added Dec 2025)
+
+The plugin now includes smart off-topic detection (Option B: Vector + AI):
+
+| Component | How It Works | Cost |
+|-----------|--------------|------|
+| Vector Check | Compare question embedding to FAQ embeddings | **FREE** (Gemini) |
+| AI Verification | Only for borderline cases (0.20-0.35 similarity) | ~$0.0005/question |
+
+**Monthly Cost:**
+- 50 borderline questions/month: **~$0.03**
+- 100 borderline questions/month: **~$0.05**
+- 200 borderline questions/month: **~$0.10**
+
+**Total off-topic feature cost: $0.05-0.10/month** (essentially free)
+
+---
+
+## 📊 **Realistic Usage Scenarios**
+
+### Scenario A: Small Blog/Store (Low Traffic)
+```
+Daily visitors: 50-100
+Chat messages: 20-50/day
+Monthly messages: ~1,000
+
+Cost with Gemini Flash: ~$2/month
+Cost with GPT-4o-mini: ~$3/month
+```
+
+### Scenario B: Active Business Site (Medium Traffic)
+```
+Daily visitors: 200-500
+Chat messages: 100-200/day
+Monthly messages: ~5,000
+
+Cost with Gemini Flash: ~$10/month
+Cost with GPT-4o-mini: ~$15/month
+```
+
+### Scenario C: High-Volume Site (High Traffic)
+```
+Daily visitors: 1000+
+Chat messages: 500-1000/day
+Monthly messages: ~20,000
+
+Cost with Gemini Flash: ~$40/month
+Cost with GPT-4o-mini: ~$60/month
+```
+
+---
+
+## 💡 **Cost Optimization Tips**
+
+1. **Use Gemini Flash for chat** - 5x cheaper than GPT-4o-mini
+2. **Use Gemini for embeddings** - Completely FREE
+3. **Enable off-topic filtering** - Prevents wasted tokens on spam
+4. **Cache FAQ embeddings** - Already implemented, saves API calls
+5. **Set confidence thresholds** - Higher threshold = fewer gap questions = less processing
