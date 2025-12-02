@@ -124,8 +124,16 @@ CREATE TABLE IF NOT EXISTS chatbot_gap_questions (
     cluster_id INTEGER,
     is_resolved BOOLEAN DEFAULT FALSE,
     embedding vector(1536),  -- Vector embedding for semantic clustering
+    conversation_context TEXT,  -- Previous Q&A for follow-up questions (Ver 2.5.0)
+    quality_score FLOAT,  -- Question quality score for spam filtering (Ver 2.4.8)
+    validation_flags JSONB,  -- Validation flags like too_short, off_topic (Ver 2.4.8)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Migration: Add columns if table already exists
+ALTER TABLE chatbot_gap_questions ADD COLUMN IF NOT EXISTS conversation_context TEXT;
+ALTER TABLE chatbot_gap_questions ADD COLUMN IF NOT EXISTS quality_score FLOAT;
+ALTER TABLE chatbot_gap_questions ADD COLUMN IF NOT EXISTS validation_flags JSONB;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_gap_session_id ON chatbot_gap_questions(session_id);
