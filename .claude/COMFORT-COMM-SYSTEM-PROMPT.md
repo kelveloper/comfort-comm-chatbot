@@ -1,6 +1,6 @@
 # Comfort Communication Inc. - System Prompt
 
-## Copy this prompt into: WordPress Admin → Kognetiks → Chatbot → API/Gemini Tab → "Conversation Context" field
+## Copy this prompt into: WordPress Admin → Steve Chatbot → Settings → API/Gemini Tab → "Conversation Context" field
 
 ---
 
