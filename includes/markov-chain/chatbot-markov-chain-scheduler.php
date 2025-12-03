@@ -148,12 +148,16 @@ function chatbot_markov_chain_build_results_callback($run_scanner) {
     }
 }
 
-// Register a custom weekly interval if not already defined
-add_filter('cron_schedules', 'chatbot_chatgpt_add_weekly_schedule');
-function chatbot_chatgpt_add_weekly_schedule($schedules) {
+// Register custom cron intervals if not already defined
+add_filter('cron_schedules', 'chatbot_chatgpt_add_custom_schedules');
+function chatbot_chatgpt_add_custom_schedules($schedules) {
     $schedules['weekly'] = array(
         'interval' => 604800, // 1 week in seconds
         'display' => __('Once Weekly')
+    );
+    $schedules['quarterly'] = array(
+        'interval' => 7776000, // 90 days in seconds (90 * 24 * 60 * 60)
+        'display' => __('Once Quarterly')
     );
     return $schedules;
 }

@@ -332,9 +332,9 @@ function chatbot_chatgpt_activate_db() {
         wp_schedule_event(time(), 'daily', 'chatbot_chatgpt_conversation_log_cleanup_event');
     }
 
-    // Schedule weekly gap analysis
+    // Schedule quarterly gap analysis (every 90 days)
     if (!wp_next_scheduled('chatbot_gap_analysis_event')) {
-        wp_schedule_event(time(), 'weekly', 'chatbot_gap_analysis_event');
+        wp_schedule_event(time(), 'quarterly', 'chatbot_gap_analysis_event');
     }
 }
 

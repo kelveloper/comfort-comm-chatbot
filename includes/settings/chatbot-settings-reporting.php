@@ -971,10 +971,11 @@ function chatbot_chatgpt_gap_analysis_section_callback($args) {
 function chatbot_chatgpt_gap_analysis_callback() {
     error_log('🔍 GAP ANALYSIS CALLBACK CALLED');
 
-    // Get saved frequency setting (default: weekly)
-    $analysis_frequency = get_option('chatbot_gap_analysis_frequency', 'weekly');
-    $days_map = ['weekly' => 7, 'monthly' => 30, 'yearly' => 365];
-    $days = $days_map[$analysis_frequency] ?? 7;
+    // Learning runs quarterly (fixed) - stats period is selectable
+    $analysis_frequency = 'quarterly'; // Fixed to quarterly
+    $stats_period = isset($_GET['stats_period']) ? sanitize_text_field($_GET['stats_period']) : get_option('chatbot_gap_stats_period', 'quarterly');
+    $days_map = ['weekly' => 7, 'monthly' => 30, 'quarterly' => 90, 'yearly' => 365];
+    $days = $days_map[$stats_period] ?? 90;
 
     // Get gap analysis data
     $data = chatbot_get_gap_analysis_data($days);
@@ -998,27 +999,13 @@ function chatbot_chatgpt_gap_analysis_callback() {
 
         <!-- AI Summary Preview -->
         <?php
-        $frequency_descriptions = [
-            'weekly' => [
-                'title' => 'Weekly Analysis Mode',
-                'interval' => '7 days',
-                'description' => 'AI will automatically analyze gap questions every week. Best for new FAQ databases that need frequent updates.',
-                'color' => '#3b82f6'
-            ],
-            'monthly' => [
-                'title' => 'Monthly Analysis Mode',
-                'interval' => '30 days',
-                'description' => 'AI will automatically analyze gap questions every month. Good for mature FAQ databases with occasional updates.',
-                'color' => '#8b5cf6'
-            ],
-            'yearly' => [
-                'title' => 'Yearly Analysis Mode',
-                'interval' => '365 days',
-                'description' => 'AI will automatically analyze gap questions once per year. Best for very mature FAQ databases that rarely need updates.',
-                'color' => '#059669'
-            ]
+        // Quarterly is the fixed learning frequency
+        $current_freq = [
+            'title' => 'Quarterly Analysis Mode',
+            'interval' => '90 days',
+            'description' => 'AI automatically analyzes gap questions every quarter (3 months). This gives enough time to collect meaningful data while keeping the FAQ database current.',
+            'color' => '#8b5cf6'
         ];
-        $current_freq = $frequency_descriptions[$analysis_frequency];
         ?>
         <div style="background: white; border-left: 4px solid <?php echo $current_freq['color']; ?>; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
             <div style="display: flex; align-items: start; gap: 15px;">
@@ -1026,7 +1013,7 @@ function chatbot_chatgpt_gap_analysis_callback() {
                 <div style="flex: 1;">
                     <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #111827;">
                         <span style="background-color: <?php echo $current_freq['color']; ?>; color: white; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; margin-right: 8px;">
-                            <?php echo strtoupper($analysis_frequency); ?>
+                            QUARTERLY
                         </span>
                         <?php echo $current_freq['title']; ?>
                     </h3>
@@ -1059,27 +1046,42 @@ function chatbot_chatgpt_gap_analysis_callback() {
             </div>
         </div>
 
-        <!-- Analysis Frequency -->
-        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #374151;">
-                Analysis Frequency:
-            </label>
-            <select id="chatbot_analysis_frequency" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; width: 200px;">
-                <option value="weekly" <?php selected($analysis_frequency, 'weekly'); ?>>Weekly</option>
-                <option value="monthly" <?php selected($analysis_frequency, 'monthly'); ?>>Monthly</option>
-                <option value="yearly" <?php selected($analysis_frequency, 'yearly'); ?>>Yearly</option>
-            </select>
-            <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;">
-                This controls how often AI automatically analyzes gap questions
-            </p>
+        <!-- Stats Period Filter + Run Analysis Button -->
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #374151;">
+                    View Stats For:
+                </label>
+                <select id="chatbot_stats_period" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; width: 200px;">
+                    <option value="weekly" <?php selected($stats_period, 'weekly'); ?>>Last 7 Days</option>
+                    <option value="monthly" <?php selected($stats_period, 'monthly'); ?>>Last 30 Days</option>
+                    <option value="quarterly" <?php selected($stats_period, 'quarterly'); ?>>Last 90 Days (Quarter)</option>
+                    <option value="yearly" <?php selected($stats_period, 'yearly'); ?>>Last 365 Days (Year)</option>
+                </select>
+                <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;">
+                    Filter gap question stats by time period
+                </p>
+            </div>
+            <div>
+                <button type="button" id="run_gap_analysis_now" class="button button-primary" style="padding: 8px 16px; font-size: 14px;">
+                    🔄 Run Analysis Now
+                </button>
+                <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;">
+                    Manually trigger AI analysis
+                </p>
+            </div>
         </div>
 
         <!-- Stats Overview -->
+        <?php
+        $period_labels = ['weekly' => 'Last 7 Days', 'monthly' => 'Last 30 Days', 'quarterly' => 'Last 90 Days', 'yearly' => 'Last 365 Days'];
+        $period_label = $period_labels[$stats_period] ?? 'Last 90 Days';
+        ?>
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">📊 Overview</h3>
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">📊 Overview - <?php echo $period_label; ?></h3>
             <table style="width: 100%; border-collapse: collapse;">
                 <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 12px; font-size: 13px; color: #6b7280;">Total Gap Questions (<?php echo $days; ?> days):</td>
+                    <td style="padding: 12px; font-size: 13px; color: #6b7280;">Total Gap Questions:</td>
                     <td style="padding: 12px; font-size: 18px; font-weight: bold; text-align: right; color: #111827;"><?php echo $total_gaps; ?></td>
                 </tr>
                 <tr style="border-bottom: 1px solid #e5e7eb;">
@@ -1382,27 +1384,41 @@ function chatbot_chatgpt_gap_analysis_callback() {
         });
     }
 
-    // Handle frequency dropdown change
+    // Handle stats period dropdown change
     jQuery(document).ready(function($) {
-        $('#chatbot_analysis_frequency').on('change', function() {
-            const frequency = $(this).val();
-            const originalVal = '<?php echo $analysis_frequency; ?>';
+        $('#chatbot_stats_period').on('change', function() {
+            const period = $(this).val();
+            // Reload page with new period
+            const url = new URL(window.location.href);
+            url.searchParams.set('stats_period', period);
+            window.location.href = url.toString();
+        });
 
-            if (frequency === originalVal) return;
+        // Handle Run Analysis Now button
+        $('#run_gap_analysis_now').on('click', function() {
+            const $btn = $(this);
+            const originalText = $btn.text();
+
+            if (!confirm('Run AI gap analysis now? This will analyze all unresolved gap questions and generate FAQ suggestions.')) {
+                return;
+            }
+
+            $btn.prop('disabled', true).text('⏳ Running...');
 
             $.post(ajaxurl, {
-                action: 'chatbot_save_analysis_frequency',
-                frequency: frequency,
+                action: 'chatbot_run_gap_analysis_manual',
                 nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
             }, function(response) {
                 if (response.success) {
-                    // Show success message
-                    const message = $('<div class="notice notice-success is-dismissible" style="margin: 10px 0; padding: 10px;"><p><b>Saved!</b> Analysis frequency updated to ' + frequency + '.</p></div>');
-                    $('#chatbot_analysis_frequency').parent().parent().after(message);
-                    setTimeout(function() { location.reload(); }, 1500);
+                    alert('✅ Analysis complete! ' + (response.data.message || 'FAQ suggestions generated.'));
+                    location.reload();
                 } else {
-                    alert('Error: ' + (response.data || 'Unknown error'));
+                    alert('❌ Error: ' + (response.data || 'Analysis failed'));
+                    $btn.prop('disabled', false).text(originalText);
                 }
+            }).fail(function() {
+                alert('❌ Request failed. Please try again.');
+                $btn.prop('disabled', false).text(originalText);
             });
         });
     });
