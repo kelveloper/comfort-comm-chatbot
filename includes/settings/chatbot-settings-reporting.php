@@ -1006,6 +1006,11 @@ function chatbot_chatgpt_gap_analysis_callback() {
             'description' => 'AI automatically analyzes gap questions every quarter (3 months). This gives enough time to collect meaningful data while keeping the FAQ database current.',
             'color' => '#8b5cf6'
         ];
+
+        // Get next scheduled analysis date
+        $next_analysis = wp_next_scheduled('chatbot_gap_analysis_event');
+        $next_analysis_date = $next_analysis ? date('F j, Y', $next_analysis) : 'Not scheduled';
+        $days_until_next = $next_analysis ? max(0, floor(($next_analysis - time()) / 86400)) : 0;
         ?>
         <div style="background: white; border-left: 4px solid <?php echo $current_freq['color']; ?>; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
             <div style="display: flex; align-items: start; gap: 15px;">
@@ -1020,6 +1025,14 @@ function chatbot_chatgpt_gap_analysis_callback() {
                     <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
                         <?php echo $current_freq['description']; ?>
                     </p>
+                    <div style="background-color: #e0f2fe; border: 1px solid #0ea5e9; padding: 10px 15px; border-radius: 6px; margin-bottom: 10px; display: inline-block;">
+                        <span style="font-size: 13px; color: #0369a1;">
+                            📅 <strong>Next Scheduled Analysis:</strong> <?php echo $next_analysis_date; ?>
+                            <?php if ($days_until_next > 0): ?>
+                                <span style="color: #6b7280;">(<?php echo $days_until_next; ?> days)</span>
+                            <?php endif; ?>
+                        </span>
+                    </div>
                     <div style="background-color: #f9fafb; padding: 10px; border-radius: 4px; font-size: 13px; color: #374151;">
                         <strong>How it works:</strong>
                         <ol style="margin: 8px 0 0 0; padding-left: 20px;">

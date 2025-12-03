@@ -26,7 +26,8 @@ function chatbot_run_gap_analysis() {
         return false;
     }
 
-    $questions = chatbot_supabase_get_gap_questions(100, false);
+    // Increased to 500 for quarterly analysis (3 months of data)
+    $questions = chatbot_supabase_get_gap_questions(500, false);
     if (empty($questions)) {
         error_log('[Chatbot] No new gap questions to analyze');
         return false;

@@ -502,8 +502,9 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
 
 /**
  * Get gap questions (unresolved)
+ * Default limit increased to 500 for quarterly analysis (3 months of data)
  */
-function chatbot_supabase_get_gap_questions($limit = 100, $include_resolved = false) {
+function chatbot_supabase_get_gap_questions($limit = 500, $include_resolved = false) {
     $query_params = [
         'order' => 'asked_date.desc',
         'limit' => $limit
