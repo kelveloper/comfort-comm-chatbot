@@ -26,8 +26,9 @@ function chatbot_run_gap_analysis() {
         return false;
     }
 
-    // Increased to 500 for quarterly analysis (3 months of data)
-    $questions = chatbot_supabase_get_gap_questions(500, false);
+    // Limit to 200 for small business - keeps costs low (~$0.20-0.40 per analysis)
+    // Most small businesses won't have more than 200 unique gap questions per quarter
+    $questions = chatbot_supabase_get_gap_questions(200, false);
     if (empty($questions)) {
         error_log('[Chatbot] No new gap questions to analyze');
         return false;
