@@ -334,9 +334,60 @@ function chatbot_chatgpt_activate_db() {
 
     // Schedule quarterly gap analysis (every 90 days)
     if (!wp_next_scheduled('chatbot_gap_analysis_event')) {
-        wp_schedule_event(time(), 'quarterly', 'chatbot_gap_analysis_event');
+        wp_schedule_event(time() + (90 * DAY_IN_SECONDS), 'quarterly', 'chatbot_gap_analysis_event');
     }
 }
+
+// Ensure quarterly gap analysis is scheduled - runs on admin_init as fallback
+function chatbot_ensure_gap_analysis_scheduled() {
+    if (!wp_next_scheduled('chatbot_gap_analysis_event')) {
+        wp_schedule_event(time() + (90 * DAY_IN_SECONDS), 'quarterly', 'chatbot_gap_analysis_event');
+    }
+}
+add_action('admin_init', 'chatbot_ensure_gap_analysis_scheduled');
+
+/**
+ * Auto-run gap analysis when there are 30+ unclustered questions
+ * Runs on wp_footer (frontend) to avoid slowing down admin
+ * Uses transient to prevent running too frequently (max once per hour)
+ * Only runs if auto-analysis is enabled in settings
+ */
+function chatbot_auto_run_gap_analysis() {
+    // Check if auto-analysis is enabled (default: off)
+    $auto_enabled = get_option('chatbot_gap_auto_analysis_enabled', 'off');
+    if ($auto_enabled !== 'on') {
+        return;
+    }
+
+    // Only run if not already running recently (1 hour cooldown)
+    $last_run = get_transient('chatbot_gap_analysis_last_auto_run');
+    if ($last_run) {
+        return;
+    }
+
+    // Check if we have enough unclustered questions
+    if (!function_exists('chatbot_supabase_get_gap_questions_count')) {
+        return;
+    }
+
+    $unclustered_count = chatbot_supabase_get_gap_questions_count(false, false);
+
+    // Only auto-run if 30+ questions waiting
+    if ($unclustered_count < 30) {
+        return;
+    }
+
+    error_log("[Chatbot Gap Analysis] Auto-triggering: {$unclustered_count} unclustered questions found");
+
+    // Set cooldown transient (1 hour)
+    set_transient('chatbot_gap_analysis_last_auto_run', time(), HOUR_IN_SECONDS);
+
+    // Run the analysis (we already checked 30+ above, so pass false to let it re-verify)
+    if (function_exists('chatbot_run_gap_analysis')) {
+        chatbot_run_gap_analysis(false); // false = respect minimum check
+    }
+}
+add_action('wp_footer', 'chatbot_auto_run_gap_analysis');
 
 // Add sentiment_score column if missing - Ver 2.3.1
 function chatbot_chatgpt_add_sentiment_score_column() {
@@ -435,7 +486,6 @@ function create_chatbot_gap_clusters_table() {
         suggested_faq TEXT,
         action_type ENUM('create', 'improve') DEFAULT 'create',
         existing_faq_id VARCHAR(50),
-        suggested_keywords TEXT,
         priority_score FLOAT,
         status ENUM('new', 'reviewed', 'faq_created', 'dismissed') DEFAULT 'new',
         created_at DATETIME NOT NULL,
@@ -509,3 +559,380 @@ function chatbot_chatgpt_deactivate_db() {
 
 // Hook for the cleanup event
 add_action('chatbot_chatgpt_conversation_log_cleanup_event', 'chatbot_chatgpt_conversation_log_cleanup');
+
+// =============================================================================
+// DATA RETENTION & AUTOMATIC CLEANUP - Ver 2.5.0
+// =============================================================================
+
+/**
+ * Master cleanup function - runs daily via cron
+ * Cleans all tables based on retention settings
+ */
+function chatbot_run_all_data_cleanup() {
+    error_log('[Chatbot Data Cleanup] Starting daily cleanup...');
+    $results = [];
+
+    // 1. Conversation logs (default: 90 days)
+    $conversation_days = intval(get_option('chatbot_retention_conversations', 90));
+    if ($conversation_days > 0) {
+        $deleted = chatbot_cleanup_old_conversations($conversation_days);
+        $results['conversations'] = $deleted;
+        error_log("[Chatbot Data Cleanup] Deleted {$deleted} old conversations (>{$conversation_days} days)");
+    }
+
+    // 2. Interaction counts (default: 365 days)
+    $interaction_days = intval(get_option('chatbot_retention_interactions', 365));
+    if ($interaction_days > 0) {
+        $deleted = chatbot_cleanup_old_interactions($interaction_days);
+        $results['interactions'] = $deleted;
+        error_log("[Chatbot Data Cleanup] Deleted {$deleted} old interaction records (>{$interaction_days} days)");
+    }
+
+    // 3. Gap questions - clustered & resolved (default: 30 days after clustering)
+    $gap_days = intval(get_option('chatbot_retention_gap_questions', 30));
+    if ($gap_days > 0) {
+        $deleted = chatbot_cleanup_old_gap_questions($gap_days);
+        $results['gap_questions'] = $deleted;
+        error_log("[Chatbot Data Cleanup] Deleted {$deleted} old clustered gap questions (>{$gap_days} days)");
+    }
+
+    // 4. Gap clusters - resolved (default: 90 days after resolution)
+    $cluster_days = intval(get_option('chatbot_retention_gap_clusters', 90));
+    if ($cluster_days > 0) {
+        $deleted = chatbot_cleanup_old_gap_clusters($cluster_days);
+        $results['gap_clusters'] = $deleted;
+        error_log("[Chatbot Data Cleanup] Deleted {$deleted} old resolved clusters (>{$cluster_days} days)");
+    }
+
+    error_log('[Chatbot Data Cleanup] Cleanup complete: ' . json_encode($results));
+    return $results;
+}
+add_action('chatbot_daily_cleanup_event', 'chatbot_run_all_data_cleanup');
+
+/**
+ * Delete old conversations from Supabase
+ */
+function chatbot_cleanup_old_conversations($days) {
+    $cutoff = gmdate('c', strtotime("-{$days} days"));
+
+    $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    if (!$base_url || !$anon_key) {
+        return 0;
+    }
+
+    // First get count of records to delete
+    $count_url = $base_url . '/chatbot_conversations?interaction_time=lt.' . urlencode($cutoff) . '&select=id';
+    $headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+        'Prefer: count=exact'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $count_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+
+    $response = curl_exec($ch);
+    $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $headers_str = substr($response, 0, $header_size);
+    curl_close($ch);
+
+    $count = 0;
+    if (preg_match('/content-range: \d+-\d+\/(\d+)/i', $headers_str, $matches)) {
+        $count = (int)$matches[1];
+    }
+
+    if ($count === 0) {
+        return 0;
+    }
+
+    // Delete the records
+    $delete_url = $base_url . '/chatbot_conversations?interaction_time=lt.' . urlencode($cutoff);
+    $delete_headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+        'Content-Type: application/json'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $delete_url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $delete_headers);
+    curl_exec($ch);
+    curl_close($ch);
+
+    return $count;
+}
+
+/**
+ * Delete old interaction counts from Supabase
+ */
+function chatbot_cleanup_old_interactions($days) {
+    $cutoff = gmdate('Y-m-d', strtotime("-{$days} days"));
+
+    $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    if (!$base_url || !$anon_key) {
+        return 0;
+    }
+
+    // First get count
+    $count_url = $base_url . '/chatbot_interactions?date=lt.' . $cutoff . '&select=date';
+    $headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+        'Prefer: count=exact'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $count_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+
+    $response = curl_exec($ch);
+    $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $headers_str = substr($response, 0, $header_size);
+    curl_close($ch);
+
+    $count = 0;
+    if (preg_match('/content-range: \d+-\d+\/(\d+)/i', $headers_str, $matches)) {
+        $count = (int)$matches[1];
+    }
+
+    if ($count === 0) {
+        return 0;
+    }
+
+    // Delete
+    $delete_url = $base_url . '/chatbot_interactions?date=lt.' . $cutoff;
+    $delete_headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $delete_url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $delete_headers);
+    curl_exec($ch);
+    curl_close($ch);
+
+    return $count;
+}
+
+/**
+ * Delete old gap questions that have been clustered
+ * Only deletes questions that are BOTH clustered AND older than X days
+ */
+function chatbot_cleanup_old_gap_questions($days) {
+    $cutoff = gmdate('c', strtotime("-{$days} days"));
+
+    $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    if (!$base_url || !$anon_key) {
+        return 0;
+    }
+
+    // Only delete clustered questions older than X days
+    $count_url = $base_url . '/chatbot_gap_questions?is_clustered=eq.true&asked_date=lt.' . urlencode($cutoff) . '&select=id';
+    $headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+        'Prefer: count=exact'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $count_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+
+    $response = curl_exec($ch);
+    $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $headers_str = substr($response, 0, $header_size);
+    curl_close($ch);
+
+    $count = 0;
+    if (preg_match('/content-range: \d+-\d+\/(\d+)/i', $headers_str, $matches)) {
+        $count = (int)$matches[1];
+    }
+
+    if ($count === 0) {
+        return 0;
+    }
+
+    // Delete
+    $delete_url = $base_url . '/chatbot_gap_questions?is_clustered=eq.true&asked_date=lt.' . urlencode($cutoff);
+    $delete_headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $delete_url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $delete_headers);
+    curl_exec($ch);
+    curl_close($ch);
+
+    return $count;
+}
+
+/**
+ * Delete old gap clusters that have been resolved (faq_created or dismissed)
+ */
+function chatbot_cleanup_old_gap_clusters($days) {
+    $cutoff = gmdate('c', strtotime("-{$days} days"));
+
+    $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    if (!$base_url || !$anon_key) {
+        return 0;
+    }
+
+    // Only delete resolved clusters (faq_created or dismissed) older than X days
+    // Using 'or' filter for status
+    $count_url = $base_url . '/chatbot_gap_clusters?or=(status.eq.faq_created,status.eq.dismissed)&created_at=lt.' . urlencode($cutoff) . '&select=id';
+    $headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+        'Prefer: count=exact'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $count_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+
+    $response = curl_exec($ch);
+    $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $headers_str = substr($response, 0, $header_size);
+    curl_close($ch);
+
+    $count = 0;
+    if (preg_match('/content-range: \d+-\d+\/(\d+)/i', $headers_str, $matches)) {
+        $count = (int)$matches[1];
+    }
+
+    if ($count === 0) {
+        return 0;
+    }
+
+    // Delete
+    $delete_url = $base_url . '/chatbot_gap_clusters?or=(status.eq.faq_created,status.eq.dismissed)&created_at=lt.' . urlencode($cutoff);
+    $delete_headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key,
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $delete_url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $delete_headers);
+    curl_exec($ch);
+    curl_close($ch);
+
+    return $count;
+}
+
+/**
+ * Get current data counts for admin display
+ */
+function chatbot_get_data_retention_stats() {
+    $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    if (!$base_url || !$anon_key) {
+        return ['error' => 'Supabase not configured'];
+    }
+
+    $stats = [];
+    $tables = [
+        'chatbot_conversations' => 'Conversation Logs',
+        'chatbot_interactions' => 'Daily Interaction Counts',
+        'chatbot_gap_questions' => 'Gap Questions',
+        'chatbot_gap_clusters' => 'Gap Clusters',
+        'chatbot_faqs' => 'FAQs (Knowledge Base)',
+        'chatbot_faq_usage' => 'FAQ Usage Stats',
+        'chatbot_assistants' => 'Assistants'
+    ];
+
+    foreach ($tables as $table => $label) {
+        $url = $base_url . '/' . $table . '?select=id';
+        $headers = [
+            'apikey: ' . $anon_key,
+            'Authorization: Bearer ' . $anon_key,
+            'Prefer: count=exact'
+        ];
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_HEADER, true);
+
+        $response = curl_exec($ch);
+        $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        $headers_str = substr($response, 0, $header_size);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $count = 0;
+        if ($http_code >= 200 && $http_code < 300) {
+            if (preg_match('/content-range: \d+-\d+\/(\d+)/i', $headers_str, $matches)) {
+                $count = (int)$matches[1];
+            }
+        }
+
+        $stats[$table] = [
+            'label' => $label,
+            'count' => $count
+        ];
+    }
+
+    return $stats;
+}
+
+/**
+ * Ensure daily cleanup cron is scheduled
+ */
+function chatbot_ensure_cleanup_scheduled() {
+    if (!wp_next_scheduled('chatbot_daily_cleanup_event')) {
+        // Schedule for 3 AM server time daily
+        $timestamp = strtotime('tomorrow 3:00am');
+        wp_schedule_event($timestamp, 'daily', 'chatbot_daily_cleanup_event');
+    }
+}
+add_action('admin_init', 'chatbot_ensure_cleanup_scheduled');
+
+/**
+ * AJAX handler for manual cleanup trigger
+ */
+function chatbot_ajax_run_cleanup() {
+    check_ajax_referer('chatbot_settings_nonce', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Unauthorized']);
+        return;
+    }
+
+    $results = chatbot_run_all_data_cleanup();
+    wp_send_json_success([
+        'message' => 'Cleanup completed',
+        'results' => $results
+    ]);
+}
+add_action('wp_ajax_chatbot_run_cleanup', 'chatbot_ajax_run_cleanup');

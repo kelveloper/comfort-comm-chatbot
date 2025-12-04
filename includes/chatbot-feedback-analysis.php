@@ -165,7 +165,6 @@ Respond with a JSON array:
     \"feedback_number\": 1,
     \"action_type\": \"improve\" or \"create\",
     \"existing_faq_id\": \"cc001\" (only if improve),
-    \"suggested_keywords\": [\"keyword1\", \"keyword2\"] (only if improve),
     \"suggested_faq\": {
       \"question\": \"...\",
       \"answer\": \"...\",
@@ -245,14 +244,6 @@ function chatbot_generate_suggestions_html($suggestions) {
             $html .= '<div><strong style="font-size: 12px;">Question:</strong> ' . esc_html($existing_faq['question']) . '</div>';
             $html .= '</div>';
 
-            $html .= '<div style="background: #fffbeb; padding: 10px; border-radius: 4px; margin-bottom: 10px;">';
-            $html .= '<strong style="font-size: 12px;">✨ Add these keywords:</strong><br>';
-            if (!empty($suggestion['suggested_keywords'])) {
-                foreach ($suggestion['suggested_keywords'] as $keyword) {
-                    $html .= '<span style="display: inline-block; background: #fef3c7; border: 1px solid #fbbf24; padding: 3px 8px; border-radius: 3px; font-size: 11px; margin: 2px;">' . esc_html($keyword) . '</span> ';
-                }
-            }
-            $html .= '</div>';
         } else {
             // Create new FAQ
             $faq = $suggestion['suggested_faq'];

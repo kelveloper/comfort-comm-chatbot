@@ -258,16 +258,30 @@ function chatbot_chatgpt_faq_import_section_callback() {
                 sort($categories);
                 ?>
 
-                <!-- Category Filter -->
-                <div style="margin-bottom: 15px;">
-                    <label for="chatbot-faq-filter"><strong>Filter by Category:</strong></label>
-                    <select id="chatbot-faq-filter" style="margin-left: 10px;">
-                        <option value="">All Categories (<?php echo count($faqs); ?>)</option>
-                        <?php foreach ($categories as $cat): ?>
-                            <option value="<?php echo esc_attr($cat); ?>"><?php echo esc_html($cat); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <span id="chatbot-faq-filter-count" style="margin-left: 10px; color: #666;"></span>
+                <!-- Category Filter & Pagination Controls (Ver 2.5.0) -->
+                <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div>
+                        <label for="chatbot-faq-filter"><strong>Filter by Category:</strong></label>
+                        <select id="chatbot-faq-filter" style="margin-left: 10px;">
+                            <option value="">All Categories (<?php echo count($faqs); ?>)</option>
+                            <?php foreach ($categories as $cat): ?>
+                                <option value="<?php echo esc_attr($cat); ?>"><?php echo esc_html($cat); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span id="chatbot-faq-filter-count" style="margin-left: 10px; color: #666;"></span>
+                    </div>
+                    <div id="chatbot-faq-pagination" style="display: flex; align-items: center; gap: 10px;">
+                        <label for="chatbot-faq-per-page"><strong>Per page:</strong></label>
+                        <select id="chatbot-faq-per-page" style="width: 70px;">
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="all">All</option>
+                        </select>
+                        <button type="button" id="chatbot-faq-prev" class="button button-small" disabled>&laquo; Prev</button>
+                        <span id="chatbot-faq-page-info" style="min-width: 100px; text-align: center;">Page 1 of 1</span>
+                        <button type="button" id="chatbot-faq-next" class="button button-small">Next &raquo;</button>
+                    </div>
                 </div>
 
                 <table class="wp-list-table widefat fixed striped" id="chatbot-faq-table">
@@ -307,28 +321,99 @@ function chatbot_chatgpt_faq_import_section_callback() {
                 </table>
 
                 <script>
-                // Category filter functionality
+                // Category filter and pagination functionality (Ver 2.5.0)
                 jQuery(document).ready(function($) {
-                    $('#chatbot-faq-filter').on('change', function() {
-                        const category = $(this).val();
-                        let visibleCount = 0;
+                    let currentPage = 1;
+                    let perPage = 50;
+                    let filteredRows = [];
 
+                    function getFilteredRows() {
+                        const category = $('#chatbot-faq-filter').val();
+                        filteredRows = [];
                         $('#chatbot-faq-table tbody tr').each(function() {
                             const rowCategory = $(this).data('category');
                             if (!category || rowCategory === category) {
-                                $(this).show();
-                                visibleCount++;
-                            } else {
-                                $(this).hide();
+                                filteredRows.push($(this));
                             }
                         });
+                        return filteredRows;
+                    }
 
-                        if (category) {
-                            $('#chatbot-faq-filter-count').text('Showing ' + visibleCount + ' FAQs');
+                    function updatePagination() {
+                        const rows = getFilteredRows();
+                        const totalRows = rows.length;
+                        const totalPages = perPage === 'all' ? 1 : Math.ceil(totalRows / perPage);
+
+                        // Clamp current page
+                        if (currentPage > totalPages) currentPage = totalPages;
+                        if (currentPage < 1) currentPage = 1;
+
+                        // Hide all rows first
+                        $('#chatbot-faq-table tbody tr').hide();
+
+                        // Show rows for current page
+                        const startIdx = perPage === 'all' ? 0 : (currentPage - 1) * perPage;
+                        const endIdx = perPage === 'all' ? totalRows : Math.min(startIdx + perPage, totalRows);
+
+                        for (let i = startIdx; i < endIdx; i++) {
+                            rows[i].show();
+                        }
+
+                        // Update page info
+                        if (totalRows === 0) {
+                            $('#chatbot-faq-page-info').text('No results');
+                        } else if (perPage === 'all') {
+                            $('#chatbot-faq-page-info').text('Showing all ' + totalRows);
+                        } else {
+                            $('#chatbot-faq-page-info').text('Page ' + currentPage + ' of ' + totalPages);
+                        }
+
+                        // Update button states
+                        $('#chatbot-faq-prev').prop('disabled', currentPage <= 1 || perPage === 'all');
+                        $('#chatbot-faq-next').prop('disabled', currentPage >= totalPages || perPage === 'all');
+
+                        // Update filter count
+                        const filterVal = $('#chatbot-faq-filter').val();
+                        if (filterVal) {
+                            $('#chatbot-faq-filter-count').text('Showing ' + totalRows + ' FAQs');
                         } else {
                             $('#chatbot-faq-filter-count').text('');
                         }
+                    }
+
+                    // Category filter change
+                    $('#chatbot-faq-filter').on('change', function() {
+                        currentPage = 1;
+                        updatePagination();
                     });
+
+                    // Per page change
+                    $('#chatbot-faq-per-page').on('change', function() {
+                        perPage = $(this).val() === 'all' ? 'all' : parseInt($(this).val());
+                        currentPage = 1;
+                        updatePagination();
+                    });
+
+                    // Previous page
+                    $('#chatbot-faq-prev').on('click', function() {
+                        if (currentPage > 1) {
+                            currentPage--;
+                            updatePagination();
+                        }
+                    });
+
+                    // Next page
+                    $('#chatbot-faq-next').on('click', function() {
+                        const rows = getFilteredRows();
+                        const totalPages = Math.ceil(rows.length / perPage);
+                        if (currentPage < totalPages) {
+                            currentPage++;
+                            updatePagination();
+                        }
+                    });
+
+                    // Initialize pagination
+                    updatePagination();
                 });
                 </script>
                 <?php

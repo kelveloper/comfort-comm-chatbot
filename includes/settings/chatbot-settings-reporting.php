@@ -159,13 +159,13 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
     $target_met = $csat_stats['target_met'];
 
     $score_color = $target_met ? '#10b981' : '#ef4444'; // Green if >70%, red otherwise
-    $status_text = $target_met ? '✓ Target Met (>70%)' : '⚠ Below Target (<70%)';
+    $status_text = $target_met ? 'Target Met (>70%)' : 'Below Target (<70%)';
     $status_color = $target_met ? '#10b981' : '#f59e0b';
     ?>
     <div>
         <!-- CSAT Metrics Dashboard -->
         <div style="background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin-top: 0; color: #1e293b;">📊 CSAT (Customer Satisfaction) Metrics</h3>
+            <h3 style="margin-top: 0; color: #1e293b;">CSAT (Customer Satisfaction) Metrics</h3>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
                 <!-- CSAT Score -->
@@ -182,13 +182,13 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
 
                 <!-- Helpful -->
                 <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #10b981;">
-                    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">👍 Helpful</div>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Helpful</div>
                     <div style="font-size: 32px; font-weight: bold; color: #10b981;"><?php echo $helpful; ?></div>
                 </div>
 
                 <!-- Not Helpful -->
                 <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #ef4444;">
-                    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">👎 Not Helpful</div>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Not Helpful</div>
                     <div style="font-size: 32px; font-weight: bold; color: #ef4444;"><?php echo $not_helpful; ?></div>
                 </div>
             </div>
@@ -214,7 +214,7 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
         ?>
         <!-- Recent CSAT Feedback Table -->
         <div style="background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin-top: 0; color: #1e293b;">📋 Recent Feedback Details</h3>
+            <h3 style="margin-top: 0; color: #1e293b;">Recent Feedback Details</h3>
             <p style="font-size: 12px; color: #64748b; margin-bottom: 15px;">Showing the most recent <?php echo count($recent_responses); ?> CSAT responses with question and answer details</p>
 
             <table class="widefat striped" style="border-collapse: collapse;">
@@ -230,7 +230,7 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
                 </thead>
                 <tbody>
                     <?php foreach ($recent_responses as $response) :
-                        $feedback_icon = $response['feedback'] === 'yes' ? '👍' : '👎';
+                        $feedback_icon = $response['feedback'] === 'yes' ? '+' : '-';
                         $feedback_color = $response['feedback'] === 'yes' ? '#10b981' : '#ef4444';
                         $question = isset($response['question']) ? esc_html($response['question']) : 'N/A';
                         $answer = isset($response['answer']) ? esc_html($response['answer']) : 'N/A';
@@ -282,7 +282,7 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
 
         <!-- AI-Powered Feedback Analysis -->
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">🤖 AI-Powered Feedback Analysis</h3>
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">AI-Powered Feedback Analysis</h3>
             <p style="margin: 0 0 15px 0; font-size: 13px; color: #6b7280;">
                 Analyze thumbs-down feedback to automatically generate FAQ improvement suggestions based on selected time period.
             </p>
@@ -312,6 +312,51 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
         </div>
 
         <script>
+        // Global modal function for branded dialogs
+        function chatbotShowModal(options) {
+            const overlay = document.createElement('div');
+            overlay.id = 'chatbot-modal-overlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
+
+            const borderColor = options.isError ? '#dc3232' : '#2271b1';
+            const modal = document.createElement('div');
+            modal.style.cssText = 'background:white;border-radius:4px;box-shadow:0 3px 6px rgba(0,0,0,0.3);max-width:400px;width:90%;border-top:4px solid ' + borderColor + ';';
+
+            modal.innerHTML = `
+                <div style="padding:20px 20px 0;">
+                    <h2 style="margin:0 0 12px;font-size:18px;font-weight:600;color:#1d2327;">${options.title}</h2>
+                    <p style="margin:0;color:#50575e;font-size:14px;line-height:1.5;">${options.message}</p>
+                </div>
+                <div style="padding:16px 20px;display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #dcdcde;">
+                    ${options.hideCancel ? '' : `<button id="chatbot-modal-cancel" class="button" style="padding:6px 12px;">${options.cancelText || 'Cancel'}</button>`}
+                    <button id="chatbot-modal-confirm" class="button button-primary" style="padding:6px 12px;">${options.confirmText || 'OK'}</button>
+                </div>
+            `;
+
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            document.getElementById('chatbot-modal-confirm').onclick = function() {
+                document.body.removeChild(overlay);
+                if (options.onConfirm) options.onConfirm();
+            };
+
+            const cancelBtn = document.getElementById('chatbot-modal-cancel');
+            if (cancelBtn) {
+                cancelBtn.onclick = function() {
+                    document.body.removeChild(overlay);
+                    if (options.onCancel) options.onCancel();
+                };
+            }
+
+            overlay.onclick = function(e) {
+                if (e.target === overlay && !options.hideCancel) {
+                    document.body.removeChild(overlay);
+                    if (options.onCancel) options.onCancel();
+                }
+            };
+        }
+
         function chatbotAnalyzeFeedback() {
             const btn = event.target;
             const originalText = btn.textContent;
@@ -319,7 +364,7 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
             const period = document.getElementById('feedback-period').value;
 
             btn.disabled = true;
-            btn.textContent = '⏳ Analyzing feedback...';
+            btn.textContent = 'Analyzing feedback...';
             resultsDiv.innerHTML = '';
 
             jQuery.post(ajaxurl, {
@@ -343,80 +388,91 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
         }
 
         function chatbotClearFeedback() {
-            if (!confirm('Are you sure you want to clear ALL feedback data? This cannot be undone!')) {
-                return;
-            }
+            chatbotShowModal({
+                title: 'Clear All Feedback',
+                message: 'Are you sure you want to clear ALL feedback data? This cannot be undone!',
+                isError: true,
+                confirmText: 'Yes, Clear All',
+                onConfirm: function() {
+                    const btn = document.querySelector('[onclick*="chatbotClearFeedback"]');
+                    const originalText = btn.textContent;
+                    btn.disabled = true;
+                    btn.textContent = 'Clearing...';
 
-            const btn = event.target;
-            const originalText = btn.textContent;
+                    jQuery.post(ajaxurl, {
+                        action: 'chatbot_clear_feedback',
+                        nonce: '<?php echo wp_create_nonce('chatbot_clear_feedback'); ?>'
+                    }, function(response) {
+                        btn.disabled = false;
+                        btn.textContent = originalText;
 
-            btn.disabled = true;
-            btn.textContent = 'Clearing...';
-
-            jQuery.post(ajaxurl, {
-                action: 'chatbot_clear_feedback',
-                nonce: '<?php echo wp_create_nonce('chatbot_clear_feedback'); ?>'
-            }, function(response) {
-                btn.disabled = false;
-                btn.textContent = originalText;
-
-                if (response.success) {
-                    alert('Feedback data cleared successfully!');
-                    location.reload();
-                } else {
-                    alert('Error: ' + (response.data || 'Unknown error'));
+                        if (response.success) {
+                            chatbotShowModal({
+                                title: 'Success',
+                                message: 'Feedback data cleared successfully!',
+                                hideCancel: true,
+                                onConfirm: function() { location.reload(); }
+                            });
+                        } else {
+                            chatbotShowModal({
+                                title: 'Error',
+                                message: response.data || 'Unknown error',
+                                isError: true,
+                                hideCancel: true
+                            });
+                        }
+                    }).fail(function() {
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: 'Request failed. Please try again.',
+                            isError: true,
+                            hideCancel: true
+                        });
+                    });
                 }
-            }).fail(function() {
-                btn.disabled = false;
-                btn.textContent = originalText;
-                alert('Request failed. Please try again.');
             });
         }
 
         function chatbotAddFAQ(suggestion) {
-            if (!confirm('Add this new FAQ to the knowledge base?')) {
-                return;
-            }
-
-            const faq = suggestion.suggested_faq;
-            jQuery.post(ajaxurl, {
-                action: 'chatbot_add_faq',
-                faq_data: faq,
-                nonce: '<?php echo wp_create_nonce('chatbot_faq_management'); ?>'
-            }, function(response) {
-                if (response.success) {
-                    alert('FAQ added successfully! ID: ' + response.data.faq_id);
-                } else {
-                    alert('Error: ' + (response.data || 'Unknown error'));
+            chatbotShowModal({
+                title: 'Add New FAQ',
+                message: 'Add this new FAQ to the knowledge base?',
+                confirmText: 'Yes, Add FAQ',
+                onConfirm: function() {
+                    const faq = suggestion.suggested_faq;
+                    jQuery.post(ajaxurl, {
+                        action: 'chatbot_add_faq',
+                        faq_data: faq,
+                        nonce: '<?php echo wp_create_nonce('chatbot_faq_management'); ?>'
+                    }, function(response) {
+                        if (response.success) {
+                            chatbotShowModal({
+                                title: 'Success',
+                                message: 'FAQ added successfully! ID: ' + response.data.faq_id,
+                                hideCancel: true
+                            });
+                        } else {
+                            chatbotShowModal({
+                                title: 'Error',
+                                message: response.data || 'Unknown error',
+                                isError: true,
+                                hideCancel: true
+                            });
+                        }
+                    }).fail(function() {
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: 'Request failed. Please try again.',
+                            isError: true,
+                            hideCancel: true
+                        });
+                    });
                 }
-            }).fail(function() {
-                alert('Request failed. Please try again.');
             });
         }
 
-        function chatbotEditFAQ(suggestion) {
-            const keywords = (suggestion.suggested_keywords || []).join(', ');
-            const newKeywords = prompt('Add these keywords to FAQ ' + suggestion.existing_faq_id + ':\n\n' + keywords + '\n\nEdit keywords:', keywords);
-
-            if (newKeywords === null) {
-                return; // User cancelled
-            }
-
-            jQuery.post(ajaxurl, {
-                action: 'chatbot_edit_faq',
-                faq_id: suggestion.existing_faq_id,
-                keywords: newKeywords,
-                nonce: '<?php echo wp_create_nonce('chatbot_faq_management'); ?>'
-            }, function(response) {
-                if (response.success) {
-                    alert('FAQ updated successfully!');
-                } else {
-                    alert('Error: ' + (response.data || 'Unknown error'));
-                }
-            }).fail(function() {
-                alert('Request failed. Please try again.');
-            });
-        }
         </script>
 
         <p>Use these setting to select the reporting period for Visitor and User Interactions.</p>
@@ -968,14 +1024,26 @@ function chatbot_chatgpt_gap_analysis_section_callback($args) {
 }
 
 // Gap Analysis Callback - Ver 2.4.2
-function chatbot_chatgpt_gap_analysis_callback() {
+function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
     error_log('🔍 GAP ANALYSIS CALLBACK CALLED');
 
-    // Learning runs quarterly (fixed) - stats period is selectable
-    $analysis_frequency = 'quarterly'; // Fixed to quarterly
-    $stats_period = isset($_GET['stats_period']) ? sanitize_text_field($_GET['stats_period']) : get_option('chatbot_gap_stats_period', 'quarterly');
-    $days_map = ['weekly' => 7, 'monthly' => 30, 'quarterly' => 90, 'yearly' => 365];
-    $days = $days_map[$stats_period] ?? 90;
+    // Use the main analytics period filter (passed from analytics page)
+    if (!$selected_period) {
+        $selected_period = get_transient('chatbot_analytics_selected_period');
+        if (!$selected_period) {
+            $selected_period = 'Week';
+        }
+    }
+
+    // Map period names to days
+    $period_to_days = [
+        'Today' => 1,
+        'Week' => 7,
+        'Month' => 30,
+        'Quarter' => 90,
+        'Year' => 365
+    ];
+    $days = $period_to_days[$selected_period] ?? 7;
 
     // Get gap analysis data
     $data = chatbot_get_gap_analysis_data($days);
@@ -984,6 +1052,7 @@ function chatbot_chatgpt_gap_analysis_callback() {
 
     $total_gaps = $data['total_gaps'];
     $unresolved_gaps = $data['unresolved_gaps'];
+    $unclustered_gaps = $data['unclustered_gaps'] ?? $unresolved_gaps;
     $active_clusters = $data['active_clusters'];
     $top_individual_gaps = $data['top_individual_gaps'];
 
@@ -997,133 +1066,72 @@ function chatbot_chatgpt_gap_analysis_callback() {
             Identifies questions users ask that your FAQ database can't answer well (confidence < 60%)
         </p>
 
-        <!-- AI Summary Preview -->
-        <?php
-        // Quarterly is the fixed learning frequency
-        $current_freq = [
-            'title' => 'Quarterly Analysis Mode',
-            'interval' => '90 days',
-            'description' => 'AI automatically analyzes gap questions every quarter (3 months). This gives enough time to collect meaningful data while keeping the FAQ database current.',
-            'color' => '#8b5cf6'
-        ];
+        <!-- How it works -->
+        <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #374151;">How Gap Analysis Works</h3>
+            <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #4b5563; line-height: 1.8;">
+                <li>Users ask questions that the chatbot can't answer confidently (< 60% match)</li>
+                <li>These questions are logged as "gap questions"</li>
+                <li>AI analyzes gap questions and groups similar ones into clusters</li>
+                <li>For each cluster, AI suggests either improving an existing FAQ or creating a new one</li>
+                <li>You review and edit the suggestions, then add to knowledge base with one click</li>
+            </ol>
 
-        // Get next scheduled analysis date
-        $next_analysis = wp_next_scheduled('chatbot_gap_analysis_event');
-        $next_analysis_date = $next_analysis ? date('F j, Y', $next_analysis) : 'Not scheduled';
-        $days_until_next = $next_analysis ? max(0, floor(($next_analysis - time()) / 86400)) : 0;
-        ?>
-        <div style="background: white; border-left: 4px solid <?php echo $current_freq['color']; ?>; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-            <div style="display: flex; align-items: start; gap: 15px;">
-                <div style="font-size: 32px;">🤖</div>
-                <div style="flex: 1;">
-                    <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #111827;">
-                        <span style="background-color: <?php echo $current_freq['color']; ?>; color: white; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; margin-right: 8px;">
-                            QUARTERLY
-                        </span>
-                        <?php echo $current_freq['title']; ?>
-                    </h3>
-                    <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
-                        <?php echo $current_freq['description']; ?>
-                    </p>
-                    <div style="background-color: #e0f2fe; border: 1px solid #0ea5e9; padding: 10px 15px; border-radius: 6px; margin-bottom: 10px; display: inline-block;">
-                        <span style="font-size: 13px; color: #0369a1;">
-                            📅 <strong>Next Scheduled Analysis:</strong> <?php echo $next_analysis_date; ?>
-                            <?php if ($days_until_next > 0): ?>
-                                <span style="color: #6b7280;">(<?php echo $days_until_next; ?> days)</span>
-                            <?php endif; ?>
-                        </span>
-                    </div>
-                    <div style="background-color: #f9fafb; padding: 10px; border-radius: 4px; font-size: 13px; color: #374151;">
-                        <strong>How it works:</strong>
-                        <ol style="margin: 8px 0 0 0; padding-left: 20px;">
-                            <li>Users ask questions that aren't in your FAQ database (confidence &lt; 60%)</li>
-                            <li>Questions are automatically logged as "gap questions"</li>
-                            <li>Every <strong><?php echo $current_freq['interval']; ?></strong>, AI analyzes all unresolved gap questions</li>
-                            <li>AI groups similar questions into clusters and suggests new FAQs</li>
-                            <li>You review suggestions and manually add approved FAQs to knowledge base</li>
-                        </ol>
-                    </div>
-                    <div style="background-color: #fffbeb; border-left: 3px solid #f59e0b; padding: 12px; border-radius: 4px; margin-top: 12px; font-size: 13px; color: #78350f;">
-                        <strong>💡 How to Write High-Confidence FAQs:</strong>
-                        <ul style="margin: 8px 0 0 0; padding-left: 20px; line-height: 1.6;">
-                            <li><strong>Use diverse keywords</strong> - Include synonyms and variations (e.g., "hours, open, close, time, schedule")</li>
-                            <li><strong>Think like your customers</strong> - Add keywords matching how real people ask questions</li>
-                            <li><strong>Be specific</strong> - Add keywords for common variations ("wifi" and "wi-fi", "internet" and "broadband")</li>
-                            <li><strong>Review AI suggestions</strong> - The AI learns from actual customer questions to suggest better keywords</li>
-                        </ul>
-                        <p style="margin: 10px 0 0 0; font-style: italic; font-size: 12px;">
-                            Better keywords = Higher confidence scores = More accurate answers
-                        </p>
-                    </div>
-                </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #374151;">Analysis Options:</h4>
+                <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #4b5563; line-height: 1.6;">
+                    <li><strong>Manual:</strong> Click "Run Analysis Now" anytime</li>
+                    <li><strong>Auto:</strong> Enable auto-analysis to run automatically when 30+ questions accumulate</li>
+                </ul>
             </div>
         </div>
 
-        <!-- Stats Period Filter + Run Analysis Button -->
-        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-            <div>
-                <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #374151;">
-                    View Stats For:
-                </label>
-                <select id="chatbot_stats_period" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; width: 200px;">
-                    <option value="weekly" <?php selected($stats_period, 'weekly'); ?>>Last 7 Days</option>
-                    <option value="monthly" <?php selected($stats_period, 'monthly'); ?>>Last 30 Days</option>
-                    <option value="quarterly" <?php selected($stats_period, 'quarterly'); ?>>Last 90 Days (Quarter)</option>
-                    <option value="yearly" <?php selected($stats_period, 'yearly'); ?>>Last 365 Days (Year)</option>
-                </select>
-                <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;">
-                    Filter gap question stats by time period
-                </p>
+        <!-- Run Analysis Button -->
+        <?php $auto_analysis_enabled = get_option('chatbot_gap_auto_analysis_enabled', 'off'); ?>
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div style="font-size: 12px; color: #6b7280;">
+                <span>Gap questions: <strong><?php echo $unclustered_gaps; ?></strong> waiting</span>
+                <span style="margin: 0 10px;">|</span>
+                <span>Auto-analysis:
+                    <label style="cursor: pointer; margin-left: 5px;">
+                        <input type="checkbox" id="auto_analysis_toggle" <?php echo $auto_analysis_enabled === 'on' ? 'checked' : ''; ?> style="cursor: pointer;">
+                        <strong id="auto_analysis_status" style="color: <?php echo $auto_analysis_enabled === 'on' ? '#10b981' : '#6b7280'; ?>;">
+                            <?php echo $auto_analysis_enabled === 'on' ? 'ON' : 'OFF'; ?>
+                        </strong>
+                    </label>
+                    <span style="font-size: 11px; color: #9ca3af;">(runs when 30+ questions)</span>
+                </span>
             </div>
-            <div>
-                <button type="button" id="run_gap_analysis_now" class="button button-primary" style="padding: 8px 16px; font-size: 14px;">
-                    🔄 Run Analysis Now
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 12px; color: #6b7280;">Manually trigger AI analysis</span>
+                <button type="button" id="run_gap_analysis_now" class="button button-primary" style="padding: 6px 12px; font-size: 13px;">
+                    Run Analysis Now
                 </button>
-                <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;">
-                    Manually trigger AI analysis
-                </p>
             </div>
-        </div>
-
-        <!-- Stats Overview -->
-        <?php
-        $period_labels = ['weekly' => 'Last 7 Days', 'monthly' => 'Last 30 Days', 'quarterly' => 'Last 90 Days', 'yearly' => 'Last 365 Days'];
-        $period_label = $period_labels[$stats_period] ?? 'Last 90 Days';
-        ?>
-        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">📊 Overview - <?php echo $period_label; ?></h3>
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 12px; font-size: 13px; color: #6b7280;">Total Gap Questions:</td>
-                    <td style="padding: 12px; font-size: 18px; font-weight: bold; text-align: right; color: #111827;"><?php echo $total_gaps; ?></td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <td style="padding: 12px; font-size: 13px; color: #6b7280;">Unresolved:</td>
-                    <td style="padding: 12px; font-size: 18px; font-weight: bold; text-align: right; color: #dc2626;"><?php echo $unresolved_gaps; ?></td>
-                </tr>
-                <tr>
-                    <td style="padding: 12px; font-size: 13px; color: #6b7280;">AI Suggestions:</td>
-                    <td style="padding: 12px; font-size: 18px; font-weight: bold; text-align: right; color: #2563eb;"><?php echo count($active_clusters); ?></td>
-                </tr>
-            </table>
         </div>
 
         <?php if (!empty($active_clusters)) : ?>
         <!-- AI-Suggested FAQ Additions -->
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">✨ AI-Suggested FAQ Additions (<?php echo count($active_clusters); ?>)</h3>
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">AI-Suggested FAQ Additions (<?php echo count($active_clusters); ?>)</h3>
             <p style="margin: 0 0 20px 0; font-size: 13px; color: #6b7280; padding: 12px; background-color: #f9fafb; border-left: 3px solid #3b82f6; border-radius: 4px;">
                 <b>Human Review Required:</b> AI has analyzed similar questions and suggested FAQ entries below. Review and manually add to your knowledge base.
             </p>
 
             <?php foreach ($active_clusters as $cluster) :
-                $suggested_faq = json_decode($cluster['suggested_faq'], true);
-                $sample_questions = json_decode($cluster['sample_questions'], true);
+                // Handle both JSON strings and arrays (Supabase returns arrays directly)
+                $suggested_faq = is_string($cluster['suggested_faq']) ? json_decode($cluster['suggested_faq'], true) : $cluster['suggested_faq'];
+                $sample_questions = is_string($cluster['sample_questions']) ? json_decode($cluster['sample_questions'], true) : $cluster['sample_questions'];
+                $sample_questions = is_array($sample_questions) ? $sample_questions : [];
+                // Ver 2.5.0: Parse sample_contexts for follow-up questions
+                $sample_contexts = isset($cluster['sample_contexts']) ?
+                    (is_string($cluster['sample_contexts']) ? json_decode($cluster['sample_contexts'], true) : $cluster['sample_contexts']) : [];
+                $sample_contexts = is_array($sample_contexts) ? $sample_contexts : [];
                 $priority_label = $cluster['priority_score'] >= 100 ? 'High' : ($cluster['priority_score'] >= 50 ? 'Medium' : 'Low');
                 $action_type = $cluster['action_type'] ?? 'create';
                 $is_improve = ($action_type === 'improve');
                 $border_color = $is_improve ? '#f59e0b' : '#3b82f6';
-                $action_label = $is_improve ? '🔧 Improve Existing FAQ' : '✨ Create New FAQ';
+                $action_label = $is_improve ? 'Improve Existing FAQ' : 'Create New FAQ';
             ?>
             <div style="background: #f9fafb; border-left: 4px solid <?php echo $border_color; ?>; border: 1px solid #d1d5db; border-radius: 6px; padding: 16px; margin-bottom: 12px;">
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
@@ -1141,107 +1149,124 @@ function chatbot_chatgpt_gap_analysis_callback() {
                     </div>
                 </div>
 
-                <!-- Sample Questions -->
+                <!-- Sample Questions (show 1 with context if available, otherwise show up to 3) -->
                 <div style="margin-bottom: 12px;">
                     <div style="font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 6px;">Sample Questions:</div>
+                    <?php
+                    // Find a question with context to highlight, or show first few without
+                    $question_with_context_idx = null;
+                    foreach ($sample_contexts as $idx => $ctx) {
+                        if (!empty($ctx)) {
+                            $question_with_context_idx = $idx;
+                            break;
+                        }
+                    }
+                    ?>
                     <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #374151; line-height: 1.5;">
-                        <?php foreach (array_slice($sample_questions, 0, 3) as $question) : ?>
+                        <?php if ($question_with_context_idx !== null && isset($sample_questions[$question_with_context_idx])) :
+                            // Show the question with context
+                            $question = $sample_questions[$question_with_context_idx];
+                            $context = $sample_contexts[$question_with_context_idx];
+                        ?>
+                        <li style="margin-bottom: 6px;">
+                            <?php echo esc_html($question); ?>
+                            <div style="font-size: 11px; color: #9ca3af; margin-top: 4px; padding: 6px 10px; background: #f3f4f6; border-radius: 4px;">
+                                <span style="font-weight: 500; color: #6b7280;">Previous conversation:</span><br>
+                                <?php echo esc_html(substr($context, 0, 200)); ?><?php echo strlen($context) > 200 ? '...' : ''; ?>
+                            </div>
+                        </li>
+                        <?php else :
+                            // No context available, show up to 3 questions
+                            foreach (array_slice($sample_questions, 0, 3) as $question) : ?>
                         <li style="margin-bottom: 3px;"><?php echo esc_html($question); ?></li>
-                        <?php endforeach; ?>
+                        <?php endforeach;
+                        endif; ?>
                     </ul>
                 </div>
 
                 <?php if ($is_improve) :
-                    $suggested_keywords = json_decode($cluster['suggested_keywords'] ?? '[]', true);
-                    if (!is_array($suggested_keywords)) {
-                        $suggested_keywords = [];
-                    }
-
-                    // Get existing FAQ details (stored in suggested_faq field for improve actions)
-                    $existing_faq = $suggested_faq; // Reuse the same variable
-                    $current_keywords = !empty($existing_faq['keywords']) ? array_map('trim', explode(',', $existing_faq['keywords'])) : [];
+                    // Get existing FAQ details and suggested new answer
+                    $existing_faq = $suggested_faq;
+                    $suggested_answer = $cluster['suggested_answer'] ?? '';
+                    $existing_faq_id = $cluster['existing_faq_id'] ?? '';
                 ?>
                 <!-- Improve Existing FAQ -->
                 <div style="background: #fffbeb; padding: 12px; border-radius: 4px; margin-bottom: 12px; border: 1px solid #f59e0b;">
-                    <div style="font-size: 11px; font-weight: 600; color: #92400e; margin-bottom: 8px;">
-                        🔧 Improve Existing FAQ
-                    </div>
-
-                    <!-- Existing FAQ Info -->
-                    <div style="background: white; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
-                        <div style="margin-bottom: 6px;">
-                            <strong style="font-size: 12px; color: #6b7280;">FAQ ID:</strong>
-                            <span style="font-size: 12px; color: #374151; font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 3px;">
-                                <?php echo esc_html($cluster['existing_faq_id'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
-                        <div style="margin-bottom: 6px;">
-                            <strong style="font-size: 12px; color: #6b7280;">Question:</strong>
-                            <span style="font-size: 12px; color: #111827;"><?php echo esc_html($existing_faq['question'] ?? 'N/A'); ?></span>
+                    <!-- Question (read-only) -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 11px; font-weight: 600; color: #92400e; margin-bottom: 4px;">QUESTION (FAQ ID: <?php echo esc_html($existing_faq_id); ?>)</div>
+                        <div style="font-size: 14px; color: #111827; font-weight: 500;">
+                            <?php echo esc_html($existing_faq['question'] ?? 'N/A'); ?>
                         </div>
                     </div>
 
-                    <!-- Current Keywords -->
-                    <div style="margin-bottom: 10px;">
-                        <strong style="font-size: 12px; color: #111827;">Current Keywords:</strong>
-                        <div style="margin-top: 4px;">
-                            <?php if (!empty($current_keywords)) : ?>
-                                <?php foreach ($current_keywords as $keyword) : ?>
-                                    <span style="display: inline-block; background: #e5e7eb; border: 1px solid #d1d5db; padding: 3px 8px; border-radius: 3px; font-size: 11px; margin: 2px; color: #374151;">
-                                        <?php echo esc_html($keyword); ?>
-                                    </span>
-                                <?php endforeach; ?>
-                            <?php else : ?>
-                                <span style="font-size: 11px; color: #9ca3af; font-style: italic;">No keywords yet</span>
-                            <?php endif; ?>
+                    <!-- Current Answer (read-only) -->
+                    <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 12px; border-left: 3px solid #9ca3af;">
+                        <div style="font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 6px;">CURRENT ANSWER</div>
+                        <div style="font-size: 13px; color: #374151; line-height: 1.5;">
+                            <?php echo esc_html($existing_faq['answer'] ?? 'N/A'); ?>
                         </div>
                     </div>
 
-                    <!-- Suggested New Keywords -->
-                    <div>
-                        <strong style="font-size: 12px; color: #111827;">✨ Suggested Keywords to Add:</strong>
-                        <div style="margin-top: 4px;">
-                            <?php foreach ($suggested_keywords as $keyword) : ?>
-                                <span style="display: inline-block; background: #fef3c7; border: 1px solid #fbbf24; padding: 3px 8px; border-radius: 3px; font-size: 11px; margin: 2px; color: #78350f; font-weight: 600;">
-                                    <?php echo esc_html($keyword); ?>
-                                </span>
-                            <?php endforeach; ?>
-                        </div>
+                    <!-- Editable New Answer -->
+                    <div style="background: #fef3c7; padding: 12px; border-radius: 4px; border-left: 3px solid #f59e0b;">
+                        <div style="font-size: 11px; font-weight: 600; color: #92400e; margin-bottom: 6px;">NEW ANSWER (editable)</div>
+                        <textarea id="improve_answer_<?php echo $cluster['id']; ?>"
+                            style="width: 100%; min-height: 100px; padding: 10px; border: 1px solid #d97706; border-radius: 4px; font-size: 13px; line-height: 1.5; resize: vertical;"
+                        ><?php echo esc_textarea($suggested_answer ?: $existing_faq['answer'] ?? ''); ?></textarea>
                     </div>
 
-                    <p style="margin: 10px 0 0 0; font-size: 11px; color: #92400e; font-style: italic; background: #fef3c7; padding: 6px; border-radius: 3px;">
-                        💡 Add these keywords to improve confidence score for similar questions
-                    </p>
+                    <!-- Apply Button -->
+                    <div style="margin-top: 12px; text-align: right;">
+                        <button onclick="chatbotApplyImprovedFaq(<?php echo $cluster['id']; ?>, '<?php echo esc_js($existing_faq_id); ?>')"
+                            class="button button-primary" style="background: #f59e0b; border-color: #d97706;">
+                            Apply to Knowledge Base
+                        </button>
+                    </div>
                 </div>
                 <?php else : ?>
                 <!-- Create New FAQ -->
-                <?php if (!empty($suggested_faq)) : ?>
-                <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
-                    <div style="font-size: 11px; font-weight: 600; color: #059669; margin-bottom: 6px;">AI-Suggested FAQ:</div>
-                    <div style="margin-bottom: 8px;">
-                        <strong style="font-size: 13px; color: #111827;">Q:</strong>
-                        <span style="font-size: 13px; color: #374151;"><?php echo esc_html($suggested_faq['question']); ?></span>
+                <div style="background: #ecfdf5; padding: 12px; border-radius: 4px; margin-bottom: 12px; border: 1px solid #10b981;">
+                    <!-- Category (editable) -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 11px; font-weight: 600; color: #059669; margin-bottom: 4px;">CATEGORY (editable)</div>
+                        <input type="text" id="new_faq_category_<?php echo $cluster['id']; ?>"
+                            value="<?php echo esc_attr($suggested_faq['category'] ?? ''); ?>"
+                            placeholder="e.g., Services, Pricing, Support"
+                            style="width: 100%; max-width: 300px; padding: 8px; border: 1px solid #10b981; border-radius: 4px; font-size: 13px;">
                     </div>
-                    <div style="margin-bottom: 8px;">
-                        <strong style="font-size: 13px; color: #111827;">A:</strong>
-                        <span style="font-size: 13px; color: #374151;"><?php echo esc_html($suggested_faq['answer']); ?></span>
+
+                    <!-- Question (editable) -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 11px; font-weight: 600; color: #059669; margin-bottom: 4px;">QUESTION (editable)</div>
+                        <input type="text" id="new_faq_question_<?php echo $cluster['id']; ?>"
+                            value="<?php echo esc_attr($suggested_faq['question'] ?? ''); ?>"
+                            placeholder="Enter the FAQ question"
+                            style="width: 100%; padding: 8px; border: 1px solid #10b981; border-radius: 4px; font-size: 14px; font-weight: 500;">
                     </div>
-                    <?php if (!empty($suggested_faq['keywords'])) : ?>
-                    <div>
-                        <strong style="font-size: 13px; color: #111827;">Keywords:</strong>
-                        <span style="font-size: 13px; color: #6b7280; font-style: italic;"><?php echo esc_html($suggested_faq['keywords']); ?></span>
+
+                    <!-- Answer (editable) -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 11px; font-weight: 600; color: #059669; margin-bottom: 4px;">ANSWER (editable)</div>
+                        <textarea id="new_faq_answer_<?php echo $cluster['id']; ?>"
+                            placeholder="Enter the FAQ answer"
+                            style="width: 100%; min-height: 100px; padding: 10px; border: 1px solid #10b981; border-radius: 4px; font-size: 13px; line-height: 1.5; resize: vertical;"
+                        ><?php echo esc_textarea($suggested_faq['answer'] ?? ''); ?></textarea>
                     </div>
-                    <?php endif; ?>
+
+                    <!-- Add Button -->
+                    <div style="text-align: right;">
+                        <button onclick="chatbotAddNewFaq(<?php echo $cluster['id']; ?>)"
+                            class="button button-primary" style="background: #10b981; border-color: #059669;">
+                            Add to Knowledge Base
+                        </button>
+                    </div>
                 </div>
                 <?php endif; ?>
-                <?php endif; ?>
 
-                <!-- Actions -->
-                <div style="text-align: right;">
-                    <button onclick="chatbotResolveCluster(<?php echo $cluster['id']; ?>)" class="button button-primary" style="margin-right: 5px;">
-                        ✓ Mark Resolved
-                    </button>
-                    <button onclick="chatbotDismissCluster(<?php echo $cluster['id']; ?>)" class="button">
+                <!-- Dismiss Button -->
+                <div style="text-align: right; margin-top: 10px;">
+                    <button onclick="chatbotDismissCluster(<?php echo $cluster['id']; ?>)" class="button" style="color: #6b7280;">
                         Dismiss
                     </button>
                 </div>
@@ -1250,188 +1275,309 @@ function chatbot_chatgpt_gap_analysis_callback() {
         </div>
         <?php endif; ?>
 
-        <?php if (!empty($top_individual_gaps)) : ?>
-        <!-- Top Individual Gap Questions -->
-        <div style="background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin-top: 0; color: #1e293b;">📋 Top Unanswered Questions (Not Yet Clustered)</h3>
-            <p style="font-size: 12px; color: #64748b; margin-bottom: 15px;">These questions haven't been analyzed by AI yet. They will be processed in the next weekly analysis.</p>
 
-            <table class="widefat striped" style="border-collapse: collapse;">
-                <thead>
-                    <tr style="background-color: #f1f5f9;">
-                        <th style="padding: 10px;">Question</th>
-                        <th style="padding: 10px; width: 100px; text-align: center;">Times Asked</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($top_individual_gaps as $gap) : ?>
-                    <tr>
-                        <td style="padding: 10px;"><?php echo esc_html($gap['question_text']); ?></td>
-                        <td style="padding: 10px; text-align: center; font-weight: bold; color: #1e293b;"><?php echo $gap['count']; ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-
-        <!-- Actions -->
-        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #111827;">🧪 Manual Testing</h3>
-            <p style="margin: 0 0 15px 0; font-size: 13px; color: #6b7280;">
-                Test the AI analysis by analyzing your last 4 chatbot conversations. The AI will review the questions, answers, and confidence scores to suggest FAQ improvements.
-            </p>
-            <div style="background: #f0f9ff; border-left: 3px solid #3b82f6; padding: 12px; margin-bottom: 20px; border-radius: 4px;">
-                <strong style="color: #1e40af; font-size: 13px;">How it works:</strong>
-                <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px; color: #1e3a8a; line-height: 1.6;">
-                    <li>Have at least 4 conversations with the chatbot first</li>
-                    <li>Click the button below to analyze those conversations</li>
-                    <li>AI will show each question, answer, and confidence score</li>
-                    <li>AI will suggest whether to improve existing FAQs or create new ones</li>
-                </ol>
-            </div>
-            <button onclick="chatbotRunGapAnalysisLast10()" class="button button-primary" style="font-size: 16px; padding: 10px 30px; height: auto;">
-                🤖 Analyze Last 4 Conversations
-            </button>
-        </div>
     </div>
 
     <script>
-    function chatbotResolveCluster(clusterId) {
-        if (!confirm('Mark this cluster as resolved (FAQ created)?')) return;
+    // Modal function for branded dialogs (gap analysis section)
+    function chatbotShowModal(options) {
+        const overlay = document.createElement('div');
+        overlay.id = 'chatbot-modal-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
 
-        jQuery.post(ajaxurl, {
-            action: 'chatbot_resolve_cluster',
-            cluster_id: clusterId,
-            nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
-        }, function(response) {
-            if (response.success) {
-                alert('Cluster marked as resolved!');
-                location.reload();
-            } else {
-                alert('Error: ' + (response.data || 'Unknown error'));
+        const borderColor = options.isError ? '#dc3232' : '#2271b1';
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:white;border-radius:4px;box-shadow:0 3px 6px rgba(0,0,0,0.3);max-width:400px;width:90%;border-top:4px solid ' + borderColor + ';';
+
+        modal.innerHTML = `
+            <div style="padding:20px 20px 0;">
+                <h2 style="margin:0 0 12px;font-size:18px;font-weight:600;color:#1d2327;">${options.title}</h2>
+                <p style="margin:0;color:#50575e;font-size:14px;line-height:1.5;">${options.message}</p>
+            </div>
+            <div style="padding:16px 20px;display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #dcdcde;">
+                ${options.hideCancel ? '' : `<button id="chatbot-modal-cancel" class="button" style="padding:6px 12px;">${options.cancelText || 'Cancel'}</button>`}
+                <button id="chatbot-modal-confirm" class="button button-primary" style="padding:6px 12px;">${options.confirmText || 'OK'}</button>
+            </div>
+        `;
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        document.getElementById('chatbot-modal-confirm').onclick = function() {
+            document.body.removeChild(overlay);
+            if (options.onConfirm) options.onConfirm();
+        };
+
+        const cancelBtn = document.getElementById('chatbot-modal-cancel');
+        if (cancelBtn) {
+            cancelBtn.onclick = function() {
+                document.body.removeChild(overlay);
+                if (options.onCancel) options.onCancel();
+            };
+        }
+
+        overlay.onclick = function(e) {
+            if (e.target === overlay && !options.hideCancel) {
+                document.body.removeChild(overlay);
+                if (options.onCancel) options.onCancel();
+            }
+        };
+    }
+
+    function chatbotResolveCluster(clusterId) {
+        chatbotShowModal({
+            title: 'Mark as Resolved',
+            message: 'Mark this cluster as resolved (FAQ created)?',
+            confirmText: 'Yes, Resolve',
+            onConfirm: function() {
+                jQuery.post(ajaxurl, {
+                    action: 'chatbot_resolve_cluster',
+                    cluster_id: clusterId,
+                    nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        chatbotShowModal({
+                            title: 'Success',
+                            message: 'Cluster marked as resolved!',
+                            hideCancel: true,
+                            onConfirm: function() {
+                                window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                            }
+                        });
+                    } else {
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: response.data || 'Unknown error',
+                            isError: true,
+                            hideCancel: true
+                        });
+                    }
+                });
             }
         });
     }
 
     function chatbotDismissCluster(clusterId) {
-        if (!confirm('Dismiss this cluster?')) return;
-
-        jQuery.post(ajaxurl, {
-            action: 'chatbot_dismiss_cluster',
-            cluster_id: clusterId,
-            nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
-        }, function(response) {
-            if (response.success) {
-                alert('Cluster dismissed!');
-                location.reload();
-            } else {
-                alert('Error: ' + (response.data || 'Unknown error'));
-            }
-        });
-    }
-
-    function chatbotRunGapAnalysisLast10() {
-        if (!confirm('Analyze your last 4 chatbot conversations with AI?\n\nThe AI will review:\n- Questions asked\n- Answers given\n- Confidence scores\n- Whether to improve existing FAQs or create new ones')) return;
-
-        const btn = event.target;
-        const originalText = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = '⏳ Analyzing conversations...';
-
-        jQuery.post(ajaxurl, {
-            action: 'chatbot_analyze_last_10_gaps',
-            nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
-        }, function(response) {
-            btn.disabled = false;
-            btn.textContent = originalText;
-
-            if (response.success) {
-                const convos = response.data.conversations || [];
-                let message = '✓ Analysis Complete!\n\n';
-                message += 'Analyzed ' + convos.length + ' conversations:\n\n';
-
-                convos.forEach((conv, idx) => {
-                    const confPercent = Math.round(conv.confidence * 100);
-                    message += (idx + 1) + '. Q: ' + conv.question.substring(0, 60) + '...\n';
-                    message += '   Confidence: ' + confPercent + '%\n';
-                    if (conv.matched_faq_id) {
-                        message += '   Matched: ' + conv.matched_faq_id + '\n';
+        chatbotShowModal({
+            title: 'Dismiss Cluster',
+            message: 'Dismiss this cluster? It will be removed from the queue.',
+            confirmText: 'Yes, Dismiss',
+            onConfirm: function() {
+                jQuery.post(ajaxurl, {
+                    action: 'chatbot_dismiss_cluster',
+                    cluster_id: clusterId,
+                    nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        chatbotShowModal({
+                            title: 'Success',
+                            message: 'Cluster dismissed!',
+                            hideCancel: true,
+                            onConfirm: function() {
+                                window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                            }
+                        });
+                    } else {
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: response.data || 'Unknown error',
+                            isError: true,
+                            hideCancel: true
+                        });
                     }
-                    message += '\n';
                 });
-
-                message += 'Found ' + (response.data.suggestions || 0) + ' AI suggestions.\n\nReloading dashboard...';
-                alert(message);
-                location.reload();
-            } else {
-                alert('Error: ' + (response.data || 'Unknown error'));
-            }
-        }).fail(function() {
-            btn.disabled = false;
-            btn.textContent = originalText;
-            alert('Request failed. Please try again.');
-        });
-    }
-
-    function chatbotGenerateMockData() {
-        if (!confirm('Generate mock gap analysis data? This will create sample questions and AI clusters for testing the dashboard.')) return;
-
-        const btn = event.target;
-        btn.disabled = true;
-        btn.textContent = '⏳ Generating...';
-
-        jQuery.post(ajaxurl, {
-            action: 'chatbot_generate_mock_gap_data',
-            nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
-        }, function(response) {
-            btn.disabled = false;
-            btn.textContent = '✨ Generate Mock Data';
-
-            if (response.success) {
-                alert('Mock data created! Generated ' + response.data.questions + ' questions and ' + response.data.clusters + ' clusters.');
-                location.reload();
-            } else {
-                alert('Error: ' + (response.data || 'Unknown error'));
             }
         });
     }
 
-    // Handle stats period dropdown change
+    // Apply improved answer to existing FAQ
+    function chatbotApplyImprovedFaq(clusterId, faqId) {
+        const newAnswer = document.getElementById('improve_answer_' + clusterId).value.trim();
+
+        if (!newAnswer) {
+            chatbotShowModal({
+                title: 'Missing Field',
+                message: 'Please enter an answer.',
+                isError: true,
+                hideCancel: true
+            });
+            return;
+        }
+
+        chatbotShowModal({
+            title: 'Update FAQ',
+            message: 'Update FAQ ' + faqId + ' with this new answer?',
+            confirmText: 'Yes, Update',
+            onConfirm: function() {
+                jQuery.post(ajaxurl, {
+                    action: 'chatbot_apply_improved_faq',
+                    cluster_id: clusterId,
+                    faq_id: faqId,
+                    new_answer: newAnswer,
+                    nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        chatbotShowModal({
+                            title: 'Success',
+                            message: 'FAQ updated successfully!',
+                            hideCancel: true,
+                            onConfirm: function() {
+                                window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                            }
+                        });
+                    } else {
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: response.data || 'Unknown error',
+                            isError: true,
+                            hideCancel: true
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    // Add new FAQ to knowledge base
+    function chatbotAddNewFaq(clusterId) {
+        const category = document.getElementById('new_faq_category_' + clusterId).value.trim();
+        const question = document.getElementById('new_faq_question_' + clusterId).value.trim();
+        const answer = document.getElementById('new_faq_answer_' + clusterId).value.trim();
+
+        if (!question) {
+            chatbotShowModal({
+                title: 'Missing Field',
+                message: 'Please enter a question.',
+                isError: true,
+                hideCancel: true
+            });
+            return;
+        }
+        if (!answer) {
+            chatbotShowModal({
+                title: 'Missing Field',
+                message: 'Please enter an answer.',
+                isError: true,
+                hideCancel: true
+            });
+            return;
+        }
+        if (!category) {
+            chatbotShowModal({
+                title: 'Missing Field',
+                message: 'Please enter a category.',
+                isError: true,
+                hideCancel: true
+            });
+            return;
+        }
+
+        chatbotShowModal({
+            title: 'Add New FAQ',
+            message: 'Add this new FAQ to the knowledge base?',
+            confirmText: 'Yes, Add FAQ',
+            onConfirm: function() {
+                jQuery.post(ajaxurl, {
+                    action: 'chatbot_add_new_faq',
+                    cluster_id: clusterId,
+                    category: category,
+                    question: question,
+                    answer: answer,
+                    nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        chatbotShowModal({
+                            title: 'Success',
+                            message: 'FAQ added successfully! ID: ' + (response.data.faq_id || 'new'),
+                            hideCancel: true,
+                            onConfirm: function() {
+                                window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                            }
+                        });
+                    } else {
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: response.data || 'Unknown error',
+                            isError: true,
+                            hideCancel: true
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    // Handle Run Analysis Now button
     jQuery(document).ready(function($) {
-        $('#chatbot_stats_period').on('change', function() {
-            const period = $(this).val();
-            // Reload page with new period
-            const url = new URL(window.location.href);
-            url.searchParams.set('stats_period', period);
-            window.location.href = url.toString();
-        });
-
-        // Handle Run Analysis Now button
         $('#run_gap_analysis_now').on('click', function() {
             const $btn = $(this);
             const originalText = $btn.text();
 
-            if (!confirm('Run AI gap analysis now? This will analyze all unresolved gap questions and generate FAQ suggestions.')) {
-                return;
-            }
+            // Show WordPress-style modal
+            chatbotShowModal({
+                title: 'Run AI Gap Analysis',
+                message: 'This will analyze all unresolved gap questions and generate FAQ suggestions. This may take 30-60 seconds.',
+                confirmText: 'Run Analysis',
+                cancelText: 'Cancel',
+                onConfirm: function() {
+                    $btn.prop('disabled', true).text('Running...');
 
-            $btn.prop('disabled', true).text('⏳ Running...');
+                    $.post(ajaxurl, {
+                        action: 'chatbot_run_gap_analysis_manual',
+                        nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+                    }, function(response) {
+                        if (response.success) {
+                            chatbotShowModal({
+                                title: 'Analysis Complete',
+                                message: response.data.message || 'FAQ suggestions have been generated.',
+                                confirmText: 'OK',
+                                hideCancel: true,
+                                onConfirm: function() {
+                                    window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                                }
+                            });
+                        } else {
+                            chatbotShowModal({
+                                title: 'Analysis Failed',
+                                message: response.data || 'An error occurred during analysis.',
+                                confirmText: 'OK',
+                                hideCancel: true,
+                                isError: true,
+                                onConfirm: function() { $btn.prop('disabled', false).text(originalText); }
+                            });
+                        }
+                    }).fail(function() {
+                        chatbotShowModal({
+                            title: 'Request Failed',
+                            message: 'Could not connect to server. Please try again.',
+                            confirmText: 'OK',
+                            hideCancel: true,
+                            isError: true,
+                            onConfirm: function() { $btn.prop('disabled', false).text(originalText); }
+                        });
+                    });
+                }
+            });
+        });
+
+        // Handle Auto-Analysis Toggle - saves immediately, no save button needed
+        $('#auto_analysis_toggle').on('change', function() {
+            const isEnabled = $(this).is(':checked') ? 'on' : 'off';
+            const $status = $('#auto_analysis_status');
 
             $.post(ajaxurl, {
-                action: 'chatbot_run_gap_analysis_manual',
+                action: 'chatbot_toggle_auto_analysis',
+                enabled: isEnabled,
                 nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
             }, function(response) {
                 if (response.success) {
-                    alert('✅ Analysis complete! ' + (response.data.message || 'FAQ suggestions generated.'));
-                    location.reload();
+                    $status.text(isEnabled === 'on' ? 'ON' : 'OFF');
+                    $status.css('color', isEnabled === 'on' ? '#10b981' : '#6b7280');
                 } else {
-                    alert('❌ Error: ' + (response.data || 'Analysis failed'));
-                    $btn.prop('disabled', false).text(originalText);
+                    alert('Error: ' + (response.data || 'Failed to save setting'));
+                    // Revert checkbox
+                    $('#auto_analysis_toggle').prop('checked', isEnabled !== 'on');
                 }
-            }).fail(function() {
-                alert('❌ Request failed. Please try again.');
-                $btn.prop('disabled', false).text(originalText);
             });
         });
     });
@@ -1463,7 +1609,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
     ?>
     <div>
         <!-- Header -->
-        <h2 style="margin: 0 0 10px 0; color: #1e293b;">🎓 Learning Dashboard</h2>
+        <h2 style="margin: 0 0 10px 0; color: #1e293b;">Learning Dashboard</h2>
         <p style="margin: 0 0 20px 0; color: #64748b; font-size: 14px;">
             FAQ improvements based on user feedback — all changes require human approval
         </p>
@@ -1474,7 +1620,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
             <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #10b981;">
                 <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Learning Mode</div>
                 <div style="font-size: 18px; font-weight: bold; color: #10b981;">
-                    ✓ Active (Human Approval)
+                    Active (Human Approval)
                 </div>
             </div>
 
@@ -1489,7 +1635,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
             <!-- Threshold -->
             <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #3b82f6;">
                 <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Flagging Threshold</div>
-                <div style="font-size: 32px; font-weight: bold; color: #3b82f6;"><?php echo $negative_threshold; ?> 👎</div>
+                <div style="font-size: 32px; font-weight: bold; color: #3b82f6;"><?php echo $negative_threshold; ?></div>
             </div>
 
             <!-- Stats -->
@@ -1501,7 +1647,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
 
         <!-- How It Works -->
         <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #1e40af;">💡 How It Works</h3>
+            <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #1e40af;">How It Works</h3>
             <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #1e3a8a; line-height: 1.8;">
                 <li><strong>User gives feedback</strong> — Thumbs up/down on chatbot responses</li>
                 <li><strong>Threshold reached</strong> — FAQ flagged after <?php echo $negative_threshold; ?>+ negative ratings</li>
@@ -1517,7 +1663,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h3 style="margin: 0; font-size: 16px; color: #111827;">
-                    📋 Human Review Queue
+                    Human Review Queue
                     <?php if ($pending_count > 0) : ?>
                     <span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px;">
                         <?php echo $pending_count; ?> pending
@@ -1525,13 +1671,13 @@ function chatbot_chatgpt_learning_dashboard_callback() {
                     <?php endif; ?>
                 </h3>
                 <button onclick="chatbotRefreshReviewQueue()" class="button" style="font-size: 12px;">
-                    🔄 Refresh
+                    Refresh
                 </button>
             </div>
 
             <?php if (empty($review_queue)) : ?>
             <div style="text-align: center; padding: 40px 20px; color: #64748b;">
-                <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
+                <div style="font-size: 48px; margin-bottom: 10px;"></div>
                 <p style="margin: 0; font-size: 14px;">No FAQs pending review</p>
                 <p style="margin: 5px 0 0 0; font-size: 12px;">FAQs will appear here when they reach the negative feedback threshold</p>
             </div>
@@ -1541,7 +1687,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
                     <tr style="background-color: #f1f5f9;">
                         <th style="padding: 12px; width: 60px;">FAQ ID</th>
                         <th style="padding: 12px;">Question</th>
-                        <th style="padding: 12px; width: 80px; text-align: center;">👎 Count</th>
+                        <th style="padding: 12px; width: 80px; text-align: center;">Count</th>
                         <th style="padding: 12px; width: 100px; text-align: center;">Confidence</th>
                         <th style="padding: 12px; width: 120px; text-align: center;">Suggested</th>
                         <th style="padding: 12px; width: 150px; text-align: center;">Actions</th>
@@ -1576,13 +1722,13 @@ function chatbot_chatgpt_learning_dashboard_callback() {
                         </td>
                         <td style="padding: 12px; text-align: center;">
                             <button onclick="chatbotViewReviewItem(<?php echo $item['id']; ?>)" class="button" style="font-size: 11px; padding: 4px 8px;">
-                                👁️ View
+                                View
                             </button>
                             <button onclick="chatbotResolveReviewItem(<?php echo $item['id']; ?>)" class="button button-primary" style="font-size: 11px; padding: 4px 8px;">
-                                ✓
+                                Approve
                             </button>
                             <button onclick="chatbotDismissReviewItem(<?php echo $item['id']; ?>)" class="button" style="font-size: 11px; padding: 4px 8px;">
-                                ✗
+                                Dismiss
                             </button>
                         </td>
                     </tr>
@@ -1594,7 +1740,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
 
         <!-- Rollback Section -->
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">⏪ Rollback & Recovery</h3>
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">Rollback & Recovery</h3>
             <p style="margin: 0 0 15px 0; font-size: 13px; color: #6b7280;">
                 If learning produces poor results, you can rollback recent changes or regenerate embeddings.
             </p>
@@ -1602,7 +1748,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
                 <!-- Recent Changes -->
                 <div style="background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb;">
-                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">📜 Recent Learning Changes</h4>
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Recent Learning Changes</h4>
                     <?php
                     $recent_changes = chatbot_get_recent_learning_changes(5);
                     if (empty($recent_changes)) :
@@ -1632,10 +1778,10 @@ function chatbot_chatgpt_learning_dashboard_callback() {
                     </p>
                     <div style="display: flex; flex-direction: column; gap: 8px;">
                         <button onclick="chatbotResetAllLearning()" class="button" style="background: #fca5a5; border-color: #f87171; color: #7f1d1d; font-size: 12px;">
-                            🔄 Reset All Learning Data
+                            Reset All Learning Data
                         </button>
                         <button onclick="chatbotRegenerateEmbeddings()" class="button" style="background: #fcd34d; border-color: #fbbf24; color: #78350f; font-size: 12px;">
-                            🔧 Regenerate All Embeddings
+                            Regenerate All Embeddings
                         </button>
                     </div>
                 </div>
@@ -1644,7 +1790,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
 
         <!-- Learning Stats -->
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
-            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">📊 Learning Statistics</h3>
+            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">Learning Statistics</h3>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
                 <div style="text-align: center; padding: 15px; background: #f9fafb; border-radius: 6px;">
                     <div style="font-size: 28px; font-weight: bold; color: #10b981;"><?php echo $learning_stats['approved']; ?></div>
@@ -1667,6 +1813,51 @@ function chatbot_chatgpt_learning_dashboard_callback() {
     </div>
 
     <script>
+    // Modal function for branded dialogs (learning dashboard section)
+    function chatbotShowModal(options) {
+        const overlay = document.createElement('div');
+        overlay.id = 'chatbot-modal-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
+
+        const borderColor = options.isError ? '#dc3232' : '#2271b1';
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:white;border-radius:4px;box-shadow:0 3px 6px rgba(0,0,0,0.3);max-width:400px;width:90%;border-top:4px solid ' + borderColor + ';';
+
+        modal.innerHTML = `
+            <div style="padding:20px 20px 0;">
+                <h2 style="margin:0 0 12px;font-size:18px;font-weight:600;color:#1d2327;">${options.title}</h2>
+                <p style="margin:0;color:#50575e;font-size:14px;line-height:1.5;">${options.message}</p>
+            </div>
+            <div style="padding:16px 20px;display:flex;justify-content:flex-end;gap:10px;margin-top:20px;border-top:1px solid #dcdcde;">
+                ${options.hideCancel ? '' : `<button id="chatbot-modal-cancel" class="button" style="padding:6px 12px;">${options.cancelText || 'Cancel'}</button>`}
+                <button id="chatbot-modal-confirm" class="button button-primary" style="padding:6px 12px;">${options.confirmText || 'OK'}</button>
+            </div>
+        `;
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        document.getElementById('chatbot-modal-confirm').onclick = function() {
+            document.body.removeChild(overlay);
+            if (options.onConfirm) options.onConfirm();
+        };
+
+        const cancelBtn = document.getElementById('chatbot-modal-cancel');
+        if (cancelBtn) {
+            cancelBtn.onclick = function() {
+                document.body.removeChild(overlay);
+                if (options.onCancel) options.onCancel();
+            };
+        }
+
+        overlay.onclick = function(e) {
+            if (e.target === overlay && !options.hideCancel) {
+                document.body.removeChild(overlay);
+                if (options.onCancel) options.onCancel();
+            }
+        };
+    }
+
     function chatbotRefreshReviewQueue() {
         location.reload();
     }
@@ -1679,133 +1870,208 @@ function chatbot_chatgpt_learning_dashboard_callback() {
         }, function(response) {
             if (response.success) {
                 const item = response.data;
-                let msg = '📋 Review Item Details\n\n';
-                msg += '━━━━━━━━━━━━━━━━━━━━\n';
-                msg += 'FAQ ID: ' + item.faq_id + '\n\n';
-                msg += '❓ Question:\n' + item.question + '\n\n';
-                msg += '💬 Current Answer:\n' + item.current_answer + '\n\n';
-                msg += '━━━━━━━━━━━━━━━━━━━━\n';
-                msg += '👎 Negative Count: ' + item.negative_count + '\n';
-                msg += '📊 Current Confidence: ' + item.current_confidence + '%\n\n';
+                let msg = '<strong>FAQ ID:</strong> ' + item.faq_id + '<br><br>';
+                msg += '<strong>Question:</strong><br>' + item.question + '<br><br>';
+                msg += '<strong>Current Answer:</strong><br>' + item.current_answer + '<br><br>';
+                msg += '<strong>Negative Count:</strong> ' + item.negative_count + '<br>';
+                msg += '<strong>Current Confidence:</strong> ' + item.current_confidence + '%<br><br>';
                 if (item.user_comments && item.user_comments.length > 0) {
-                    msg += '💭 User Comments:\n';
+                    msg += '<strong>User Comments:</strong><br>';
                     item.user_comments.forEach((c, i) => {
-                        msg += '  ' + (i+1) + '. "' + c + '"\n';
+                        msg += (i+1) + '. "' + c + '"<br>';
                     });
                 }
-                msg += '\n💡 Suggestion: ' + item.suggestion_type;
-                alert(msg);
+                msg += '<br><strong>Suggestion:</strong> ' + item.suggestion_type;
+                chatbotShowModal({
+                    title: 'Review Item Details',
+                    message: msg,
+                    hideCancel: true
+                });
             } else {
-                alert('Error loading details');
+                chatbotShowModal({
+                    title: 'Error',
+                    message: 'Error loading details',
+                    isError: true,
+                    hideCancel: true
+                });
             }
         });
     }
 
     function chatbotResolveReviewItem(itemId) {
-        if (!confirm('Mark this item as resolved? This confirms you have reviewed and addressed the feedback.')) return;
-
-        jQuery.post(ajaxurl, {
-            action: 'chatbot_resolve_review_item',
-            item_id: itemId,
-            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
-        }, function(response) {
-            if (response.success) {
-                jQuery('tr[data-item-id="' + itemId + '"]').fadeOut(300, function() {
-                    jQuery(this).remove();
-                    if (jQuery('#learning-review-queue-body tr').length === 0) {
-                        location.reload();
+        chatbotShowModal({
+            title: 'Mark as Resolved',
+            message: 'Mark this item as resolved? This confirms you have reviewed and addressed the feedback.',
+            confirmText: 'Yes, Resolve',
+            onConfirm: function() {
+                jQuery.post(ajaxurl, {
+                    action: 'chatbot_resolve_review_item',
+                    item_id: itemId,
+                    nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        jQuery('tr[data-item-id="' + itemId + '"]').fadeOut(300, function() {
+                            jQuery(this).remove();
+                            if (jQuery('#learning-review-queue-body tr').length === 0) {
+                                location.reload();
+                            }
+                        });
+                    } else {
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: response.data || 'Unknown error',
+                            isError: true,
+                            hideCancel: true
+                        });
                     }
                 });
-            } else {
-                alert('Error: ' + (response.data || 'Unknown error'));
             }
         });
     }
 
     function chatbotDismissReviewItem(itemId) {
-        if (!confirm('Dismiss this item? It will be removed from the queue without action.')) return;
-
-        jQuery.post(ajaxurl, {
-            action: 'chatbot_dismiss_review_item',
-            item_id: itemId,
-            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
-        }, function(response) {
-            if (response.success) {
-                jQuery('tr[data-item-id="' + itemId + '"]').fadeOut(300, function() {
-                    jQuery(this).remove();
-                    if (jQuery('#learning-review-queue-body tr').length === 0) {
-                        location.reload();
+        chatbotShowModal({
+            title: 'Dismiss Item',
+            message: 'Dismiss this item? It will be removed from the queue without action.',
+            confirmText: 'Yes, Dismiss',
+            onConfirm: function() {
+                jQuery.post(ajaxurl, {
+                    action: 'chatbot_dismiss_review_item',
+                    item_id: itemId,
+                    nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        jQuery('tr[data-item-id="' + itemId + '"]').fadeOut(300, function() {
+                            jQuery(this).remove();
+                            if (jQuery('#learning-review-queue-body tr').length === 0) {
+                                location.reload();
+                            }
+                        });
+                    } else {
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: response.data || 'Unknown error',
+                            isError: true,
+                            hideCancel: true
+                        });
                     }
                 });
-            } else {
-                alert('Error: ' + (response.data || 'Unknown error'));
             }
         });
     }
 
     function chatbotRollbackChange(changeId) {
-        if (!confirm('Rollback this change? This will undo the learning modification.')) return;
-
-        jQuery.post(ajaxurl, {
-            action: 'chatbot_rollback_learning_change',
-            change_id: changeId,
-            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
-        }, function(response) {
-            if (response.success) {
-                alert('Change rolled back successfully!');
-                location.reload();
-            } else {
-                alert('Error: ' + (response.data || 'Unknown error'));
+        chatbotShowModal({
+            title: 'Rollback Change',
+            message: 'Rollback this change? This will undo the learning modification.',
+            confirmText: 'Yes, Rollback',
+            onConfirm: function() {
+                jQuery.post(ajaxurl, {
+                    action: 'chatbot_rollback_learning_change',
+                    change_id: changeId,
+                    nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        chatbotShowModal({
+                            title: 'Success',
+                            message: 'Change rolled back successfully!',
+                            hideCancel: true,
+                            onConfirm: function() { location.reload(); }
+                        });
+                    } else {
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: response.data || 'Unknown error',
+                            isError: true,
+                            hideCancel: true
+                        });
+                    }
+                });
             }
         });
     }
 
     function chatbotResetAllLearning() {
-        if (!confirm('⚠️ WARNING: This will reset ALL learning data!\n\nThis includes:\n- All pending review items\n- Learning history\n- Feedback associations\n\nThis cannot be undone. Continue?')) return;
-        if (!confirm('Are you absolutely sure? Type "RESET" in the next prompt to confirm.')) return;
-
-        const confirmation = prompt('Type RESET to confirm:');
-        if (confirmation !== 'RESET') {
-            alert('Reset cancelled.');
-            return;
-        }
-
-        jQuery.post(ajaxurl, {
-            action: 'chatbot_reset_all_learning',
-            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
-        }, function(response) {
-            if (response.success) {
-                alert('All learning data has been reset.');
-                location.reload();
-            } else {
-                alert('Error: ' + (response.data || 'Unknown error'));
+        chatbotShowModal({
+            title: 'Reset All Learning Data',
+            message: '<strong style="color:#dc3232;">WARNING:</strong> This will reset ALL learning data!<br><br>This includes:<br>• All pending review items<br>• Learning history<br>• Feedback associations<br><br>This cannot be undone.',
+            isError: true,
+            confirmText: 'Continue',
+            onConfirm: function() {
+                chatbotShowModal({
+                    title: 'Final Confirmation',
+                    message: 'Are you absolutely sure? This action cannot be reversed.',
+                    isError: true,
+                    confirmText: 'Yes, Reset Everything',
+                    onConfirm: function() {
+                        jQuery.post(ajaxurl, {
+                            action: 'chatbot_reset_all_learning',
+                            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+                        }, function(response) {
+                            if (response.success) {
+                                chatbotShowModal({
+                                    title: 'Success',
+                                    message: 'All learning data has been reset.',
+                                    hideCancel: true,
+                                    onConfirm: function() { location.reload(); }
+                                });
+                            } else {
+                                chatbotShowModal({
+                                    title: 'Error',
+                                    message: response.data || 'Unknown error',
+                                    isError: true,
+                                    hideCancel: true
+                                });
+                            }
+                        });
+                    }
+                });
             }
         });
     }
 
     function chatbotRegenerateEmbeddings() {
-        if (!confirm('⚠️ Regenerate all FAQ embeddings?\n\nThis will:\n- Re-generate vector embeddings for all FAQs\n- May take several minutes\n- Temporarily affect search accuracy\n\nContinue?')) return;
+        chatbotShowModal({
+            title: 'Regenerate Embeddings',
+            message: 'Regenerate all FAQ embeddings?<br><br>This will:<br>• Re-generate vector embeddings for all FAQs<br>• May take several minutes<br>• Temporarily affect search accuracy',
+            confirmText: 'Yes, Regenerate',
+            onConfirm: function() {
+                const btn = document.querySelector('[onclick*="chatbotRegenerateEmbeddings"]');
+                btn.disabled = true;
+                btn.textContent = 'Regenerating...';
 
-        const btn = event.target;
-        btn.disabled = true;
-        btn.textContent = '⏳ Regenerating...';
+                jQuery.post(ajaxurl, {
+                    action: 'chatbot_regenerate_embeddings',
+                    nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
+                }, function(response) {
+                    btn.disabled = false;
+                    btn.textContent = 'Regenerate All Embeddings';
 
-        jQuery.post(ajaxurl, {
-            action: 'chatbot_regenerate_embeddings',
-            nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
-        }, function(response) {
-            btn.disabled = false;
-            btn.textContent = '🔧 Regenerate All Embeddings';
-
-            if (response.success) {
-                alert('Embeddings regenerated successfully!\n\nProcessed: ' + response.data.processed + ' FAQs');
-            } else {
-                alert('Error: ' + (response.data || 'Unknown error'));
+                    if (response.success) {
+                        chatbotShowModal({
+                            title: 'Success',
+                            message: 'Embeddings regenerated successfully!<br><br>Processed: ' + response.data.processed + ' FAQs',
+                            hideCancel: true
+                        });
+                    } else {
+                        chatbotShowModal({
+                            title: 'Error',
+                            message: response.data || 'Unknown error',
+                            isError: true,
+                            hideCancel: true
+                        });
+                    }
+                }).fail(function() {
+                    btn.disabled = false;
+                    btn.textContent = 'Regenerate All Embeddings';
+                    chatbotShowModal({
+                        title: 'Error',
+                        message: 'Request failed. Please try again.',
+                        isError: true,
+                        hideCancel: true
+                    });
+                });
             }
-        }).fail(function() {
-            btn.disabled = false;
-            btn.textContent = '🔧 Regenerate All Embeddings';
-            alert('Request failed. Please try again.');
         });
     }
     </script>
@@ -2073,3 +2339,237 @@ function chatbot_chatgpt_admin_notice() {
     }
 }
 add_action('admin_notices', 'chatbot_chatgpt_admin_notice');
+
+// =============================================================================
+// DATA RETENTION SETTINGS - Ver 2.5.0
+// =============================================================================
+
+/**
+ * Register data retention settings
+ */
+function chatbot_register_data_retention_settings() {
+    register_setting('chatbot_chatgpt_reporting', 'chatbot_retention_conversations');
+    register_setting('chatbot_chatgpt_reporting', 'chatbot_retention_interactions');
+    register_setting('chatbot_chatgpt_reporting', 'chatbot_retention_gap_questions');
+    register_setting('chatbot_chatgpt_reporting', 'chatbot_retention_gap_clusters');
+
+    add_settings_section(
+        'chatbot_data_retention_section',
+        'Data Retention & Cleanup',
+        'chatbot_data_retention_section_callback',
+        'chatbot_chatgpt_reporting'
+    );
+
+    add_settings_field(
+        'chatbot_retention_conversations',
+        'Conversation Logs',
+        'chatbot_retention_conversations_callback',
+        'chatbot_chatgpt_reporting',
+        'chatbot_data_retention_section'
+    );
+
+    add_settings_field(
+        'chatbot_retention_interactions',
+        'Daily Interactions',
+        'chatbot_retention_interactions_callback',
+        'chatbot_chatgpt_reporting',
+        'chatbot_data_retention_section'
+    );
+
+    add_settings_field(
+        'chatbot_retention_gap_questions',
+        'Gap Questions (after clustered)',
+        'chatbot_retention_gap_questions_callback',
+        'chatbot_chatgpt_reporting',
+        'chatbot_data_retention_section'
+    );
+
+    add_settings_field(
+        'chatbot_retention_gap_clusters',
+        'Gap Clusters (after resolved)',
+        'chatbot_retention_gap_clusters_callback',
+        'chatbot_chatgpt_reporting',
+        'chatbot_data_retention_section'
+    );
+}
+add_action('admin_init', 'chatbot_register_data_retention_settings');
+
+/**
+ * Data retention section callback
+ */
+function chatbot_data_retention_section_callback() {
+    // Get current stats
+    $stats = [];
+    if (function_exists('chatbot_get_data_retention_stats')) {
+        $stats = chatbot_get_data_retention_stats();
+    }
+    ?>
+    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+        <h3 style="margin: 0 0 15px 0; color: #374151;">Current Database Usage</h3>
+        <p style="margin: 0 0 15px 0; color: #6b7280; font-size: 13px;">
+            Automatic cleanup runs daily at 3 AM. Tables marked as "Keep Forever" are never automatically deleted.
+        </p>
+
+        <?php if (!empty($stats) && !isset($stats['error'])): ?>
+        <table class="widefat" style="border-collapse: collapse; margin-bottom: 15px;">
+            <thead>
+                <tr style="background: #f1f5f9;">
+                    <th style="padding: 10px; text-align: left;">Table</th>
+                    <th style="padding: 10px; text-align: right;">Records</th>
+                    <th style="padding: 10px; text-align: left;">Retention</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $retention_info = [
+                    'chatbot_conversations' => ['Auto-delete', get_option('chatbot_retention_conversations', 90) . ' days'],
+                    'chatbot_interactions' => ['Auto-delete', get_option('chatbot_retention_interactions', 365) . ' days'],
+                    'chatbot_gap_questions' => ['Auto-delete (clustered)', get_option('chatbot_retention_gap_questions', 30) . ' days'],
+                    'chatbot_gap_clusters' => ['Auto-delete (resolved)', get_option('chatbot_retention_gap_clusters', 90) . ' days'],
+                    'chatbot_faqs' => ['Keep Forever', '-'],
+                    'chatbot_faq_usage' => ['Keep Forever', '-'],
+                    'chatbot_assistants' => ['Keep Forever', '-']
+                ];
+                foreach ($stats as $table => $info):
+                    $ret = $retention_info[$table] ?? ['Unknown', '-'];
+                    $color = $ret[0] === 'Keep Forever' ? '#10b981' : '#3b82f6';
+                ?>
+                <tr>
+                    <td style="padding: 10px;"><?php echo esc_html($info['label']); ?></td>
+                    <td style="padding: 10px; text-align: right; font-weight: 600;">
+                        <?php echo number_format($info['count']); ?>
+                    </td>
+                    <td style="padding: 10px;">
+                        <span style="color: <?php echo $color; ?>; font-size: 12px;">
+                            <?php echo esc_html($ret[0]); ?>
+                            <?php if ($ret[1] !== '-'): ?>
+                                (<?php echo esc_html($ret[1]); ?>)
+                            <?php endif; ?>
+                        </span>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php else: ?>
+        <p style="color: #ef4444;">Could not fetch database statistics. <?php echo isset($stats['error']) ? esc_html($stats['error']) : ''; ?></p>
+        <?php endif; ?>
+
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button type="button" id="run-cleanup-btn" class="button button-secondary" onclick="chatbotRunCleanup()">
+                Run Cleanup Now
+            </button>
+            <span id="cleanup-status" style="font-size: 12px; color: #6b7280;"></span>
+        </div>
+
+        <script>
+        function chatbotRunCleanup() {
+            const btn = document.getElementById('run-cleanup-btn');
+            const status = document.getElementById('cleanup-status');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            status.textContent = '';
+
+            jQuery.post(ajaxurl, {
+                action: 'chatbot_run_cleanup',
+                nonce: '<?php echo wp_create_nonce('chatbot_settings_nonce'); ?>'
+            }, function(response) {
+                btn.disabled = false;
+                btn.textContent = 'Run Cleanup Now';
+
+                if (response.success) {
+                    const r = response.data.results;
+                    status.innerHTML = '<span style="color: #10b981;">Deleted: ' +
+                        (r.conversations || 0) + ' conversations, ' +
+                        (r.interactions || 0) + ' interactions, ' +
+                        (r.gap_questions || 0) + ' gap questions, ' +
+                        (r.gap_clusters || 0) + ' clusters</span>';
+                    // Refresh after 2 seconds to update counts
+                    setTimeout(function() { location.reload(); }, 2000);
+                } else {
+                    status.innerHTML = '<span style="color: #ef4444;">Error: ' + (response.data?.message || 'Unknown error') + '</span>';
+                }
+            }).fail(function() {
+                btn.disabled = false;
+                btn.textContent = 'Run Cleanup Now';
+                status.innerHTML = '<span style="color: #ef4444;">Request failed</span>';
+            });
+        }
+        </script>
+    </div>
+
+    <p style="margin-bottom: 15px; color: #4b5563;">
+        Configure how long to keep data before automatic deletion. Set to <strong>0</strong> to disable auto-deletion for that table.
+    </p>
+    <?php
+}
+
+/**
+ * Conversation retention callback
+ */
+function chatbot_retention_conversations_callback() {
+    $value = get_option('chatbot_retention_conversations', 90);
+    ?>
+    <select name="chatbot_retention_conversations">
+        <option value="0" <?php selected($value, 0); ?>>Never delete (not recommended)</option>
+        <option value="30" <?php selected($value, 30); ?>>30 days</option>
+        <option value="60" <?php selected($value, 60); ?>>60 days</option>
+        <option value="90" <?php selected($value, 90); ?>>90 days (default)</option>
+        <option value="180" <?php selected($value, 180); ?>>180 days</option>
+        <option value="365" <?php selected($value, 365); ?>>1 year</option>
+    </select>
+    <p class="description">Conversation logs grow fastest. 90 days is recommended for most sites.</p>
+    <?php
+}
+
+/**
+ * Interactions retention callback
+ */
+function chatbot_retention_interactions_callback() {
+    $value = get_option('chatbot_retention_interactions', 365);
+    ?>
+    <select name="chatbot_retention_interactions">
+        <option value="0" <?php selected($value, 0); ?>>Never delete</option>
+        <option value="90" <?php selected($value, 90); ?>>90 days</option>
+        <option value="180" <?php selected($value, 180); ?>>180 days</option>
+        <option value="365" <?php selected($value, 365); ?>>1 year (default)</option>
+        <option value="730" <?php selected($value, 730); ?>>2 years</option>
+    </select>
+    <p class="description">Daily interaction counts. Low volume, safe to keep longer.</p>
+    <?php
+}
+
+/**
+ * Gap questions retention callback
+ */
+function chatbot_retention_gap_questions_callback() {
+    $value = get_option('chatbot_retention_gap_questions', 30);
+    ?>
+    <select name="chatbot_retention_gap_questions">
+        <option value="0" <?php selected($value, 0); ?>>Never delete</option>
+        <option value="7" <?php selected($value, 7); ?>>7 days</option>
+        <option value="14" <?php selected($value, 14); ?>>14 days</option>
+        <option value="30" <?php selected($value, 30); ?>>30 days (default)</option>
+        <option value="60" <?php selected($value, 60); ?>>60 days</option>
+        <option value="90" <?php selected($value, 90); ?>>90 days</option>
+    </select>
+    <p class="description">Only deletes questions that have been clustered. Unclustered questions are kept.</p>
+    <?php
+}
+
+/**
+ * Gap clusters retention callback
+ */
+function chatbot_retention_gap_clusters_callback() {
+    $value = get_option('chatbot_retention_gap_clusters', 90);
+    ?>
+    <select name="chatbot_retention_gap_clusters">
+        <option value="0" <?php selected($value, 0); ?>>Never delete</option>
+        <option value="30" <?php selected($value, 30); ?>>30 days</option>
+        <option value="60" <?php selected($value, 60); ?>>60 days</option>
+        <option value="90" <?php selected($value, 90); ?>>90 days (default)</option>
+        <option value="180" <?php selected($value, 180); ?>>180 days</option>
+    </select>
+    <p class="description">Only deletes clusters that are resolved (FAQ created or dismissed). Active clusters are kept.</p>
+    <?php
+}

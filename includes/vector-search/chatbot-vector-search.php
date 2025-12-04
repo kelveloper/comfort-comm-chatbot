@@ -832,16 +832,17 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
             $used_context = true;
 
             // Build context string for gap question logging (Ver 2.5.0)
-            // Include up to 3 Q&A pairs for full conversation context
+            // Include up to 2 Q&A pairs for conversation context (enough to understand follow-ups)
             $context_parts = [];
             if (!empty($context['history'])) {
                 $pair_num = 1;
-                foreach ($context['history'] as $pair) {
+                $max_pairs = 2; // Limit to 2 pairs to avoid clutter
+                foreach (array_slice($context['history'], 0, $max_pairs) as $pair) {
                     if (!empty($pair['question'])) {
-                        $context_parts[] = 'Q' . $pair_num . ': ' . substr($pair['question'], 0, 150);
+                        $context_parts[] = 'Q' . $pair_num . ': ' . substr($pair['question'], 0, 100);
                     }
                     if (!empty($pair['answer'])) {
-                        $context_parts[] = 'A' . $pair_num . ': ' . substr($pair['answer'], 0, 200);
+                        $context_parts[] = 'A' . $pair_num . ': ' . substr($pair['answer'], 0, 120);
                     }
                     $pair_num++;
                 }

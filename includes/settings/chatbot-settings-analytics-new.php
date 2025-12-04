@@ -290,7 +290,7 @@ function chatbot_analytics_new_page() {
         <!-- Period Filter -->
         <div class="period-filter-form">
             <label for="analytics_period" style="font-weight: 600; margin-right: 10px;">Period:</label>
-            <select name="analytics_period" id="analytics_period" onchange="window.location.href='<?php echo esc_url(admin_url('admin.php?page=chatbot-chatgpt&tab=analytics_new')); ?>&period=' + this.value;">
+            <select name="analytics_period" id="analytics_period" onchange="window.location.href='<?php echo esc_url(admin_url('admin.php?page=chatbot-chatgpt&tab=analytics_feedback')); ?>&period=' + this.value;">
                 <option value="Today" <?php selected($selected_period, 'Today'); ?>>Today vs Yesterday</option>
                 <option value="Week" <?php selected($selected_period, 'Week'); ?>>This Week vs Last Week</option>
                 <option value="Month" <?php selected($selected_period, 'Month'); ?>>This Month vs Last Month</option>
@@ -301,9 +301,26 @@ function chatbot_analytics_new_page() {
 
         <div style="margin-bottom: 30px;"></div>
 
+        <!-- AI Gap Analysis Dashboard - MOVED TO TOP (Ver 2.5.0) -->
+        <div class="section-header">
+            <h2>AI Gap Analysis Dashboard</h2>
+            <p class="section-description">Identifies questions users ask that your FAQ database can't answer — AI suggests new FAQs</p>
+        </div>
+
+        <div class="analytics-section">
+            <?php
+            // Call the gap analysis callback from reporting, passing the selected period
+            if (function_exists('chatbot_chatgpt_gap_analysis_callback')) {
+                chatbot_chatgpt_gap_analysis_callback($selected_period);
+            } else {
+                echo '<p style="color: #6b7280;">Gap analysis module not loaded.</p>';
+            }
+            ?>
+        </div>
+
         <!-- Conversation Statistics -->
         <div class="section-header">
-            <h2>📊 Conversation Statistics</h2>
+            <h2>Conversation Statistics</h2>
             <p class="section-description">Key metrics about your chatbot's conversations and user interactions</p>
         </div>
 
@@ -367,7 +384,7 @@ function chatbot_analytics_new_page() {
 
         <!-- Message Statistics -->
         <div class="section-header">
-            <h2>💬 Message Statistics</h2>
+            <h2>Message Statistics</h2>
             <p class="section-description">Breakdown of messages between visitors and chatbot</p>
         </div>
 
@@ -445,17 +462,17 @@ function chatbot_analytics_new_page() {
                     <div class="csat-value"><?php echo $csat_stats['total_responses']; ?></div>
                 </div>
                 <div class="csat-card success">
-                    <h4>👍 Helpful</h4>
+                    <h4>Helpful</h4>
                     <div class="csat-value success"><?php echo $csat_stats['helpful_count']; ?></div>
                 </div>
                 <div class="csat-card danger">
-                    <h4>👎 Not Helpful</h4>
+                    <h4>Not Helpful</h4>
                     <div class="csat-value danger"><?php echo $csat_stats['not_helpful_count']; ?></div>
                 </div>
             </div>
             <div style="margin-top: 15px;">
                 <div class="status-indicator <?php echo $csat_stats['target_met'] ? 'status-success' : 'status-warning'; ?>">
-                    <?php echo $csat_stats['target_met'] ? '✓ Target Met (>70%)' : '⚠ Below Target (<70%)'; ?>
+                    <?php echo $csat_stats['target_met'] ? 'Target Met (>70%)' : 'Below Target (<70%)'; ?>
                 </div>
             </div>
         </div>
@@ -525,7 +542,7 @@ function chatbot_analytics_new_page() {
 
         <!-- Recent Feedback -->
         <div class="section-header">
-            <h2>📋 Recent Feedback</h2>
+            <h2>Recent Feedback</h2>
             <p class="section-description">Latest user feedback on chatbot responses</p>
         </div>
 
@@ -549,7 +566,7 @@ function chatbot_analytics_new_page() {
                     </thead>
                     <tbody>
                         <?php foreach ($recent_responses as $response) :
-                            $feedback_icon = $response['feedback'] === 'yes' ? '👍' : '👎';
+                            $feedback_icon = $response['feedback'] === 'yes' ? '+' : '-';
                             $question = isset($response['question']) ? esc_html($response['question']) : 'N/A';
                             $answer = isset($response['answer']) ? esc_html($response['answer']) : 'N/A';
                             $confidence = isset($response['confidence_score']) ? $response['confidence_score'] : 'unknown';
@@ -593,7 +610,7 @@ function chatbot_analytics_new_page() {
 
         <!-- Learning Dashboard -->
         <div class="section-header">
-            <h2>🎓 Learning Dashboard</h2>
+            <h2>Learning Dashboard</h2>
             <p class="section-description">FAQ improvements based on user feedback — all changes require human approval</p>
         </div>
 
@@ -611,7 +628,7 @@ function chatbot_analytics_new_page() {
             <div class="stats-grid stats-grid-small" style="margin-bottom: 20px;">
                 <div class="csat-card success">
                     <h4>Learning Mode</h4>
-                    <div style="font-size: 14px; font-weight: bold; color: #10b981;">✓ Active</div>
+                    <div style="font-size: 14px; font-weight: bold; color: #10b981;">Active</div>
                 </div>
                 <div class="csat-card <?php echo $pending_count > 0 ? '' : 'success'; ?>" style="<?php echo $pending_count > 0 ? 'border-left-color: #f59e0b;' : ''; ?>">
                     <h4>Pending Reviews</h4>
@@ -627,11 +644,11 @@ function chatbot_analytics_new_page() {
                 </div>
             </div>
 
-            <h3 style="margin: 20px 0 15px 0;">📋 Human Review Queue</h3>
+            <h3 style="margin: 20px 0 15px 0;">Human Review Queue</h3>
 
             <?php if (empty($review_queue)) : ?>
                 <div class="empty-state">
-                    <div class="empty-state-icon">✅</div>
+                    <div class="empty-state-icon"></div>
                     <p>No FAQs pending review</p>
                     <p style="font-size: 12px;">FAQs will appear here when they reach the negative feedback threshold</p>
                 </div>
@@ -650,14 +667,14 @@ function chatbot_analytics_new_page() {
                         <tr>
                             <td><?php echo esc_html($item['question'] ?? 'Unknown'); ?></td>
                             <td>
-                                <span class="badge badge-danger"><?php echo esc_html($item['negative_count'] ?? 0); ?> 👎</span>
+                                <span class="badge badge-danger"><?php echo esc_html($item['negative_count'] ?? 0); ?></span>
                             </td>
                             <td style="font-size: 13px; color: #666;">
                                 <?php echo esc_html($item['suggestion'] ?? 'Review and improve FAQ answer'); ?>
                             </td>
                             <td>
-                                <button class="button button-small" style="background: #10b981; color: white; border-color: #10b981;">✓ Approve</button>
-                                <button class="button button-small">✗ Dismiss</button>
+                                <button class="button button-small" style="background: #10b981; color: white; border-color: #10b981;">Approve</button>
+                                <button class="button button-small">Dismiss</button>
                             </td>
                         </tr>
                         <?php endforeach; ?>

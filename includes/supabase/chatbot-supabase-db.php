@@ -504,11 +504,33 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
  * Get gap questions (unresolved)
  * Default limit 200 for small business cost efficiency
  */
-function chatbot_supabase_get_gap_questions($limit = 200, $include_resolved = false) {
+function chatbot_supabase_get_gap_questions($limit = 200, $include_resolved = false, $include_clustered = false) {
     $query_params = [
         'order' => 'asked_date.desc',
         'limit' => $limit
     ];
+
+    // Build 'or' conditions for nullable boolean fields
+    $or_conditions = [];
+
+    if (!$include_resolved) {
+        $or_conditions[] = 'is_resolved.eq.false';
+        $or_conditions[] = 'is_resolved.is.null';
+    }
+
+    // By default, only get questions that haven't been clustered yet
+    // This prevents re-analyzing the same questions
+    if (!$include_clustered) {
+        // We need a separate AND condition for is_clustered
+        // Supabase doesn't easily combine AND/OR, so we filter is_resolved first
+        // then add is_clustered as a simple filter
+    }
+
+    // For now, just filter out clustered questions with eq.false (most common case)
+    // The UPDATE query should have set them to false, not null
+    if (!$include_clustered) {
+        $query_params['is_clustered'] = 'eq.false';
+    }
 
     if (!$include_resolved) {
         $query_params['is_resolved'] = 'eq.false';
@@ -525,14 +547,20 @@ function chatbot_supabase_get_gap_questions($limit = 200, $include_resolved = fa
 
 /**
  * Get gap questions count
+ * Returns count of unclustered, unresolved questions by default
  */
-function chatbot_supabase_get_gap_questions_count($include_resolved = false) {
+function chatbot_supabase_get_gap_questions_count($include_resolved = false, $include_clustered = false) {
     $base_url = chatbot_supabase_get_url();
     $anon_key = chatbot_supabase_get_anon_key();
     $url = $base_url . '/chatbot_gap_questions?select=id';
 
     if (!$include_resolved) {
         $url .= '&is_resolved=eq.false';
+    }
+
+    // By default, only count questions that haven't been clustered yet
+    if (!$include_clustered) {
+        $url .= '&is_clustered=eq.false';
     }
 
     $headers = [
@@ -813,7 +841,7 @@ function chatbot_supabase_get_gap_clusters_for_admin() {
             'question_count' => $cluster['count'],
             'questions' => $cluster['questions'],
             'representative_question' => $cluster['representative'],
-            'suggested_keywords' => $top_keywords,
+            'extracted_keywords' => $top_keywords, // For internal use only, not stored
             'suggested_topic' => ucfirst(implode(' ', array_slice($top_keywords, 0, 3)))
         ];
     }
@@ -1022,10 +1050,11 @@ function chatbot_supabase_create_gap_cluster($data) {
         'cluster_description' => $data['cluster_description'] ?? '',
         'question_count' => intval($data['question_count'] ?? 0),
         'sample_questions' => $data['sample_questions'] ?? '[]',
+        'sample_contexts' => $data['sample_contexts'] ?? '[]', // Ver 2.5.0: Conversation context for follow-ups
         'suggested_faq' => $data['suggested_faq'] ?? '{}',
         'action_type' => $data['action_type'] ?? 'create',
         'existing_faq_id' => $data['existing_faq_id'] ?? '',
-        'suggested_keywords' => $data['suggested_keywords'] ?? '[]',
+        'suggested_answer' => $data['suggested_answer'] ?? '', // Ver 2.5.0: For improve action type
         'priority_score' => floatval($data['priority_score'] ?? 0),
         'status' => $data['status'] ?? 'new'
     ];
@@ -1048,8 +1077,8 @@ function chatbot_supabase_update_gap_cluster($id, $data) {
 
     $update_data = [];
     $allowed_fields = ['cluster_name', 'cluster_description', 'question_count', 'sample_questions',
-                       'suggested_faq', 'action_type', 'existing_faq_id', 'suggested_keywords',
-                       'priority_score', 'status'];
+                       'sample_contexts', 'suggested_faq', 'action_type', 'existing_faq_id',
+                       'suggested_answer', 'priority_score', 'status'];
 
     foreach ($allowed_fields as $field) {
         if (isset($data[$field])) {

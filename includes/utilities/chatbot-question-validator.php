@@ -164,11 +164,32 @@ function chatbot_detect_gibberish($text) {
         '/asdf/i', '/qwer/i', '/zxcv/i', '/jkl;/i',
         '/[qwerty]{5,}/i', '/[asdfgh]{5,}/i', '/[zxcvbn]{5,}/i',
         '/\d{6,}/',  // Long number sequences
+        '/hjkl/i', '/ghjk/i', '/dfgh/i',  // More keyboard rows
     ];
     foreach ($keyboard_patterns as $pattern) {
         if (preg_match($pattern, $text)) {
             $score += 0.3;
         }
+    }
+
+    // 3b. Check for explicit test/nonsense indicators
+    $test_patterns = [
+        '/\brandom\b/i', '/\bnonsense\b/i', '/\btest\b/i', '/\btesting\b/i',
+        '/\bfoo\b/i', '/\bbar\b/i', '/\bbaz\b/i', '/\bxyz\b/i',
+        '/\blorem\b/i', '/\bipsum\b/i', '/\bblah\b/i', '/\bgarbage\b/i',
+        '/\bjunk\b/i', '/\bfake\b/i', '/\bdummy\b/i', '/\bplaceholder\b/i',
+    ];
+    $test_match_count = 0;
+    foreach ($test_patterns as $pattern) {
+        if (preg_match($pattern, $text)) {
+            $test_match_count++;
+        }
+    }
+    // If 2+ test words found, likely junk
+    if ($test_match_count >= 2) {
+        $score += 0.5;
+    } elseif ($test_match_count === 1) {
+        $score += 0.2;
     }
 
     // 4. Check ratio of real words (simple check)
