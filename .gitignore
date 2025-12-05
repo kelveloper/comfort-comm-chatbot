@@ -27,6 +27,20 @@ GIT-COMMANDS.md
 includes/utilities/chatbot-keyguard-key.php
 includes/analytics/DEFINITIONS.md
 
+# Claude Code / AI assistant folders - DO NOT DISTRIBUTE
+.claude/
+
+# Test files - DO NOT DISTRIBUTE
+tests/
+tools/
+check-*.php
+
+# Meeting notes and internal docs
+*.md
+!readme.md
+!README.md
+!LICENSE.md
+
 # Ignore all files in the results folder
 results/*
 uploads/*

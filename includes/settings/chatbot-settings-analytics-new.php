@@ -59,10 +59,25 @@ function chatbot_analytics_new_page() {
             : array('current' => array('avg_score' => 0, 'positive_percent' => 0), 'previous' => array('avg_score' => 0, 'positive_percent' => 0));
     }
 
-    // Get CSAT stats from Reporting
+    // Get CSAT stats from Reporting (keeping for backward compatibility)
     $csat_stats = function_exists('chatbot_chatgpt_get_csat_stats')
         ? chatbot_chatgpt_get_csat_stats()
         : array('csat_score' => 0, 'total_responses' => 0, 'helpful_count' => 0, 'not_helpful_count' => 0, 'target_met' => false);
+
+    // Ver 2.5.0: Get NPS stats (replaces CSAT as primary metric)
+    $nps_stats = function_exists('chatbot_supabase_get_nps_stats')
+        ? chatbot_supabase_get_nps_stats()
+        : array('nps_score' => 0, 'total_responses' => 0, 'promoters' => 0, 'passives' => 0, 'detractors' => 0);
+
+    // Ver 2.5.0: Get deflection rate and KB vs AI usage
+    $deflection_stats = function_exists('chatbot_supabase_get_deflection_stats')
+        ? chatbot_supabase_get_deflection_stats($selected_period)
+        : array('deflection_rate' => 0, 'kb_percentage' => 0, 'ai_percentage' => 0, 'total_questions' => 0);
+
+    // Ver 2.5.0: Get top FAQ questions
+    $top_faqs = function_exists('chatbot_supabase_get_top_faqs_with_details')
+        ? chatbot_supabase_get_top_faqs_with_details(5)
+        : array();
 
     // Get learning stats from Reporting
     $review_queue = function_exists('chatbot_get_learning_review_queue') ? chatbot_get_learning_review_queue() : array();
@@ -301,21 +316,85 @@ function chatbot_analytics_new_page() {
 
         <div style="margin-bottom: 30px;"></div>
 
-        <!-- AI Gap Analysis Dashboard - MOVED TO TOP (Ver 2.5.0) -->
+        <!-- KEY PERFORMANCE METRICS - Ver 2.5.0 (Top of Dashboard) -->
         <div class="section-header">
-            <h2>AI Gap Analysis Dashboard</h2>
-            <p class="section-description">Identifies questions users ask that your FAQ database can't answer — AI suggests new FAQs</p>
+            <h2>Key Performance Metrics</h2>
+            <p class="section-description">At-a-glance view of your chatbot's effectiveness — the metrics that matter most</p>
         </div>
 
         <div class="analytics-section">
-            <?php
-            // Call the gap analysis callback from reporting, passing the selected period
-            if (function_exists('chatbot_chatgpt_gap_analysis_callback')) {
-                chatbot_chatgpt_gap_analysis_callback($selected_period);
-            } else {
-                echo '<p style="color: #6b7280;">Gap analysis module not loaded.</p>';
-            }
-            ?>
+            <div class="stats-grid">
+                <!-- Deflection Rate -->
+                <div class="stat-box" style="text-align: center; border-left: 4px solid #10b981;">
+                    <h3 style="font-size: 12px; text-transform: uppercase; color: #6b7280;">Deflection Rate</h3>
+                    <p class="stat-value <?php echo $deflection_stats['deflection_rate'] >= 60 ? 'success' : ($deflection_stats['deflection_rate'] >= 40 ? 'warning' : 'danger'); ?>" style="font-size: 36px;">
+                        <?php echo $deflection_stats['deflection_rate']; ?>%
+                    </p>
+                    <p style="font-size: 12px; color: #6b7280; margin: 5px 0 0 0;">
+                        Questions answered from Knowledge Base
+                    </p>
+                    <p style="font-size: 11px; color: #9ca3af; margin: 3px 0 0 0;">
+                        <?php echo number_format($deflection_stats['kb_answered']); ?> of <?php echo number_format($deflection_stats['total_questions']); ?> questions
+                    </p>
+                </div>
+
+                <!-- KB vs AI Usage Pie Chart -->
+                <div class="stat-box">
+                    <h3 style="font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 15px;">Knowledge Base vs AI Fallback</h3>
+                    <div style="display: flex; align-items: center; justify-content: space-around;">
+                        <div style="position: relative; width: 120px; height: 120px;">
+                            <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                                <!-- Background circle -->
+                                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" stroke-width="3"/>
+                                <!-- KB portion (green) -->
+                                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" stroke-width="3"
+                                    stroke-dasharray="<?php echo $deflection_stats['kb_percentage']; ?> <?php echo 100 - $deflection_stats['kb_percentage']; ?>"
+                                    stroke-linecap="round"/>
+                            </svg>
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                                <span style="font-size: 18px; font-weight: bold; color: #10b981;"><?php echo $deflection_stats['kb_percentage']; ?>%</span>
+                            </div>
+                        </div>
+                        <div style="text-align: left;">
+                            <div style="margin-bottom: 8px;">
+                                <span style="display: inline-block; width: 12px; height: 12px; background: #10b981; border-radius: 2px; margin-right: 8px;"></span>
+                                <span style="font-size: 13px;">Knowledge Base: <?php echo $deflection_stats['kb_percentage']; ?>%</span>
+                            </div>
+                            <div>
+                                <span style="display: inline-block; width: 12px; height: 12px; background: #f59e0b; border-radius: 2px; margin-right: 8px;"></span>
+                                <span style="font-size: 13px;">AI Fallback: <?php echo $deflection_stats['ai_percentage']; ?>%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top 5 FAQ Questions -->
+                <div class="stat-box" style="grid-column: span 2;">
+                    <h3 style="font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 15px;">Top 5 Most Asked Questions</h3>
+                    <?php if (empty($top_faqs)): ?>
+                        <p style="color: #9ca3af; font-size: 13px;">No FAQ usage data yet. Questions will appear here as users interact with the chatbot.</p>
+                    <?php else: ?>
+                        <?php
+                        $max_hits = !empty($top_faqs) ? max(array_column($top_faqs, 'hit_count')) : 1;
+                        foreach ($top_faqs as $index => $faq):
+                            $bar_width = $max_hits > 0 ? ($faq['hit_count'] / $max_hits) * 100 : 0;
+                            $question_short = strlen($faq['question']) > 60 ? substr($faq['question'], 0, 60) . '...' : $faq['question'];
+                        ?>
+                        <div style="margin-bottom: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                                <span style="font-size: 13px; color: #374151;" title="<?php echo esc_attr($faq['question']); ?>">
+                                    <?php echo ($index + 1) . '. ' . esc_html($question_short); ?>
+                                </span>
+                                <span style="font-size: 12px; font-weight: 600; color: #2271b1;"><?php echo number_format($faq['hit_count']); ?></span>
+                            </div>
+                            <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: #2271b1; height: 100%; width: <?php echo $bar_width; ?>%; border-radius: 4px;"></div>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
 
         <!-- Conversation Statistics -->
@@ -445,242 +524,105 @@ function chatbot_analytics_new_page() {
             </div>
         </div>
 
-        <!-- Customer Satisfaction -->
+        <!-- Net Promoter Score (NPS) - Ver 2.5.0 (Replaces CSAT) -->
         <div class="section-header">
-            <h2>😊 Customer Satisfaction (CSAT)</h2>
-            <p class="section-description">Direct user feedback on chatbot responses</p>
+            <h2>Net Promoter Score (NPS)</h2>
+            <p class="section-description">Industry-standard metric: "How likely are you to recommend this chatbot?" (0-10 scale)</p>
         </div>
 
         <div class="analytics-section">
-            <div class="stats-grid stats-grid-small">
-                <div class="csat-card <?php echo $csat_stats['target_met'] ? 'success' : 'danger'; ?>">
-                    <h4>CSAT Score</h4>
-                    <div class="csat-value <?php echo $csat_stats['target_met'] ? 'success' : 'danger'; ?>"><?php echo $csat_stats['csat_score']; ?>%</div>
-                </div>
-                <div class="csat-card info">
-                    <h4>Total Responses</h4>
-                    <div class="csat-value"><?php echo $csat_stats['total_responses']; ?></div>
-                </div>
-                <div class="csat-card success">
-                    <h4>Helpful</h4>
-                    <div class="csat-value success"><?php echo $csat_stats['helpful_count']; ?></div>
-                </div>
-                <div class="csat-card danger">
-                    <h4>Not Helpful</h4>
-                    <div class="csat-value danger"><?php echo $csat_stats['not_helpful_count']; ?></div>
-                </div>
-            </div>
-            <div style="margin-top: 15px;">
-                <div class="status-indicator <?php echo $csat_stats['target_met'] ? 'status-success' : 'status-warning'; ?>">
-                    <?php echo $csat_stats['target_met'] ? 'Target Met (>70%)' : 'Below Target (<70%)'; ?>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sentiment Analysis -->
-        <div class="section-header">
-            <h2>🧠 Sentiment Analysis</h2>
-            <p class="section-description">AI-powered analysis of conversation sentiment (Vector method enabled)</p>
-        </div>
-
-        <div class="analytics-section">
+            <?php
+            // Determine NPS color and status
+            $nps_score = $nps_stats['nps_score'];
+            if ($nps_score >= 50) {
+                $nps_color = 'success';
+                $nps_label = 'Excellent';
+            } elseif ($nps_score >= 0) {
+                $nps_color = 'warning';
+                $nps_label = 'Good';
+            } else {
+                $nps_color = 'danger';
+                $nps_label = 'Needs Improvement';
+            }
+            ?>
             <div class="stats-grid">
+                <!-- NPS Score -->
+                <div class="stat-box" style="text-align: center; border-left: 4px solid <?php echo $nps_color === 'success' ? '#10b981' : ($nps_color === 'warning' ? '#f59e0b' : '#ef4444'); ?>;">
+                    <h3 style="font-size: 12px; text-transform: uppercase; color: #6b7280;">NPS Score</h3>
+                    <p class="stat-value <?php echo $nps_color; ?>" style="font-size: 48px;">
+                        <?php echo $nps_score >= 0 ? '+' . $nps_score : $nps_score; ?>
+                    </p>
+                    <p style="font-size: 13px; color: #6b7280; margin: 5px 0 0 0;">
+                        <?php echo $nps_label; ?> (<?php echo $nps_stats['total_responses']; ?> responses)
+                    </p>
+                    <p style="font-size: 11px; color: #9ca3af; margin: 8px 0 0 0;">
+                        Scale: -100 to +100 | Above 50 = Excellent
+                    </p>
+                </div>
+
+                <!-- NPS Breakdown -->
                 <div class="stat-box">
-                    <h3>Average Sentiment Score</h3>
-                    <div class="comparison-row">
-                        <div class="current-period">
-                            <span class="period-label"><?php echo esc_html($sentiment_stats['current_period_label'] ?? 'This Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($sentiment_stats['current']['avg_score'] ?? 0, 2); ?></p>
+                    <h3 style="font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 15px;">Response Breakdown</h3>
+
+                    <!-- Promoters (9-10) -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <span style="font-size: 13px; color: #10b981; font-weight: 500;">Promoters (9-10)</span>
+                            <span style="font-size: 13px; font-weight: 600;"><?php echo $nps_stats['promoters']; ?> (<?php echo $nps_stats['promoter_percent']; ?>%)</span>
                         </div>
-                        <div class="trend-indicator">
-                            <?php
-                            $current = $sentiment_stats['current']['avg_score'] ?? 0;
-                            $previous = $sentiment_stats['previous']['avg_score'] ?? 0;
-                            if ($current > $previous) {
-                                $percent_change = $previous > 0 ? (($current - $previous) / $previous) * 100 : 0;
-                                echo '<span class="trend-up">⬆</span><span class="percent-change">+' . number_format($percent_change, 1) . '%</span>';
-                            } elseif ($current < $previous) {
-                                $percent_change = $previous > 0 ? (($previous - $current) / $previous) * 100 : 0;
-                                echo '<span class="trend-down">⬇</span><span class="percent-change">-' . number_format($percent_change, 1) . '%</span>';
-                            }
-                            ?>
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 10px; overflow: hidden;">
+                            <div style="background: #10b981; height: 100%; width: <?php echo $nps_stats['promoter_percent']; ?>%;"></div>
                         </div>
-                        <div class="previous-period">
-                            <span class="period-label"><?php echo esc_html($sentiment_stats['previous_period_label'] ?? 'Last Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($sentiment_stats['previous']['avg_score'] ?? 0, 2); ?></p>
+                    </div>
+
+                    <!-- Passives (7-8) -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <span style="font-size: 13px; color: #6b7280; font-weight: 500;">Passives (7-8)</span>
+                            <span style="font-size: 13px; font-weight: 600;"><?php echo $nps_stats['passives']; ?> (<?php echo $nps_stats['passive_percent']; ?>%)</span>
+                        </div>
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 10px; overflow: hidden;">
+                            <div style="background: #9ca3af; height: 100%; width: <?php echo $nps_stats['passive_percent']; ?>%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Detractors (0-6) -->
+                    <div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <span style="font-size: 13px; color: #ef4444; font-weight: 500;">Detractors (0-6)</span>
+                            <span style="font-size: 13px; font-weight: 600;"><?php echo $nps_stats['detractors']; ?> (<?php echo $nps_stats['detractor_percent']; ?>%)</span>
+                        </div>
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 10px; overflow: hidden;">
+                            <div style="background: #ef4444; height: 100%; width: <?php echo $nps_stats['detractor_percent']; ?>%;"></div>
                         </div>
                     </div>
                 </div>
-                <div class="stat-box">
-                    <h3>Positive Conversations</h3>
-                    <div class="comparison-row">
-                        <div class="current-period">
-                            <span class="period-label"><?php echo esc_html($sentiment_stats['current_period_label'] ?? 'This Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($sentiment_stats['current']['positive_percent'] ?? 0, 1); ?>%</p>
-                        </div>
-                        <div class="trend-indicator">
-                            <?php
-                            $current = $sentiment_stats['current']['positive_percent'] ?? 0;
-                            $previous = $sentiment_stats['previous']['positive_percent'] ?? 0;
-                            if ($current > $previous) {
-                                $percent_change = $previous > 0 ? (($current - $previous) / $previous) * 100 : 0;
-                                echo '<span class="trend-up">⬆</span><span class="percent-change">+' . number_format($percent_change, 1) . '%</span>';
-                            } elseif ($current < $previous) {
-                                $percent_change = $previous > 0 ? (($previous - $current) / $previous) * 100 : 0;
-                                echo '<span class="trend-down">⬇</span><span class="percent-change">-' . number_format($percent_change, 1) . '%</span>';
-                            }
-                            ?>
-                        </div>
-                        <div class="previous-period">
-                            <span class="period-label"><?php echo esc_html($sentiment_stats['previous_period_label'] ?? 'Last Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($sentiment_stats['previous']['positive_percent'] ?? 0, 1); ?>%</p>
-                        </div>
-                    </div>
-                </div>
+            </div>
+
+            <!-- NPS Formula Explanation -->
+            <div style="margin-top: 15px; padding: 12px; background: #f0f9ff; border-radius: 6px; border-left: 3px solid #3b82f6;">
+                <p style="margin: 0; font-size: 12px; color: #1e40af;">
+                    <strong>How NPS is calculated:</strong> % Promoters − % Detractors = NPS Score.
+                    Scores above 0 are good, above 50 are excellent.
+                </p>
             </div>
         </div>
 
-        <!-- Recent Feedback -->
+        <!-- AI Gap Analysis Dashboard - Ver 2.5.0 (Moved after key metrics) -->
         <div class="section-header">
-            <h2>Recent Feedback</h2>
-            <p class="section-description">Latest user feedback on chatbot responses</p>
+            <h2>AI Gap Analysis Dashboard</h2>
+            <p class="section-description">Identifies questions users ask that your FAQ database can't answer — AI suggests new FAQs</p>
         </div>
 
         <div class="analytics-section">
-            <?php if (empty($recent_responses)) : ?>
-                <div class="empty-state">
-                    <div class="empty-state-icon">📭</div>
-                    <p>No feedback received yet</p>
-                    <p style="font-size: 12px;">Feedback will appear here when users rate responses</p>
-                </div>
-            <?php else : ?>
-                <table class="feedback-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Feedback</th>
-                            <th>Confidence</th>
-                            <th>Question</th>
-                            <th>Answer</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($recent_responses as $response) :
-                            $feedback_icon = $response['feedback'] === 'yes' ? '+' : '-';
-                            $question = isset($response['question']) ? esc_html($response['question']) : 'N/A';
-                            $answer = isset($response['answer']) ? esc_html($response['answer']) : 'N/A';
-                            $confidence = isset($response['confidence_score']) ? $response['confidence_score'] : 'unknown';
-
-                            $confidence_map = [
-                                'very_high' => ['label' => 'Very High', 'class' => 'badge-success'],
-                                'high' => ['label' => 'High', 'class' => 'badge-info'],
-                                'medium' => ['label' => 'Medium', 'class' => 'badge-warning'],
-                                'low' => ['label' => 'Low', 'class' => 'badge-danger'],
-                                'unknown' => ['label' => '—', 'class' => '']
-                            ];
-                            $conf_display = $confidence_map[$confidence] ?? $confidence_map['unknown'];
-
-                            $question_display = strlen($question) > 60 ? substr($question, 0, 60) . '...' : $question;
-                            $answer_display = strlen($answer) > 80 ? substr($answer, 0, 80) . '...' : $answer;
-                        ?>
-                        <tr>
-                            <td style="font-size: 12px; white-space: nowrap;">
-                                <?php echo date('M j, H:i', strtotime($response['timestamp'])); ?>
-                            </td>
-                            <td>
-                                <span style="font-size: 20px;"><?php echo $feedback_icon; ?></span>
-                            </td>
-                            <td>
-                                <span class="badge <?php echo $conf_display['class']; ?>">
-                                    <?php echo $conf_display['label']; ?>
-                                </span>
-                            </td>
-                            <td style="font-size: 13px; max-width: 200px;">
-                                <?php echo $question_display; ?>
-                            </td>
-                            <td style="font-size: 13px; max-width: 250px; color: #666;">
-                                <?php echo $answer_display; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php endif; ?>
-        </div>
-
-        <!-- Learning Dashboard -->
-        <div class="section-header">
-            <h2>Learning Dashboard</h2>
-            <p class="section-description">FAQ improvements based on user feedback — all changes require human approval</p>
-        </div>
-
-        <div class="analytics-section">
-            <div class="info-box">
-                <h4>How It Works</h4>
-                <ol>
-                    <li><strong>User gives feedback</strong> — Thumbs up/down on chatbot responses</li>
-                    <li><strong>Threshold reached</strong> — FAQ flagged after 5+ negative ratings</li>
-                    <li><strong>Appears here</strong> — Flagged FAQs show in the Human Review Queue below</li>
-                    <li><strong>You decide</strong> — Review, then Approve or Dismiss</li>
-                </ol>
-            </div>
-
-            <div class="stats-grid stats-grid-small" style="margin-bottom: 20px;">
-                <div class="csat-card success">
-                    <h4>Learning Mode</h4>
-                    <div style="font-size: 14px; font-weight: bold; color: #10b981;">Active</div>
-                </div>
-                <div class="csat-card <?php echo $pending_count > 0 ? '' : 'success'; ?>" style="<?php echo $pending_count > 0 ? 'border-left-color: #f59e0b;' : ''; ?>">
-                    <h4>Pending Reviews</h4>
-                    <div class="csat-value <?php echo $pending_count > 0 ? 'warning' : 'success'; ?>"><?php echo $pending_count; ?></div>
-                </div>
-                <div class="csat-card info">
-                    <h4>Approved</h4>
-                    <div class="csat-value"><?php echo $learning_stats['approved']; ?></div>
-                </div>
-                <div class="csat-card">
-                    <h4>Rejected</h4>
-                    <div class="csat-value"><?php echo $learning_stats['rejected']; ?></div>
-                </div>
-            </div>
-
-            <h3 style="margin: 20px 0 15px 0;">Human Review Queue</h3>
-
-            <?php if (empty($review_queue)) : ?>
-                <div class="empty-state">
-                    <div class="empty-state-icon"></div>
-                    <p>No FAQs pending review</p>
-                    <p style="font-size: 12px;">FAQs will appear here when they reach the negative feedback threshold</p>
-                </div>
-            <?php else : ?>
-                <table class="feedback-table">
-                    <thead>
-                        <tr>
-                            <th>FAQ Question</th>
-                            <th>Negative Count</th>
-                            <th>Suggested Action</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($review_queue as $item) : ?>
-                        <tr>
-                            <td><?php echo esc_html($item['question'] ?? 'Unknown'); ?></td>
-                            <td>
-                                <span class="badge badge-danger"><?php echo esc_html($item['negative_count'] ?? 0); ?></span>
-                            </td>
-                            <td style="font-size: 13px; color: #666;">
-                                <?php echo esc_html($item['suggestion'] ?? 'Review and improve FAQ answer'); ?>
-                            </td>
-                            <td>
-                                <button class="button button-small" style="background: #10b981; color: white; border-color: #10b981;">Approve</button>
-                                <button class="button button-small">Dismiss</button>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php endif; ?>
+            <?php
+            // Call the gap analysis callback from reporting, passing the selected period
+            if (function_exists('chatbot_chatgpt_gap_analysis_callback')) {
+                chatbot_chatgpt_gap_analysis_callback($selected_period);
+            } else {
+                echo '<p style="color: #6b7280;">Gap analysis module not loaded.</p>';
+            }
+            ?>
         </div>
 
     </div>

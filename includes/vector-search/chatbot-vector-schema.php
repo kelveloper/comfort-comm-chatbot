@@ -66,14 +66,24 @@ if (!defined('WPINC')) {
  */
 function chatbot_vector_get_pg_connection() {
     static $pdo = null;
+    static $connection_attempted = false;
 
+    // Return cached connection if we have one
     if ($pdo !== null) {
         return $pdo;
     }
 
+    // Don't retry if we already failed once this request
+    if ($connection_attempted) {
+        return null;
+    }
+    $connection_attempted = true;
+
     // Check if PDO PostgreSQL extension is available
     if (!extension_loaded('pdo_pgsql')) {
-        // Will use REST API instead
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[Chatbot Vector] PDO pgsql extension not loaded');
+        }
         return null;
     }
 
@@ -86,8 +96,8 @@ function chatbot_vector_get_pg_connection() {
     $host = CHATBOT_PG_HOST;
     $port = defined('CHATBOT_PG_PORT') ? CHATBOT_PG_PORT : '5432';
     $dbname = CHATBOT_PG_DATABASE;
-    $user = CHATBOT_PG_USER;
-    $password = CHATBOT_PG_PASSWORD;
+    $user = defined('CHATBOT_PG_USER') ? CHATBOT_PG_USER : 'postgres';
+    $password = defined('CHATBOT_PG_PASSWORD') ? CHATBOT_PG_PASSWORD : '';
 
     try {
         $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
@@ -96,6 +106,10 @@ function chatbot_vector_get_pg_connection() {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
+
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[Chatbot Vector] PostgreSQL connected successfully to ' . $host);
+        }
 
         return $pdo;
 

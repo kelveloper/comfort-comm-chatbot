@@ -231,7 +231,7 @@ function chatbot_chatgpt_bot_prompt_callback($args) {
 }
 
 function chatbot_chatgpt_initial_greeting_callback($args) {
-    $initial_greeting = esc_attr(get_option('chatbot_chatgpt_initial_greeting', 'Hello! How can I help you today?'));
+    $initial_greeting = esc_attr(get_option('chatbot_chatgpt_initial_greeting', "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?"));
     ?>
     <textarea id="chatbot_chatgpt_initial_greeting" name="chatbot_chatgpt_initial_greeting" rows="2" cols="50"><?php echo esc_textarea( $initial_greeting ); ?></textarea>
     <?php

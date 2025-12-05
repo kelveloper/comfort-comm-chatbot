@@ -1004,16 +1004,27 @@ add_action('wp_ajax_chatbot_test_db_setup', 'chatbot_test_supabase_setup_ajax');
 
 /**
  * Get the schema SQL for display
+ * Ver 2.5.0: Uses the new comprehensive schema from chatbot-supabase-schema.php
  */
 function chatbot_get_schema_sql() {
-    $schema_file = plugin_dir_path(dirname(__FILE__)) . 'supabase/supabase-schema.sql';
+    // Load the comprehensive schema generator
+    $schema_php = plugin_dir_path(dirname(__FILE__)) . 'supabase/chatbot-supabase-schema.php';
 
+    if (file_exists($schema_php)) {
+        if (!function_exists('chatbot_supabase_get_full_setup_sql')) {
+            require_once $schema_php;
+        }
+        return chatbot_supabase_get_full_setup_sql();
+    }
+
+    // Fallback to static SQL file if PHP schema not found
+    $schema_file = plugin_dir_path(dirname(__FILE__)) . 'supabase/supabase-schema.sql';
     if (file_exists($schema_file)) {
         return file_get_contents($schema_file);
     }
 
-    // Fallback minimal schema if file not found
-    return '-- Schema file not found. Please check: includes/supabase/supabase-schema.sql';
+    // Final fallback
+    return '-- Schema file not found. Please check: includes/supabase/chatbot-supabase-schema.php';
 }
 
 /**
@@ -1039,16 +1050,31 @@ function chatbot_check_schema_tables_ajax() {
         wp_die();
     }
 
-    // Required tables for the chatbot (must match supabase-schema.sql)
-    $required_tables = [
-        'chatbot_faqs',
-        'chatbot_conversations',
-        'chatbot_interactions',
-        'chatbot_gap_questions',
-        'chatbot_gap_clusters',
-        'chatbot_faq_usage',
-        'chatbot_assistants'
-    ];
+    // Required tables for the chatbot - get from schema definition
+    // Ver 2.5.0: Uses the comprehensive schema
+    $schema_php = plugin_dir_path(dirname(__FILE__)) . 'supabase/chatbot-supabase-schema.php';
+    if (file_exists($schema_php) && !function_exists('chatbot_supabase_get_schema')) {
+        require_once $schema_php;
+    }
+
+    $required_tables = [];
+    if (function_exists('chatbot_supabase_get_schema')) {
+        $schema = chatbot_supabase_get_schema();
+        foreach ($schema as $table) {
+            $required_tables[] = $table['name'];
+        }
+    } else {
+        // Fallback
+        $required_tables = [
+            'chatbot_faqs',
+            'chatbot_conversations',
+            'chatbot_interactions',
+            'chatbot_gap_questions',
+            'chatbot_gap_clusters',
+            'chatbot_faq_usage',
+            'chatbot_assistants'
+        ];
+    }
 
     $base_url = rtrim($project_url, '/') . '/rest/v1';
     $table_status = [];

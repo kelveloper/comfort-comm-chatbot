@@ -1155,7 +1155,8 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
                         $rows = esc_attr(get_option('chatbot_chatgpt_input_rows', '2'));
                         $chatbot_chatgpt_bot_prompt = esc_attr(sanitize_text_field($chatbot_chatgpt_bot_prompt));
                         $chatbot_chatgpt_hot_bot_prompt = esc_attr(sanitize_text_field($chatbot_chatgpt_hot_bot_prompt));
-                        echo "<textarea id='chatbot-chatgpt-message' rows='". htmlspecialchars($rows) . "' placeholder='" . htmlspecialchars($chatbot_chatgpt_bot_prompt) . "' style='width: 95%;'>" . $chatbot_chatgpt_hot_bot_prompt . "</textarea>";
+                        // Ver 2.5.0: Removed inline width style - CSS handles alignment
+                        echo "<textarea id='chatbot-chatgpt-message' rows='". htmlspecialchars($rows) . "' placeholder='" . htmlspecialchars($chatbot_chatgpt_bot_prompt) . "'>" . $chatbot_chatgpt_hot_bot_prompt . "</textarea>";
                         echo "<script>
                         document.addEventListener('DOMContentLoaded', function() {
                             var textarea = document.getElementById('chatbot-chatgpt-message');
@@ -1180,15 +1181,17 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
                             $chatbot_chatgpt_bot_prompt = $assistant_details['placeholder_prompt'];
                         }
                         $chatbot_chatgpt_hot_bot_prompt = esc_attr(sanitize_text_field($chatbot_chatgpt_hot_bot_prompt));
-                        echo "<center><textarea id='chatbot-chatgpt-message' rows='" . htmlspecialchars($rows) . "' placeholder='" . htmlspecialchars($chatbot_chatgpt_bot_prompt) . "' style='width: 95%;'></textarea></center>";
+                        // Ver 2.5.0: Removed <center> tag and inline width style - CSS handles alignment
+                        echo "<textarea id='chatbot-chatgpt-message' rows='" . htmlspecialchars($rows) . "' placeholder='" . htmlspecialchars($chatbot_chatgpt_bot_prompt) . "'></textarea>";
                     }
                 ?>
             </div>
-        </div>
-        <div id="chatbot-chatgpt-buttons-container">
+            <!-- Ver 2.5.0: Submit button moved inline with input for better alignment -->
             <button id="chatbot-chatgpt-submit" title="Send Message">
                 <img decoding="async" src="<?php echo chatbot_chatgpt_appearance_icon_path('send_icon'); ?>" alt="Send">
             </button>
+        </div>
+        <div id="chatbot-chatgpt-buttons-container">
             <?php if ($chatbot_chatgpt_allow_file_uploads == 'Yes'): ?>
                 <input type="file" id="chatbot-chatgpt-upload-file-input" name="file[]" style="display: none;" multiple="multiple" />
                 <button id="chatbot-chatgpt-upload-file" title="Upload Files">
@@ -1285,7 +1288,8 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
                             $rows = esc_attr(get_option('chatbot_chatgpt_input_rows', '2'));
                             $chatbot_chatgpt_bot_prompt = esc_attr(sanitize_text_field($chatbot_chatgpt_bot_prompt));
                             $chatbot_chatgpt_hot_bot_prompt = esc_attr(sanitize_text_field($chatbot_chatgpt_hot_bot_prompt));
-                            echo "<center><textarea id='chatbot-chatgpt-message' rows='". htmlspecialchars($rows) . "' placeholder='" . htmlspecialchars($chatbot_chatgpt_bot_prompt) . "' style='width: 95%;'>" . $chatbot_chatgpt_hot_bot_prompt . "</textarea>";
+                            // Ver 2.5.0: Removed <center> tag and inline width style - CSS handles alignment
+                            echo "<textarea id='chatbot-chatgpt-message' rows='". htmlspecialchars($rows) . "' placeholder='" . htmlspecialchars($chatbot_chatgpt_bot_prompt) . "'>" . $chatbot_chatgpt_hot_bot_prompt . "</textarea>";
                             echo "<script>
                             document.addEventListener('DOMContentLoaded', function() {
                                 var textarea = document.getElementById('chatbot-chatgpt-message');
@@ -1305,15 +1309,17 @@ function chatbot_chatgpt_shortcode( $atts = [], $content = null, $tag = '' ) {
                             if ( !empty($assistant_details['placeholder_prompt']) ) {
                                 $chatbot_chatgpt_bot_prompt = $assistant_details['placeholder_prompt'];
                             }
-                            echo "<center><textarea id='chatbot-chatgpt-message' rows='" . htmlspecialchars($rows) . "' placeholder='" . htmlspecialchars($chatbot_chatgpt_bot_prompt) . "' style='width: 95%;'></textarea></center>";
+                            // Ver 2.5.0: Removed <center> tag and inline width style - CSS handles alignment
+                            echo "<textarea id='chatbot-chatgpt-message' rows='" . htmlspecialchars($rows) . "' placeholder='" . htmlspecialchars($chatbot_chatgpt_bot_prompt) . "'></textarea>";
                         }
                     ?>
                 </div>
+                <!-- Ver 2.5.0: Submit button moved inline with input for better alignment -->
+                <button id="chatbot-chatgpt-submit" title="Send Message">
+                    <img decoding="async" src="<?php echo chatbot_chatgpt_appearance_icon_path('send_icon'); ?>" alt="Send">
+                </button>
             </div>
             <div id="chatbot-chatgpt-buttons-container">
-                <button id="chatbot-chatgpt-submit" title="Send Message">
-                <img decoding="async" src="<?php echo chatbot_chatgpt_appearance_icon_path('send_icon'); ?>" alt="Send">
-                </button>
                 <?php if ($chatbot_chatgpt_allow_file_uploads == 'Yes'): ?>
                     <input type="file" id="chatbot-chatgpt-upload-file-input" name="file[]" style="display: none;" multiple="multiple" />
                     <button id="chatbot-chatgpt-upload-file" title="Upload Files">

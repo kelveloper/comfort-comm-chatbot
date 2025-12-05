@@ -507,3 +507,370 @@ function chatbot_test_supabase_connection_ajax() {
     }
 }
 add_action('wp_ajax_chatbot_test_supabase_connection', 'chatbot_test_supabase_connection_ajax');
+
+// =============================================================================
+// DATABASE SETUP WIZARD - Ver 2.5.0
+// =============================================================================
+
+/**
+ * Register Database Setup Wizard settings section
+ */
+function chatbot_supabase_wizard_init() {
+    add_settings_section(
+        'chatbot_supabase_wizard_section',
+        'Database Setup Wizard',
+        'chatbot_supabase_wizard_section_callback',
+        'chatbot_chatgpt_supabase_wizard'
+    );
+}
+add_action('admin_init', 'chatbot_supabase_wizard_init');
+
+/**
+ * Database Setup Wizard UI
+ */
+function chatbot_supabase_wizard_section_callback() {
+    // Load schema definitions
+    if (!function_exists('chatbot_supabase_get_schema')) {
+        require_once plugin_dir_path(__FILE__) . '../supabase/chatbot-supabase-schema.php';
+    }
+
+    $config = chatbot_supabase_get_config();
+    $is_connected = !empty($config['project_url']) && !empty($config['anon_key']);
+    $tables_status = $is_connected ? chatbot_supabase_check_tables($config) : [];
+
+    ?>
+    <div class="wrap">
+        <div style="background: #f0f9ff; border: 1px solid #3b82f6; padding: 15px; border-radius: 5px; margin: 15px 0;">
+            <h3 style="margin: 0 0 10px 0; color: #1e40af;">Database Setup Wizard</h3>
+            <p style="margin: 0; color: #1e3a8a;">
+                This wizard helps you set up all required Supabase tables. You can either:
+            </p>
+            <ol style="margin: 10px 0 0 20px; color: #1e3a8a;">
+                <li><strong>Copy the SQL</strong> and run it in your Supabase SQL Editor (recommended for first-time setup)</li>
+                <li><strong>Click "Create Tables"</strong> to automatically create tables (requires database password)</li>
+            </ol>
+        </div>
+
+        <?php if (!$is_connected): ?>
+            <div style="background: #fef2f2; border: 1px solid #ef4444; padding: 15px; border-radius: 5px;">
+                <p style="margin: 0; color: #991b1b;">
+                    <strong>Not Connected:</strong> Please configure your Supabase connection above first.
+                </p>
+            </div>
+        <?php else: ?>
+
+            <!-- Table Status -->
+            <h3>Table Status</h3>
+            <table class="widefat" style="max-width: 800px; margin-bottom: 20px;">
+                <thead>
+                    <tr>
+                        <th>Table Name</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Row Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    $schema = chatbot_supabase_get_schema();
+                    $all_exist = true;
+                    $missing_tables = [];
+
+                    foreach ($schema as $table):
+                        $status = $tables_status[$table['name']] ?? ['exists' => false, 'count' => 0];
+                        if (!$status['exists']) {
+                            $all_exist = false;
+                            $missing_tables[] = $table['name'];
+                        }
+                    ?>
+                    <tr>
+                        <td><code><?php echo esc_html($table['name']); ?></code></td>
+                        <td><?php echo esc_html($table['description']); ?></td>
+                        <td>
+                            <?php if ($status['exists']): ?>
+                                <span style="color: #10b981;">✓ Exists</span>
+                            <?php else: ?>
+                                <span style="color: #ef4444;">✗ Missing</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($status['exists']): ?>
+                                <?php echo number_format($status['count']); ?> rows
+                            <?php else: ?>
+                                -
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <?php if ($all_exist): ?>
+                <div style="background: #d1fae5; border: 1px solid #10b981; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                    <p style="margin: 0; color: #065f46;">
+                        <strong>✓ All tables exist!</strong> Your database is fully set up.
+                    </p>
+                </div>
+            <?php else: ?>
+                <div style="background: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                    <p style="margin: 0; color: #92400e;">
+                        <strong>Missing Tables:</strong> <?php echo esc_html(implode(', ', $missing_tables)); ?>
+                    </p>
+                </div>
+            <?php endif; ?>
+
+            <!-- Setup Options -->
+            <h3>Setup Options</h3>
+
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <!-- Option 1: Copy SQL -->
+                <div style="flex: 1; min-width: 300px; background: #fff; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px;">
+                    <h4 style="margin: 0 0 15px 0;">Option 1: Copy SQL (Recommended)</h4>
+                    <p style="color: #6b7280; font-size: 13px;">
+                        Copy this SQL and run it in your <a href="https://supabase.com/dashboard" target="_blank">Supabase SQL Editor</a>.
+                    </p>
+                    <button type="button" id="copy-sql-btn" class="button button-secondary" onclick="chatbotCopySetupSQL()">
+                        Copy Full Setup SQL
+                    </button>
+                    <button type="button" class="button button-secondary" onclick="chatbotShowSQL()" style="margin-left: 5px;">
+                        View SQL
+                    </button>
+                    <span id="copy-sql-result" style="margin-left: 10px; color: #10b981;"></span>
+                </div>
+
+                <!-- Option 2: Auto Create -->
+                <div style="flex: 1; min-width: 300px; background: #fff; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px;">
+                    <h4 style="margin: 0 0 15px 0;">Option 2: Auto Create Tables</h4>
+                    <p style="color: #6b7280; font-size: 13px;">
+                        Automatically create missing tables. Requires database password to be configured.
+                    </p>
+                    <?php
+                    $has_password = !empty($config['db_password']);
+                    ?>
+                    <?php if ($has_password): ?>
+                        <button type="button" id="create-tables-btn" class="button button-primary" onclick="chatbotCreateTables()">
+                            Create Missing Tables
+                        </button>
+                    <?php else: ?>
+                        <button type="button" class="button button-secondary" disabled>
+                            Create Missing Tables
+                        </button>
+                        <p style="color: #ef4444; font-size: 12px; margin-top: 5px;">
+                            ⚠️ Database password required. Enter it above and save.
+                        </p>
+                    <?php endif; ?>
+                    <span id="create-tables-result" style="margin-left: 10px;"></span>
+                    <div id="create-tables-spinner" class="spinner" style="float: none; margin-left: 10px;"></div>
+                </div>
+            </div>
+
+            <!-- SQL Preview Modal -->
+            <div id="sql-preview-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100000;">
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; max-width: 800px; width: 90%; max-height: 80vh; overflow: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0;">Complete Setup SQL</h3>
+                        <button type="button" onclick="chatbotHideSQL()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                    </div>
+                    <p style="color: #6b7280; font-size: 13px;">Copy this SQL and run it in your Supabase SQL Editor:</p>
+                    <pre id="sql-preview-content" style="background: #1f2937; color: #10b981; padding: 15px; border-radius: 5px; overflow: auto; max-height: 400px; font-size: 12px; white-space: pre-wrap;"></pre>
+                    <div style="margin-top: 15px; text-align: right;">
+                        <button type="button" class="button button-primary" onclick="chatbotCopySetupSQL()">Copy to Clipboard</button>
+                        <button type="button" class="button button-secondary" onclick="chatbotHideSQL()" style="margin-left: 5px;">Close</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hidden SQL content -->
+            <textarea id="full-setup-sql" style="display: none;"><?php echo esc_textarea(chatbot_supabase_get_full_setup_sql()); ?></textarea>
+
+            <script>
+            function chatbotCopySetupSQL() {
+                var sql = document.getElementById('full-setup-sql').value;
+                navigator.clipboard.writeText(sql).then(function() {
+                    document.getElementById('copy-sql-result').innerHTML = '✓ Copied!';
+                    setTimeout(function() {
+                        document.getElementById('copy-sql-result').innerHTML = '';
+                    }, 3000);
+                });
+            }
+
+            function chatbotShowSQL() {
+                var sql = document.getElementById('full-setup-sql').value;
+                document.getElementById('sql-preview-content').textContent = sql;
+                document.getElementById('sql-preview-modal').style.display = 'block';
+            }
+
+            function chatbotHideSQL() {
+                document.getElementById('sql-preview-modal').style.display = 'none';
+            }
+
+            function chatbotCreateTables() {
+                var btn = document.getElementById('create-tables-btn');
+                var spinner = document.getElementById('create-tables-spinner');
+                var result = document.getElementById('create-tables-result');
+
+                btn.disabled = true;
+                btn.textContent = 'Creating...';
+                spinner.classList.add('is-active');
+                result.innerHTML = '';
+
+                jQuery.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'chatbot_create_supabase_tables',
+                        nonce: '<?php echo wp_create_nonce('chatbot_supabase_wizard'); ?>'
+                    },
+                    success: function(response) {
+                        spinner.classList.remove('is-active');
+                        btn.disabled = false;
+                        btn.textContent = 'Create Missing Tables';
+
+                        if (response.success) {
+                            result.innerHTML = '<span style="color: #10b981;">✓ ' + response.data.message + '</span>';
+                            // Reload page to show updated status
+                            setTimeout(function() { location.reload(); }, 2000);
+                        } else {
+                            result.innerHTML = '<span style="color: #ef4444;">✗ ' + response.data.message + '</span>';
+                        }
+                    },
+                    error: function() {
+                        spinner.classList.remove('is-active');
+                        btn.disabled = false;
+                        btn.textContent = 'Create Missing Tables';
+                        result.innerHTML = '<span style="color: #ef4444;">✗ Request failed</span>';
+                    }
+                });
+            }
+            </script>
+
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+/**
+ * Check which tables exist in Supabase
+ */
+function chatbot_supabase_check_tables($config) {
+    if (!function_exists('chatbot_supabase_get_schema')) {
+        require_once plugin_dir_path(__FILE__) . '../supabase/chatbot-supabase-schema.php';
+    }
+
+    $schema = chatbot_supabase_get_schema();
+    $results = [];
+
+    foreach ($schema as $table) {
+        $table_name = $table['name'];
+        $results[$table_name] = ['exists' => false, 'count' => 0];
+
+        // Try to query the table
+        $base_url = rtrim($config['project_url'], '/') . '/rest/v1';
+        $url = $base_url . '/' . $table_name . '?select=id&limit=1';
+
+        $response = wp_remote_get($url, [
+            'headers' => [
+                'apikey' => $config['anon_key'],
+                'Authorization' => 'Bearer ' . $config['anon_key'],
+                'Prefer' => 'count=exact'
+            ],
+            'timeout' => 5
+        ]);
+
+        if (!is_wp_error($response)) {
+            $code = wp_remote_retrieve_response_code($response);
+            if ($code === 200) {
+                $results[$table_name]['exists'] = true;
+
+                // Get count from header
+                $range = wp_remote_retrieve_header($response, 'content-range');
+                if (preg_match('/\/(\d+)$/', $range, $matches)) {
+                    $results[$table_name]['count'] = intval($matches[1]);
+                }
+            }
+        }
+    }
+
+    return $results;
+}
+
+/**
+ * AJAX handler: Create missing tables
+ */
+function chatbot_create_supabase_tables_ajax() {
+    check_ajax_referer('chatbot_supabase_wizard', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied']);
+        return;
+    }
+
+    $config = chatbot_supabase_get_config();
+
+    if (empty($config['db_password'])) {
+        wp_send_json_error(['message' => 'Database password not configured']);
+        return;
+    }
+
+    // Try to connect via PDO
+    try {
+        $dsn = "pgsql:host={$config['db_host']};port={$config['db_port']};dbname={$config['db_name']}";
+        $pdo = new PDO($dsn, $config['db_user'], $config['db_password'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+        ]);
+    } catch (PDOException $e) {
+        wp_send_json_error(['message' => 'Database connection failed: ' . $e->getMessage()]);
+        return;
+    }
+
+    // Load schema
+    if (!function_exists('chatbot_supabase_get_schema')) {
+        require_once plugin_dir_path(__FILE__) . '../supabase/chatbot-supabase-schema.php';
+    }
+
+    $created = [];
+    $errors = [];
+
+    try {
+        // Enable pgvector extension first
+        $pdo->exec(chatbot_supabase_get_pgvector_sql());
+
+        // Create each table
+        $schema = chatbot_supabase_get_schema();
+        foreach ($schema as $table) {
+            try {
+                $pdo->exec($table['sql']);
+
+                // Create indexes
+                foreach ($table['indexes'] as $index) {
+                    $pdo->exec($index);
+                }
+
+                $created[] = $table['name'];
+            } catch (PDOException $e) {
+                // Check if table already exists
+                if (strpos($e->getMessage(), 'already exists') !== false) {
+                    // That's fine, skip
+                } else {
+                    $errors[] = $table['name'] . ': ' . $e->getMessage();
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = 'Schema error: ' . $e->getMessage();
+    }
+
+    if (empty($errors)) {
+        wp_send_json_success([
+            'message' => 'Successfully created/verified ' . count($created) . ' tables',
+            'created' => $created
+        ]);
+    } else {
+        wp_send_json_error([
+            'message' => 'Some errors occurred: ' . implode('; ', $errors),
+            'created' => $created,
+            'errors' => $errors
+        ]);
+    }
+}
+add_action('wp_ajax_chatbot_create_supabase_tables', 'chatbot_create_supabase_tables_ajax');

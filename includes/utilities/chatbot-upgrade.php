@@ -70,6 +70,12 @@ function chatbot_chatgpt_upgrade() {
     // DIAG - Log the upgrade
     // back_trace( 'NOTICE', 'Plugin upgrade started');
 
+    // Ver 2.5.0: Update initial greeting to include Steven bot name
+    if (!get_option('chatbot_greeting_updated_v25')) {
+        update_option('chatbot_chatgpt_initial_greeting', "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?");
+        update_option('chatbot_greeting_updated_v25', true);
+    }
+
     // Removed obsolete or replaced options
     if ( esc_attr(get_option( 'chatbot_chatgpt_crawler_status' )) ) {
         delete_option( 'chatbot_chatgpt_crawler_status' );

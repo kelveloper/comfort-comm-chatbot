@@ -50,24 +50,26 @@ global $session_id;
 global $user_id;
 
 // Assign a unique ID to the visitor and logged-in users - Ver 2.0.4
+// Ver 2.5.0: Changed prefix from kognetiks_ to steven_
 function kognetiks_assign_unique_id() {
-    if (!isset($_COOKIE['kognetiks_unique_id'])) {
-        $unique_id = uniqid('kognetiks_', true);
-        
+    if (!isset($_COOKIE['steven_unique_id'])) {
+        $unique_id = uniqid('steven_', true);
+
         // Set a cookie using the built-in setcookie function
-        setcookie('kognetiks_unique_id', $unique_id, time() + (86400 * 30), "/", "", true, true); // HttpOnly and Secure flags set to true
-                
+        setcookie('steven_unique_id', $unique_id, time() + (86400 * 30), "/", "", true, true); // HttpOnly and Secure flags set to true
+
         // Ensure the cookie is set for the current request
-        $_COOKIE['kognetiks_unique_id'] = $unique_id;
+        $_COOKIE['steven_unique_id'] = $unique_id;
     }
 }
 add_action('init', 'kognetiks_assign_unique_id', 1); // Set higher priority
 
 // Get the unique ID of the visitor or logged-in user - Ver 2.0.4
+// Ver 2.5.0: Changed prefix from kognetiks_ to steven_
 function kognetiks_get_unique_id() {
-    if (isset($_COOKIE['kognetiks_unique_id'])) {
-        // error_log('[Chatbot] [chatbot-chatgpt.php] Unique ID found: ' . $_COOKIE['kognetiks_unique_id']);
-        return sanitize_text_field($_COOKIE['kognetiks_unique_id']);
+    if (isset($_COOKIE['steven_unique_id'])) {
+        // error_log('[Chatbot] [chatbot-chatgpt.php] Unique ID found: ' . $_COOKIE['steven_unique_id']);
+        return sanitize_text_field($_COOKIE['steven_unique_id']);
     }
     // error_log('[Chatbot] [chatbot-chatgpt.php] Unique ID not found');
     return null;
@@ -3105,6 +3107,12 @@ function concatenateHistory($transient_name) {
 // FIXME - MOVE CORE FUNCTIONS TO A SEPARATE FILE, LEAVING ONLY THE HOOKS HERE
 // Initialize the Greetings - Ver 1.6.1
 function enqueue_greetings_script( $initial_greeting = null, $subsequent_greeting = null) {
+
+    // Ver 2.5.0: One-time force update greeting to include Steven
+    if (!get_option('chatbot_greeting_steven_v25')) {
+        update_option('chatbot_chatgpt_initial_greeting', "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?");
+        update_option('chatbot_greeting_steven_v25', true);
+    }
 
     // If user is logged in, then modify greeting if greeting contains "[...]" or remove if not logged in - Ver 1.9.4
     if (is_user_logged_in()) {

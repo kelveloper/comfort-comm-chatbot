@@ -580,8 +580,9 @@ function chatbot_chatgpt_settings_page() {
 
             }
 
-            // Only show submit button for tabs that don't have their own (Setup has its own)
-            if ($active_tab !== 'setup' && $active_tab !== 'general') {
+            // Only show submit button for tabs that have settings to save
+            // Exclude: setup (has its own), analytics_feedback (read-only dashboard)
+            if ($active_tab !== 'setup' && $active_tab !== 'general' && $active_tab !== 'analytics_feedback') {
                 submit_button('Save Settings');
             }
             ?>

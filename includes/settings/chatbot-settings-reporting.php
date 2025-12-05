@@ -1113,12 +1113,21 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
         <?php if (!empty($active_clusters)) : ?>
         <!-- AI-Suggested FAQ Additions -->
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #111827;">AI-Suggested FAQ Additions (<?php echo count($active_clusters); ?>)</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; font-size: 16px; color: #111827;">AI-Suggested FAQ Additions (<?php echo count($active_clusters); ?>)</h3>
+                <!-- Ver 2.5.0: Pagination controls -->
+                <div id="gap-cluster-pagination" style="display: flex; align-items: center; gap: 8px;">
+                    <button type="button" id="gap-cluster-prev" class="button button-small" disabled>&laquo; Prev</button>
+                    <span id="gap-cluster-page-info" style="font-size: 12px; color: #6b7280; min-width: 80px; text-align: center;">Page 1 of 1</span>
+                    <button type="button" id="gap-cluster-next" class="button button-small">Next &raquo;</button>
+                </div>
+            </div>
             <p style="margin: 0 0 20px 0; font-size: 13px; color: #6b7280; padding: 12px; background-color: #f9fafb; border-left: 3px solid #3b82f6; border-radius: 4px;">
                 <b>Human Review Required:</b> AI has analyzed similar questions and suggested FAQ entries below. Review and manually add to your knowledge base.
             </p>
 
-            <?php foreach ($active_clusters as $cluster) :
+            <div id="gap-cluster-container">
+            <?php $cluster_index = 0; foreach ($active_clusters as $cluster) : $cluster_index++;
                 // Handle both JSON strings and arrays (Supabase returns arrays directly)
                 $suggested_faq = is_string($cluster['suggested_faq']) ? json_decode($cluster['suggested_faq'], true) : $cluster['suggested_faq'];
                 $sample_questions = is_string($cluster['sample_questions']) ? json_decode($cluster['sample_questions'], true) : $cluster['sample_questions'];
@@ -1133,7 +1142,7 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
                 $border_color = $is_improve ? '#f59e0b' : '#3b82f6';
                 $action_label = $is_improve ? 'Improve Existing FAQ' : 'Create New FAQ';
             ?>
-            <div style="background: #f9fafb; border-left: 4px solid <?php echo $border_color; ?>; border: 1px solid #d1d5db; border-radius: 6px; padding: 16px; margin-bottom: 12px;">
+            <div class="gap-cluster-item" data-cluster-index="<?php echo $cluster_index; ?>" style="background: #f9fafb; border-left: 4px solid <?php echo $border_color; ?>; border: 1px solid #d1d5db; border-radius: 6px; padding: 16px; margin-bottom: 12px;">
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                     <div style="flex: 1;">
                         <div style="font-size: 10px; font-weight: 700; color: <?php echo $border_color; ?>; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -1272,6 +1281,57 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
                 </div>
             </div>
             <?php endforeach; ?>
+            </div><!-- end gap-cluster-container -->
+
+            <!-- Ver 2.5.0: Gap cluster pagination JavaScript -->
+            <script>
+            (function() {
+                const perPage = 5;
+                let currentPage = 1;
+                const items = document.querySelectorAll('.gap-cluster-item');
+                const totalItems = items.length;
+                const totalPages = Math.ceil(totalItems / perPage);
+
+                function updateGapPagination() {
+                    // Hide all items
+                    items.forEach(item => item.style.display = 'none');
+
+                    // Show items for current page
+                    const startIdx = (currentPage - 1) * perPage;
+                    const endIdx = Math.min(startIdx + perPage, totalItems);
+
+                    for (let i = startIdx; i < endIdx; i++) {
+                        items[i].style.display = 'block';
+                    }
+
+                    // Update page info
+                    document.getElementById('gap-cluster-page-info').textContent = 'Page ' + currentPage + ' of ' + totalPages;
+
+                    // Update button states
+                    document.getElementById('gap-cluster-prev').disabled = currentPage <= 1;
+                    document.getElementById('gap-cluster-next').disabled = currentPage >= totalPages;
+                }
+
+                document.getElementById('gap-cluster-prev').addEventListener('click', function() {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        updateGapPagination();
+                    }
+                });
+
+                document.getElementById('gap-cluster-next').addEventListener('click', function() {
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        updateGapPagination();
+                    }
+                });
+
+                // Initialize
+                if (totalItems > 0) {
+                    updateGapPagination();
+                }
+            })();
+            </script>
         </div>
         <?php endif; ?>
 

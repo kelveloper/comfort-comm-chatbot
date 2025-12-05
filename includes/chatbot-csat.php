@@ -221,6 +221,77 @@ function chatbot_check_learning_threshold($faq_id, $question, $answer, $confiden
     }
 }
 
+// =============================================================================
+// NET PROMOTER SCORE (NPS) - Ver 2.5.0
+// =============================================================================
+
+/**
+ * AJAX handler for NPS submission
+ * NPS Scale: 0-10
+ * - Promoters: 9-10
+ * - Passives: 7-8
+ * - Detractors: 0-6
+ */
+function chatbot_chatgpt_submit_nps() {
+    // Verify nonce
+    if (!isset($_POST['chatbot_nonce']) || !wp_verify_nonce($_POST['chatbot_nonce'], 'chatbot_message_nonce')) {
+        wp_send_json_error('Invalid nonce');
+        return;
+    }
+
+    $score = intval($_POST['score'] ?? -1);
+    $session_id = sanitize_text_field($_POST['session_id'] ?? '');
+    $user_id = sanitize_text_field($_POST['user_id'] ?? '');
+    $timestamp = current_time('mysql');
+
+    // Validate score
+    if ($score < 0 || $score > 10) {
+        wp_send_json_error('Invalid NPS score');
+        return;
+    }
+
+    // Get existing NPS data
+    $nps_data = get_option('chatbot_chatgpt_nps_data', [
+        'responses' => [],
+        'total' => 0
+    ]);
+
+    // Check if this session already submitted NPS (prevent duplicates)
+    foreach ($nps_data['responses'] as $response) {
+        if ($response['session_id'] === $session_id) {
+            wp_send_json_error('NPS already submitted for this session');
+            return;
+        }
+    }
+
+    // Add new response
+    $nps_data['responses'][] = [
+        'score' => $score,
+        'session_id' => $session_id,
+        'user_id' => $user_id,
+        'timestamp' => $timestamp
+    ];
+    $nps_data['total']++;
+
+    // Keep only last 500 responses
+    if (count($nps_data['responses']) > 500) {
+        $nps_data['responses'] = array_slice($nps_data['responses'], -500);
+    }
+
+    update_option('chatbot_chatgpt_nps_data', $nps_data);
+
+    // Calculate current NPS
+    $nps_stats = chatbot_supabase_get_nps_stats();
+
+    wp_send_json_success([
+        'message' => 'NPS submitted',
+        'nps_score' => $nps_stats['nps_score'],
+        'total_responses' => $nps_stats['total_responses']
+    ]);
+}
+add_action('wp_ajax_chatbot_chatgpt_submit_nps', 'chatbot_chatgpt_submit_nps');
+add_action('wp_ajax_nopriv_chatbot_chatgpt_submit_nps', 'chatbot_chatgpt_submit_nps');
+
 // Add FAQ to learning review queue
 function chatbot_add_to_review_queue($faq_id, $question, $answer, $confidence_score, $negative_count, $user_comments = array()) {
     $review_queue = get_option('chatbot_learning_review_queue', array());

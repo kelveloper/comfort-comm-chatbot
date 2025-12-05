@@ -172,9 +172,10 @@
     justify-content: space-between;
 }
 
+/* Ver 2.5.0: Improved alignment - consistent padding on all sides */
 #chatbot-chatgpt-conversation {
     flex-grow: 1;
-    padding: 10px 10px 10px 20px !important;
+    padding: 10px 15px !important;
     overflow-y: auto;
     max-height: 90vh; /* Adjust the percentage as needed */
 }
@@ -188,52 +189,86 @@
     align-items: center;
 } */
 
-/* REPLACED IN V2.0.9 INSTEAD OF ABOVE */
+/* Ver 2.5.0: Input container - wraps input-area and buttons inline */
 #chatbot-chatgpt-input {
     display: flex;
-    justify-content: center;
-    align-items: start;
-    gap: 5px;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center; /* Center vertically */
+    gap: 8px;
     width: 100%;
+    padding: 10px 15px;
+    box-sizing: border-box;
 }
 
+/* Ver 2.5.0: Input area takes remaining space after buttons */
 #chatbot-chatgpt-input-area {
     flex-grow: 1;
-    max-width: 95%;
+    flex-shrink: 1;
+    min-width: 0;
 }
 
+/* Ver 2.5.0: Styled input box - aligned with bubbles */
 #chatbot-chatgpt-message {
-    flex-grow: 1;
-    border: 1px solid black;
-    border-radius: 3px;
-    background: ghostwhite;
+    width: 100% !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    padding: 10px 12px !important;
+    font-size: 0.9rem !important;
+    resize: none !important;
+    min-height: 40px;
+    max-height: 80px;
+    box-sizing: border-box !important;
+    font-family: inherit !important;
+    line-height: 1.4 !important;
 }
 
 #chatbot-chatgpt-message:focus {
-    border: 1px solid black; /* Change this to any color you prefer */
-    outline: none; /* This removes the default outline */
+    border: 1px solid #3b82f6;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
+/* Ver 2.5.0: Submit button styled inline with input */
 #chatbot-chatgpt-submit {
-    background-color: #f1f1f1;
+    background-color: #0D3C74;
+    color: white;
     border: none;
-    border-radius: 1px;
-    padding: 1px 1px;
-    margin-left: 1px;
+    border-radius: 8px;
+    padding: 10px 12px;
     cursor: pointer;
+    transition: background-color 0.2s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    min-width: 40px;
 }
 
+#chatbot-chatgpt-submit img {
+    width: 18px;
+    height: 18px;
+    filter: brightness(0) invert(1); /* Make icon white */
+}
+
+/* Ver 2.5.0: Buttons container - only for file upload buttons, hidden if empty */
 #chatbot-chatgpt-buttons-container {
-    justify-content: center;
-    flex-grow: 0;
     display: flex;
-    flex-direction: row;
+    justify-content: flex-start;
     align-items: center;
     gap: 5px;
+    padding: 0 15px 5px 15px;
+}
+
+/* Hide if only contains whitespace/empty */
+#chatbot-chatgpt-buttons-container:empty {
+    display: none;
 }
 
 #chatbot-chatgpt-submit:hover {
-    background-color: #dcdcdc !important;    
+    background-color: #1F7CEC !important;
 }
 
 /* File Upload Button - Ver 1.7.6 */
@@ -310,20 +345,26 @@
     cursor: pointer;
 }
 
-/* CSS for append message */
+/* Ver 2.5.0: CSS for message container - improved alignment */
 .chat-message {
-    margin: 5px;
-    padding: 5px;
-    max-width: 95%;
+    margin: 8px 0;
+    padding: 0;
+    max-width: 100%;
     word-wrap: break-word;
+    display: flex;
 }
 
+/* Ver 2.5.0: User message aligned to right - like iMessage */
 .user-message {
+    display: flex;
+    justify-content: flex-end;
     text-align: right;
     font: inherit;
+    margin: 8px 0;
+    padding: 0;
 }
 
-/* Updated Ver 2.4.9 - User message bubble - light blue background, dark text */
+/* Updated Ver 2.5.0 - User message bubble - light blue background, dark text, text left-aligned inside */
 .chatbot-user-text {
     display: inline-block;
     background-color: #e0edff !important;
@@ -335,6 +376,9 @@
     line-height: 1.5;
     border: 1px solid #b8d4fe;
     box-shadow: 0 2px 4px rgba(13, 60, 116, 0.1);
+    max-width: 85%;
+    width: fit-content;
+    text-align: left;
 }
 
 /* Force visibility of user text */
@@ -343,8 +387,13 @@
     font-size: 0.85rem !important;
 }
 
+/* Ver 2.5.0: Bot message aligned to left - same indent as user */
 .bot-message {
+    display: flex;
+    justify-content: flex-start;
     text-align: left;
+    margin: 8px 0;
+    padding: 0;
 }
 
 .chatbot-bot-text {
@@ -362,7 +411,7 @@
     line-height: 1.5;
     border: 1px solid #e2e8f0;
     box-sizing: border-box;
-    white-space: pre-wrap;
+    white-space: normal; /* Changed from pre-wrap to remove extra whitespace */
 }
 
 .chatbot-bot-text p,
@@ -530,12 +579,13 @@
     font-weight: 400;
 }
 
+/* Ver 2.5.0: Fixed hover - ensure text stays visible */
 .faq-question-button:hover {
-    background: linear-gradient(135deg, #0D3C74 0%, #1F7CEC 100%);
-    color: #ffffff;
-    border-color: transparent;
+    background-color: #e0edff !important;
+    color: #0D3C74 !important;
+    border-color: #1F7CEC !important;
     transform: translateX(3px);
-    box-shadow: 0 3px 8px rgba(13, 60, 116, 0.3);
+    box-shadow: 0 3px 8px rgba(13, 60, 116, 0.2);
 }
 
 .faq-back-button {
@@ -810,23 +860,31 @@
     margin: 10px;
 }
 
-/* Added in Version 2.0.3 - 2024 05 29 */
+/* Ver 2.5.0: Mobile responsive - consistent padding */
 @media only screen and (max-width: 600px) {
     #chatbot-chatgpt-conversation {
         flex-grow: 1;
-        padding: 10px;
+        padding: 10px 15px !important;
         overflow-y: auto;
-        max-height: 200px; /* Adjust the percentage as needed */
+        max-height: 300px;
+    }
+
+    #chatbot-chatgpt-input {
+        padding: 8px 12px;
+    }
+
+    #chatbot-chatgpt-message {
+        font-size: 16px; /* Prevent zoom on iOS */
     }
 }
-    
-/* Added in Version 2.0.3 - 2024 05 29 */
+
+/* Ver 2.5.0: Desktop - consistent padding */
 @media only screen and (min-width: 600px) {
-#chatbot-chatgpt-conversation {
-    flex-grow: 1;
-    padding: 10px;
-    overflow-y: auto;
-    max-height: 400px; /* Adjust the percentage as needed */
+    #chatbot-chatgpt-conversation {
+        flex-grow: 1;
+        padding: 10px 15px !important;
+        overflow-y: auto;
+        max-height: 400px;
     }
 }
 

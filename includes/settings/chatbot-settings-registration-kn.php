@@ -320,6 +320,20 @@ function chatbot_chatgpt_faq_import_section_callback() {
                     </tbody>
                 </table>
 
+                <!-- Ver 2.5.0: Bottom pagination controls -->
+                <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 15px; padding: 10px 0; border-top: 1px solid #e2e8f0;">
+                    <label for="chatbot-faq-per-page-bottom"><strong>Per page:</strong></label>
+                    <select id="chatbot-faq-per-page-bottom" style="width: 70px;">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="all">All</option>
+                    </select>
+                    <button type="button" id="chatbot-faq-prev-bottom" class="button button-small" disabled>&laquo; Prev</button>
+                    <span id="chatbot-faq-page-info-bottom" style="min-width: 100px; text-align: center;">Page 1 of 1</span>
+                    <button type="button" id="chatbot-faq-next-bottom" class="button button-small">Next &raquo;</button>
+                </div>
+
                 <script>
                 // Category filter and pagination functionality (Ver 2.5.0)
                 jQuery(document).ready(function($) {
@@ -359,18 +373,23 @@ function chatbot_chatgpt_faq_import_section_callback() {
                             rows[i].show();
                         }
 
-                        // Update page info
+                        // Update page info (both top and bottom)
+                        let pageText = '';
                         if (totalRows === 0) {
-                            $('#chatbot-faq-page-info').text('No results');
+                            pageText = 'No results';
                         } else if (perPage === 'all') {
-                            $('#chatbot-faq-page-info').text('Showing all ' + totalRows);
+                            pageText = 'Showing all ' + totalRows;
                         } else {
-                            $('#chatbot-faq-page-info').text('Page ' + currentPage + ' of ' + totalPages);
+                            pageText = 'Page ' + currentPage + ' of ' + totalPages;
                         }
+                        $('#chatbot-faq-page-info, #chatbot-faq-page-info-bottom').text(pageText);
 
-                        // Update button states
-                        $('#chatbot-faq-prev').prop('disabled', currentPage <= 1 || perPage === 'all');
-                        $('#chatbot-faq-next').prop('disabled', currentPage >= totalPages || perPage === 'all');
+                        // Update button states (both top and bottom)
+                        $('#chatbot-faq-prev, #chatbot-faq-prev-bottom').prop('disabled', currentPage <= 1 || perPage === 'all');
+                        $('#chatbot-faq-next, #chatbot-faq-next-bottom').prop('disabled', currentPage >= totalPages || perPage === 'all');
+
+                        // Sync per-page dropdowns
+                        $('#chatbot-faq-per-page, #chatbot-faq-per-page-bottom').val(perPage === 'all' ? 'all' : perPage);
 
                         // Update filter count
                         const filterVal = $('#chatbot-faq-filter').val();
@@ -387,23 +406,23 @@ function chatbot_chatgpt_faq_import_section_callback() {
                         updatePagination();
                     });
 
-                    // Per page change
-                    $('#chatbot-faq-per-page').on('change', function() {
+                    // Per page change (both top and bottom)
+                    $('#chatbot-faq-per-page, #chatbot-faq-per-page-bottom').on('change', function() {
                         perPage = $(this).val() === 'all' ? 'all' : parseInt($(this).val());
                         currentPage = 1;
                         updatePagination();
                     });
 
-                    // Previous page
-                    $('#chatbot-faq-prev').on('click', function() {
+                    // Previous page (both top and bottom)
+                    $('#chatbot-faq-prev, #chatbot-faq-prev-bottom').on('click', function() {
                         if (currentPage > 1) {
                             currentPage--;
                             updatePagination();
                         }
                     });
 
-                    // Next page
-                    $('#chatbot-faq-next').on('click', function() {
+                    // Next page (both top and bottom)
+                    $('#chatbot-faq-next, #chatbot-faq-next-bottom').on('click', function() {
                         const rows = getFilteredRows();
                         const totalPages = Math.ceil(rows.length / perPage);
                         if (currentPage < totalPages) {

@@ -103,7 +103,68 @@ window.resetAllLocks = resetAllLocks;
     function isChatbotShortcodePresent() {
         return document.querySelector('.chatbot-chatgpt') !== null;
     }
-   
+
+    // Ver 2.5.0: Markdown to HTML converter for AI responses
+    // Converts markdown syntax to proper HTML for display
+    function parseMarkdown(text) {
+        if (!text || typeof text !== 'string') return text;
+
+        let html = text;
+
+        // Ver 2.5.1: Always convert newlines to <br> for consistent processing
+        // This handles cases where backend sends HTML with embedded newlines
+        html = html.replace(/\n/g, '<br>');
+
+        // Bold: **text** or __text__
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+
+        // Unordered lists: - item or * item (with optional spaces)
+        // MUST come AFTER bold conversion to avoid conflicts with ** syntax
+        // Handle bullets after line breaks
+        html = html.replace(/<br>\s*[\-\*]\s+/g, '<br>&nbsp;&nbsp;&bull; ');
+        // Handle bullets at start of text
+        html = html.replace(/^\s*[\-\*]\s+/g, '&nbsp;&nbsp;&bull; ');
+
+        // Italic: *text* or _text_ (but not inside URLs or already processed)
+        // MUST come AFTER bullet conversion to avoid matching remaining single asterisks
+        html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+        html = html.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
+
+        // Inline code: `code`
+        html = html.replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:2px 5px;border-radius:3px;font-family:monospace;">$1</code>');
+
+        // Headers: # Header (only at start of line)
+        html = html.replace(/<br>### (.+?)(<br>|$)/g, '<br><strong style="font-size:1.1em;">$1</strong>$2');
+        html = html.replace(/<br>## (.+?)(<br>|$)/g, '<br><strong style="font-size:1.2em;">$1</strong>$2');
+        html = html.replace(/<br># (.+?)(<br>|$)/g, '<br><strong style="font-size:1.3em;">$1</strong>$2');
+        html = html.replace(/^### (.+?)(<br>|$)/g, '<strong style="font-size:1.1em;">$1</strong>$2');
+        html = html.replace(/^## (.+?)(<br>|$)/g, '<strong style="font-size:1.2em;">$1</strong>$2');
+        html = html.replace(/^# (.+?)(<br>|$)/g, '<strong style="font-size:1.3em;">$1</strong>$2');
+
+        // Numbered lists: 1. item
+        html = html.replace(/<br>(\d+)\. (.+?)(?=<br>|$)/g, '<br>$1. $2');
+
+        // Links: [text](url)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:#0066cc;text-decoration:underline;">$1</a>');
+
+        // Highlight numbers/prices for better visibility (e.g., $49.99, $30, 100 Mbps)
+        // Ver 2.5.0: Fixed regex to properly capture full dollar amounts (was incorrectly splitting $30 into $3 and 0)
+        html = html.replace(/\$(\d+(?:\.\d+)?)/g, '<strong style="color:#2563eb;">$$$1</strong>');
+        html = html.replace(/(\d+)\s*(Mbps|Gbps|GB|MB)/gi, '<strong>$1 $2</strong>');
+
+        // Highlight phone numbers (e.g., (347) 519-9999, 347-519-9999, 1-800-555-1234)
+        html = html.replace(/(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/g, '<strong style="color:#2563eb;">$1</strong>');
+        html = html.replace(/(1-\d{3}-\d{3}-\d{4})/g, '<strong style="color:#2563eb;">$1</strong>');
+
+        // Ver 2.5.0: Clean up trailing whitespace and <br> tags to remove empty space at end
+        html = html.replace(/(<br>\s*)+$/g, ''); // Remove trailing <br> tags
+        html = html.replace(/\s+$/g, ''); // Remove trailing whitespace
+        html = html.trim();
+
+        return html;
+    }
+
     // DIAG - Diagnostics - Ver 2.1.1.1
     // const sortedKeys = Object.keys(kchat_settings).sort();
     // for (const key of sortedKeys) {
@@ -825,6 +886,11 @@ window.resetAllLocks = resetAllLocks;
 
     // Function to render FAQ category buttons
     function renderCategoryButtons() {
+        // Ver 2.5.0: Don't show buttons if user already interacted this session
+        if (sessionStorage.getItem('chatbot_faq_buttons_hidden') === 'true') {
+            return;
+        }
+
         if (!faqCategoryButtons || faqCategoryButtons.length === 0) {
             return;
         }
@@ -882,19 +948,15 @@ window.resetAllLocks = resetAllLocks;
                     let question = faq.question;
                     let answer = $(this).data('answer');
 
-                    // Remove button container
+                    // Ver 2.5.0: Hide buttons permanently for this session
                     $('.faq-buttons-container').remove();
+                    sessionStorage.setItem('chatbot_faq_buttons_hidden', 'true');
 
                     // Show user's question
                     appendMessage(question, 'user');
 
                     // Show answer
                     appendMessage(answer, 'bot');
-
-                    // DON'T show category buttons again - let user continue conversation
-                    // setTimeout(function() {
-                    //     renderCategoryButtons();
-                    // }, 500);
                 });
             buttonContainer.append(button);
         });
@@ -962,11 +1024,18 @@ window.resetAllLocks = resetAllLocks;
 
         messageElement = $('<div></div>').addClass('chat-message');
 
+        // Ver 2.5.0: Pre-process markdown for bot messages before sanitizing
+        let processedMessage = message;
+        if (sender === 'bot' || sender === undefined) {
+            processedMessage = parseMarkdown(message);
+        }
+
         // Sanitize the message HTML (keep HTML tags intact, don't strip to text)
-        let decodedMessage = DOMPurify.sanitize(message);
+        let decodedMessage = DOMPurify.sanitize(processedMessage);
 
         // DEBUG: Log the actual HTML being rendered
         console.log('DEBUG appendMessage - Raw message:', message);
+        console.log('DEBUG appendMessage - After markdown:', processedMessage);
         console.log('DEBUG appendMessage - After DOMPurify:', decodedMessage);
 
         // Check if the message contains an audio tag
@@ -1011,44 +1080,8 @@ window.resetAllLocks = resetAllLocks;
 
         messageElement.append(textElement);
 
-        // Add CSAT prompt for bot messages (not for errors, greetings, or system messages)
-        if (sender === 'bot' &&
-            cssClass !== 'initial-greeting' &&
-            cssClass !== 'idle-warning' &&
-            cssClass !== 'session-closed' &&
-            !message.startsWith('Error') &&
-            !message.startsWith('Oops') &&
-            !message.startsWith('It seems you') &&
-            !message.startsWith('Session closed') &&
-            !message.startsWith('Session paused')) {
-            // Get the previous user message (question)
-            let userQuestion = '';
-            let userMessages = conversation.find('.user-message');
-            if (userMessages.length > 0) {
-                userQuestion = userMessages.last().text().trim();
-            }
-
-            console.log('DEBUG CSAT - Captured question:', userQuestion);
-            console.log('DEBUG CSAT - Captured answer:', message);
-
-            let csatContainer = $('<div></div>')
-                .addClass('chatbot-csat-container')
-                .attr('data-question', userQuestion)
-                .attr('data-answer', message);
-
-            let csatText = $('<span></span>').addClass('chatbot-csat-text').text('Was this helpful?');
-            let csatYesBtn = $('<button></button>')
-                .addClass('chatbot-csat-btn chatbot-csat-yes')
-                .html('👍 Yes')
-                .attr('data-feedback', 'yes');
-            let csatNoBtn = $('<button></button>')
-                .addClass('chatbot-csat-btn chatbot-csat-no')
-                .html('👎 No')
-                .attr('data-feedback', 'no');
-
-            csatContainer.append(csatText).append(csatYesBtn).append(csatNoBtn);
-            messageElement.append(csatContainer);
-        }
+        // Ver 2.5.0: Removed thumbs up/down CSAT - now using NPS only
+        // Gap detection handled by confidence score, not user feedback
 
         conversation.append(messageElement);
 
@@ -1088,109 +1121,128 @@ window.resetAllLocks = resetAllLocks;
             // console.log("MathJax is not loaded.");
         }
 
+        // NPS Check - Ver 2.5.0
+        // Only trigger on bot messages (not errors, greetings, or system messages)
+        if (sender === 'bot' &&
+            cssClass !== 'initial-greeting' &&
+            cssClass !== 'idle-warning' &&
+            cssClass !== 'session-closed') {
+            checkShowNPS();
+        }
+
     }
 
-    // CSAT feedback handler - Event delegation for dynamically added buttons
-    conversation.on('click', '.chatbot-csat-btn', function() {
-        let feedback = $(this).attr('data-feedback');
-        let csatContainer = $(this).closest('.chatbot-csat-container');
+    // =============================================================================
+    // NET PROMOTER SCORE (NPS) - Ver 2.5.0
+    // Replaces thumbs up/down CSAT for cleaner feedback
+    // =============================================================================
 
-        // Get question and answer from data attributes
-        let question = csatContainer.attr('data-question') || '';
-        let answer = csatContainer.attr('data-answer') || '';
+    let npsShown = false;
+    let messageCount = 0;
+    const NPS_TRIGGER_MESSAGES = 5; // Show NPS after 5 messages
 
-        console.log('DEBUG CSAT - Sending question:', question);
-        console.log('DEBUG CSAT - Sending answer:', answer);
+    // Check if NPS should be shown
+    function checkShowNPS() {
+        if (npsShown) return;
+        if (sessionStorage.getItem('chatbot_nps_submitted')) return;
 
-        // If thumbs down, show comment popup
-        if (feedback === 'no') {
-            chatbotShowCommentPopup(feedback, question, answer, csatContainer);
-        } else {
-            // Thumbs up - send immediately
-            chatbotSubmitFeedback(feedback, question, answer, '', csatContainer);
+        messageCount++;
+        if (messageCount >= NPS_TRIGGER_MESSAGES) {
+            setTimeout(showNPSPrompt, 1000); // Delay slightly after last message
         }
-    });
+    }
 
-    // Show comment popup for thumbs down
-    function chatbotShowCommentPopup(feedback, question, answer, csatContainer) {
-        // Create modal HTML
-        let modalHTML = `
-            <div id="chatbot-comment-modal" style="display: none; position: fixed; z-index: 100000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px);">
-                <div style="background-color: #ffffff; margin: 10% auto; padding: 0; border-radius: 12px; width: 90%; max-width: 500px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
-                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
-                        <h3 style="margin: 0; font-size: 20px; font-weight: 600;">Help us improve</h3>
-                        <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.95;">What went wrong with this answer?</p>
-                    </div>
-                    <div style="padding: 24px;">
-                        <textarea id="chatbot-feedback-comment" placeholder="Tell us what could be better... (optional)" style="width: 100%; height: 100px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box;" maxlength="500"></textarea>
-                        <div style="margin-top: 8px; font-size: 12px; color: #64748b; text-align: right;">
-                            <span id="chatbot-comment-counter">0</span>/500 characters
-                        </div>
-                        <div style="margin-top: 20px; display: flex; justify-content: center;">
-                            <button id="chatbot-comment-submit" style="padding: 12px 40px; border: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3); transition: all 0.2s;">
-                                Submit
-                            </button>
-                        </div>
-                    </div>
+    // Show NPS prompt in chat
+    function showNPSPrompt() {
+        if (npsShown) return;
+        npsShown = true;
+
+        // Ver 2.5.0: Made NPS smaller and more compact
+        let npsHtml = `
+            <div class="chatbot-nps-container" style="
+                background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                border: 1px solid #bae6fd;
+                border-radius: 10px;
+                padding: 10px 12px;
+                margin: 8px 0;
+                text-align: center;
+            ">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 500; color: #0369a1;">
+                    How likely are you to recommend this chatbot?
+                </p>
+                <div class="chatbot-nps-scale" style="display: flex; justify-content: center; gap: 3px; flex-wrap: wrap;">
+                    ${[0,1,2,3,4,5,6,7,8,9,10].map(n => `
+                        <button class="chatbot-nps-btn" data-score="${n}" style="
+                            width: 26px;
+                            height: 26px;
+                            border: 1px solid ${n <= 6 ? '#fecaca' : (n <= 8 ? '#fef3c7' : '#bbf7d0')};
+                            background: ${n <= 6 ? '#fef2f2' : (n <= 8 ? '#fffbeb' : '#f0fdf4')};
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 10px;
+                            font-weight: 600;
+                            color: ${n <= 6 ? '#dc2626' : (n <= 8 ? '#d97706' : '#16a34a')};
+                            transition: all 0.2s;
+                            padding: 0;
+                        ">${n}</button>
+                    `).join('')}
+                </div>
+                <div class="chatbot-nps-labels" style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 9px; color: #64748b;">
+                    <span>Not likely</span>
+                    <span>Very likely</span>
                 </div>
             </div>
         `;
 
-        // Remove existing modal if any
-        $('#chatbot-comment-modal').remove();
-
-        // Append modal to body
-        $('body').append(modalHTML);
-
-        // Show modal with fade in
-        $('#chatbot-comment-modal').fadeIn(200);
-
-        // Character counter
-        $('#chatbot-feedback-comment').on('input', function() {
-            $('#chatbot-comment-counter').text($(this).val().length);
-        });
-
-        // Submit button (can submit empty comment)
-        $('#chatbot-comment-submit').on('click', function() {
-            let comment = $('#chatbot-feedback-comment').val().trim();
-            $('#chatbot-comment-modal').fadeOut(200, function() {
-                $(this).remove();
-            });
-            chatbotSubmitFeedback(feedback, question, answer, comment, csatContainer);
-        });
+        let npsElement = $(npsHtml);
+        conversation.append(npsElement);
+        conversation.scrollTop(conversation[0].scrollHeight);
     }
 
-    // Submit feedback to backend
-    function chatbotSubmitFeedback(feedback, question, answer, comment, csatContainer) {
-        // Disable buttons and show thank you
-        csatContainer.find('.chatbot-csat-btn').prop('disabled', true).css('opacity', '0.5');
-        csatContainer.find('.chatbot-csat-text').text(feedback === 'yes' ? '✓ Thank you!' : 'Thanks for your feedback!');
+    // Handle NPS button clicks
+    conversation.on('click', '.chatbot-nps-btn', function() {
+        let score = parseInt($(this).attr('data-score'));
+        let container = $(this).closest('.chatbot-nps-container');
 
-        // Send CSAT feedback to backend
+        // Disable all buttons
+        container.find('.chatbot-nps-btn').prop('disabled', true).css('opacity', '0.5');
+
+        // Highlight selected
+        $(this).css({
+            'transform': 'scale(1.2)',
+            'opacity': '1',
+            'border-color': '#2563eb',
+            'background': '#2563eb',
+            'color': '#fff'
+        });
+
+        // Show thank you message
+        container.find('p').text('Thank you for your feedback!');
+        container.find('.chatbot-nps-scale').fadeOut();
+        container.find('.chatbot-nps-labels').fadeOut(); // Ver 2.5.0: Hide labels after feedback
+
+        // Save to session storage to prevent re-showing
+        sessionStorage.setItem('chatbot_nps_submitted', 'true');
+
+        // Submit NPS score
         $.ajax({
             url: kchat_settings.ajax_url,
             method: 'POST',
             data: {
-                action: 'chatbot_chatgpt_submit_csat',
-                feedback: feedback,
-                question: question,
-                answer: answer,
-                comment: comment,
-                user_id: kchat_settings.user_id,
+                action: 'chatbot_chatgpt_submit_nps',
+                score: score,
                 session_id: kchat_settings.session_id,
-                page_id: kchat_settings.page_id,
+                user_id: kchat_settings.user_id,
                 chatbot_nonce: kchat_settings.chatbot_message_nonce
             },
             success: function(response) {
-                console.log('CSAT AJAX Response:', response);
-                console.log('CSAT feedback saved:', feedback);
+                console.log('NPS submitted:', score, response);
             },
             error: function(xhr, status, error) {
-                console.error('CSAT AJAX Error:', status, error);
-                console.error('CSAT Response:', xhr.responseText);
+                console.error('NPS submit error:', error);
             }
         });
-    }
+    });
 
     function showTypingIndicator() {
         typingIndicator = $('<div></div>').addClass('chatbot-typing-indicator');
@@ -1352,12 +1404,18 @@ window.resetAllLocks = resetAllLocks;
     }
 
     // Poll queue status to determine when to re-enable the submit button
+    // Ver 2.5.0: Track poll attempts to prevent premature removal on first message
+    let pollAttempts = 0;
+    const minPollAttempts = 2; // Wait at least 2 polls before allowing indicator removal
+
     function pollQueueStatus() {
         let user_id = kchat_settings.user_id;
         let page_id = kchat_settings.page_id;
         let session_id = kchat_settings.session_id;
         let assistant_id = kchat_settings.assistant_id;
-        
+
+        pollAttempts++;
+
         $.ajax({
             url: kchat_settings.ajax_url,
             method: 'POST',
@@ -1374,9 +1432,17 @@ window.resetAllLocks = resetAllLocks;
                 if (response.success && response.data) {
                     const queueStatus = response.data;
                     if (!queueStatus.has_messages || queueStatus.count === 0) {
-                        // Queue is empty, re-enable the button
-                        submitButton.prop('disabled', false);
-                        removeTypingIndicator();
+                        // Ver 2.5.0: Only remove typing indicator if we've polled at least minPollAttempts times
+                        // This prevents premature removal on first message
+                        if (pollAttempts >= minPollAttempts) {
+                            // Queue is empty, re-enable the button
+                            submitButton.prop('disabled', false);
+                            removeTypingIndicator();
+                            pollAttempts = 0; // Reset for next message
+                        } else {
+                            // Poll again to make sure
+                            setTimeout(pollQueueStatus, 1000);
+                        }
                     } else {
                         // Queue still has messages, poll again in 1 second
                         setTimeout(pollQueueStatus, 1000);
@@ -1386,6 +1452,7 @@ window.resetAllLocks = resetAllLocks;
                     setTimeout(function() {
                         submitButton.prop('disabled', false);
                         removeTypingIndicator();
+                        pollAttempts = 0;
                     }, 5000);
                 }
             },
@@ -1394,6 +1461,7 @@ window.resetAllLocks = resetAllLocks;
                 setTimeout(function() {
                     submitButton.prop('disabled', false);
                     removeTypingIndicator();
+                    pollAttempts = 0;
                 }, 5000);
             }
         });
@@ -1414,6 +1482,10 @@ window.resetAllLocks = resetAllLocks;
         if (!message) {
             return;
         }
+
+        // Ver 2.5.0: Hide FAQ buttons once user starts typing - not needed anymore
+        $('.faq-buttons-container').remove();
+        sessionStorage.setItem('chatbot_faq_buttons_hidden', 'true');
 
         // Reset idle timer on user activity
         resetIdleTimer();
@@ -1840,7 +1912,8 @@ window.resetAllLocks = resetAllLocks;
                     submitButton.prop('disabled', false);
                 } else if (isQueuedForButton) {
                     // For queued responses, poll the queue status and re-enable when empty
-                    pollQueueStatus();
+                    // Ver 2.5.0: Add delay before first poll to ensure queue has time to populate
+                    setTimeout(pollQueueStatus, 1500);
                 }
             },
             cache: false, // This ensures jQuery does not cache the result
@@ -2704,6 +2777,9 @@ window.resetAllLocks = resetAllLocks;
         }, 200); // Adjust the delay as needed
     }    
    
+    // Track if this is a minimize/reopen vs page load - Ver 2.5.0
+    let chatbotSessionActive = false;
+
     // Load conversation from local storage if available - Ver 1.2.0 - Revised in Ver 2.0.7
     function loadConversation() {
 
@@ -2713,6 +2789,16 @@ window.resetAllLocks = resetAllLocks;
         let assistant_id = kchat_settings.assistant_id;
         let thread_id = kchat_settings.thread_id;
         let chatbot_chatgpt_force_page_reload = kchat_settings.chatbot_chatgpt_force_page_reload || 'No';
+
+        // Ver 2.5.0: Only clear on actual page load, not on minimize/reopen
+        // If session is already active (user minimized and reopened), keep conversation
+        if (chatbotSessionActive) {
+            console.log('DEBUG: Session active, keeping conversation on reopen');
+            return; // Don't clear, just return - conversation is still in DOM
+        }
+
+        // Mark session as active for subsequent opens (minimize/reopen)
+        chatbotSessionActive = true;
 
         // FORCE CLEAR on page load for testing - Ver 2.3.7
         sessionStorage.clear(); // Clear ALL sessionStorage

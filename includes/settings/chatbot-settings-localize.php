@@ -16,6 +16,12 @@ if ( ! defined( 'WPINC' ) ) {
 
 function chatbot_chatgpt_localize(){
 
+    // Ver 2.5.0: Force update greeting to include Steven
+    // Remove flag and force update
+    delete_option('chatbot_greeting_updated_v25');
+    update_option('chatbot_chatgpt_initial_greeting', "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?");
+    error_log('GREETING UPDATE: Forced greeting update to Steven');
+
     $defaults = array(
         'chatbot_chatgpt_allow_file_uploads' => 'No',
         'chatbot_chatgpt_audience_choice' => 'all',
@@ -37,7 +43,7 @@ function chatbot_chatgpt_localize(){
         'chatbot_chatgpt_disclaimer_setting' => 'No',
         'chatbot_chatgpt_display_style' => 'floating',
         'chatbot_chatgpt_enable_custom_buttons' => 'Off',
-        'chatbot_chatgpt_initial_greeting' => 'Hello! How can I help you today?',
+        'chatbot_chatgpt_initial_greeting' => "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?",
         'chatbot_chatgpt_model_choice' => 'gpt-3.5-turbo',
         'chatbot_chatgpt_start_status' => 'closed',
         'chatbot_chatgpt_start_status_new_visitor' => 'closed',

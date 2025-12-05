@@ -57,6 +57,9 @@ function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $
         return false;
     }
 
+    // Ver 2.5.0: Initialize quality_data to capture validation results
+    $quality_data = null;
+
     // Validate question quality (spam, gibberish, off-topic detection)
     if (function_exists('chatbot_should_log_gap_question')) {
         $validation = chatbot_should_log_gap_question($question, floatval($confidence_score), [
@@ -71,6 +74,16 @@ function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $
                 error_log('[Chatbot Gap] Question rejected: ' . $validation['reason'] . ' - "' . substr($question, 0, 50) . '..."');
             }
             return false;
+        }
+
+        // Ver 2.5.0: Capture validation data for storage
+        if (isset($validation['validation'])) {
+            $quality_data = [
+                'quality_score' => $validation['validation']['quality_score'] ?? null,
+                'validation_flags' => $validation['validation']['flags'] ?? [],
+                'relevance_score' => $validation['relevance_score'] ?? null,
+                'relevance_method' => $validation['relevance_method'] ?? null
+            ];
         }
     } else {
         // Fallback: basic length check if validator not loaded
@@ -88,7 +101,7 @@ function chatbot_log_gap_question($question, $faq_match_id, $confidence_score, $
             $page_id ? intval($page_id) : 0,
             floatval($confidence_score),
             $faq_match_id,
-            null, // quality_data - let the function generate it
+            $quality_data, // Ver 2.5.0: Pass quality data from validation
             $conversation_context
         );
     }

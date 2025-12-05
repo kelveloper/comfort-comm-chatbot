@@ -28,6 +28,9 @@ define('CHATBOT_VECTOR_THRESHOLD_MEDIUM', 0.65);     // Medium confidence
 define('CHATBOT_VECTOR_THRESHOLD_LOW', 0.50);        // Low confidence
 define('CHATBOT_VECTOR_THRESHOLD_MIN', 0.40);        // Minimum to return
 
+// Ver 2.5.0: Threshold for tiered search fallback
+define('CHATBOT_VECTOR_FALLBACK_THRESHOLD', 0.65);   // If question_embedding score < this, try combined_embedding
+
 /**
  * Search FAQs using vector similarity
  *
@@ -45,7 +48,8 @@ function chatbot_vector_search($query, $options = []) {
         'threshold' => CHATBOT_VECTOR_THRESHOLD_MIN,
         'limit' => 5,
         'category' => null,
-        'return_scores' => true
+        'return_scores' => true,
+        'use_tiered_search' => true  // Ver 2.5.0: Enable tiered search by default
     ];
     $options = array_merge($defaults, $options);
 
@@ -67,7 +71,39 @@ function chatbot_vector_search($query, $options = []) {
     $pdo = chatbot_vector_get_pg_connection();
 
     if ($pdo) {
-        return chatbot_vector_search_pdo($query_embedding, $options, $pdo);
+        // Ver 2.5.0: TIERED SEARCH - Standard RAG approach
+        // Tier 1: Try question_embedding first (strict, accurate)
+        $result = chatbot_vector_search_pdo($query_embedding, $options, $pdo, 'question');
+
+        // Check if we got a good match
+        $best_score = 0;
+        if ($result['success'] && !empty($result['results'])) {
+            $best_score = $result['results'][0]['similarity'] ?? 0;
+        }
+
+        // Tier 2: If score < fallback threshold, try combined_embedding (broader, topical)
+        if ($options['use_tiered_search'] && $best_score < CHATBOT_VECTOR_FALLBACK_THRESHOLD) {
+            error_log('[Chatbot Vector] Tier 1 (question_embedding) score=' . round($best_score, 2) . ' < ' . CHATBOT_VECTOR_FALLBACK_THRESHOLD . ', trying Tier 2 (combined_embedding)');
+
+            $combined_result = chatbot_vector_search_pdo($query_embedding, $options, $pdo, 'combined');
+
+            $combined_best_score = 0;
+            if ($combined_result['success'] && !empty($combined_result['results'])) {
+                $combined_best_score = $combined_result['results'][0]['similarity'] ?? 0;
+            }
+
+            // Use combined result if it's better
+            if ($combined_best_score > $best_score) {
+                error_log('[Chatbot Vector] Tier 2 (combined_embedding) score=' . round($combined_best_score, 2) . ' is better, using combined result');
+                $combined_result['search_type'] = 'tiered_combined';
+                return $combined_result;
+            } else {
+                error_log('[Chatbot Vector] Tier 1 (question_embedding) score=' . round($best_score, 2) . ' is better or equal, keeping question result');
+            }
+        }
+
+        $result['search_type'] = 'tiered_question';
+        return $result;
     } else {
         return chatbot_vector_search_rest($query_embedding, $options);
     }
@@ -75,9 +111,19 @@ function chatbot_vector_search($query, $options = []) {
 
 /**
  * Search using PDO (direct PostgreSQL connection)
+ *
+ * @param array $query_embedding The query embedding vector
+ * @param array $options Search options
+ * @param PDO $pdo Database connection
+ * @param string $embedding_type Which embedding to search: 'question' or 'combined' (Ver 2.5.0)
  */
-function chatbot_vector_search_pdo($query_embedding, $options, $pdo) {
+function chatbot_vector_search_pdo($query_embedding, $options, $pdo, $embedding_type = 'question') {
     $embedding_str = chatbot_vector_to_pg_format($query_embedding);
+
+    // Ver 2.5.0: Select embedding column based on type
+    // - 'question': Compare user question against FAQ question (strict, accurate)
+    // - 'combined': Compare against question+answer mix (broader, topical)
+    $embedding_column = ($embedding_type === 'combined') ? 'combined_embedding' : 'question_embedding';
 
     try {
         $sql = '
@@ -86,9 +132,9 @@ function chatbot_vector_search_pdo($query_embedding, $options, $pdo) {
                 question,
                 answer,
                 category,
-                1 - (combined_embedding <=> ?::vector) AS similarity
+                1 - (' . $embedding_column . ' <=> ?::vector) AS similarity
             FROM chatbot_faqs
-            WHERE combined_embedding IS NOT NULL
+            WHERE ' . $embedding_column . ' IS NOT NULL
         ';
 
         $params = [$embedding_str];
@@ -98,7 +144,7 @@ function chatbot_vector_search_pdo($query_embedding, $options, $pdo) {
             $params[] = $options['category'];
         }
 
-        $sql .= ' AND 1 - (combined_embedding <=> ?::vector) >= ?';
+        $sql .= ' AND 1 - (' . $embedding_column . ' <=> ?::vector) >= ?';
         $params[] = $embedding_str;
         $params[] = $options['threshold'];
 
@@ -232,8 +278,9 @@ function chatbot_vector_search_rest($query_embedding, $options) {
         ];
     }
 
-    // Call the search_faqs function via RPC
-    $url = $config['url'] . '/rest/v1/rpc/search_faqs';
+    // Ver 2.5.0: Use search_faqs_by_question for better accuracy
+    // This compares user question against FAQ question_embedding (not combined)
+    $url = $config['url'] . '/rest/v1/rpc/search_faqs_by_question';
 
     $body = [
         'query_embedding' => $query_embedding,
@@ -479,11 +526,24 @@ function chatbot_vector_faq_search($query, $return_score = false, $session_id = 
     // Vector search only - no fallback
     $result = chatbot_vector_find_best_match($query, CHATBOT_VECTOR_THRESHOLD_MIN);
 
+    // Ver 2.5.0: Build conversation context string for gap question logging
+    $context_string = null;
+    if (function_exists('chatbot_vector_get_conversation_context')) {
+        $context = chatbot_vector_get_conversation_context();
+        if (!empty($context['history'])) {
+            $context_parts = [];
+            foreach ($context['history'] as $pair) {
+                $context_parts[] = 'Q: ' . substr($pair['question'], 0, 100) . ' | A: ' . substr($pair['answer'], 0, 150);
+            }
+            $context_string = implode(' || ', $context_parts);
+        }
+    }
+
     // No match found
     if (!$result) {
-        // Log as gap question
+        // Log as gap question with context
         if (function_exists('chatbot_log_gap_question')) {
-            chatbot_log_gap_question($query, null, 0, 'none', $session_id, $user_id, $page_id);
+            chatbot_log_gap_question($query, null, 0, 'none', $session_id, $user_id, $page_id, $context_string);
         }
 
         if ($return_score) {
@@ -497,7 +557,7 @@ function chatbot_vector_faq_search($query, $return_score = false, $session_id = 
         chatbot_track_faq_usage($result['match']['id'], $result['score']);
     }
 
-    // Log gap questions for low confidence matches
+    // Log gap questions for low confidence matches (< 0.6)
     if ($result['score'] < 0.6) {
         if (function_exists('chatbot_log_gap_question')) {
             chatbot_log_gap_question(
@@ -507,7 +567,8 @@ function chatbot_vector_faq_search($query, $return_score = false, $session_id = 
                 $result['confidence'],
                 $session_id,
                 $user_id,
-                $page_id
+                $page_id,
+                $context_string // Ver 2.5.0: Include conversation context
             );
         }
     }
@@ -682,6 +743,11 @@ function chatbot_vector_detect_followup($query) {
 function chatbot_vector_get_conversation_context() {
     $context_history = get_transient('chatbot_chatgpt_context_history');
 
+    // Ver 2.5.0: Debug what's in the transient
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('[Chatbot Context] Raw transient: ' . (empty($context_history) ? 'EMPTY' : print_r($context_history, true)));
+    }
+
     if (empty($context_history) || !is_array($context_history)) {
         return ['last_question' => '', 'last_answer' => '', 'topic' => '', 'history' => []];
     }
@@ -692,18 +758,15 @@ function chatbot_vector_get_conversation_context() {
     $last_question = '';
     $last_answer = '';
     $history = []; // Store all Q&A pairs found
-    $current_q = '';
 
-    // Parse the context entries into Q&A pairs
-    foreach ($recent as $entry) {
-        if (strpos($entry, 'User:') === 0 || strpos($entry, 'Human:') === 0) {
-            $current_q = preg_replace('/^(User|Human):\s*/', '', $entry);
-        } elseif (strpos($entry, 'Assistant:') === 0 || strpos($entry, 'Bot:') === 0) {
-            $current_a = preg_replace('/^(Assistant|Bot):\s*/', '', $entry);
-            if (!empty($current_q)) {
-                $history[] = ['question' => $current_q, 'answer' => $current_a];
-                $current_q = '';
-            }
+    // Ver 2.5.0: Entries alternate between user message and bot response (no prefix)
+    // Even indices (0, 2, 4) are user messages, odd indices (1, 3, 5) are bot responses
+    for ($i = 0; $i < count($recent) - 1; $i += 2) {
+        $user_msg = isset($recent[$i]) ? $recent[$i] : '';
+        $bot_msg = isset($recent[$i + 1]) ? $recent[$i + 1] : '';
+
+        if (!empty($user_msg) && !empty($bot_msg)) {
+            $history[] = ['question' => $user_msg, 'answer' => $bot_msg];
         }
     }
 
@@ -823,41 +886,47 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
     $context = null;
     $context_string = null;
 
-    // Step 2: If follow-up, enrich with context
-    if ($followup_check['is_followup']) {
-        $context = chatbot_vector_get_conversation_context();
+    // Ver 2.5.0: ALWAYS get conversation context for gap question logging
+    // Even if it's not a follow-up, we want to know what they were discussing
+    $context = chatbot_vector_get_conversation_context();
 
+    // Build context string for gap question logging (Ver 2.5.0)
+    // Include up to 2 Q&A pairs for conversation context
+    if (!empty($context['history'])) {
+        $context_parts = [];
+        $pair_num = 1;
+        $max_pairs = 2; // Limit to 2 pairs to avoid clutter
+        foreach (array_slice($context['history'], 0, $max_pairs) as $pair) {
+            if (!empty($pair['question'])) {
+                $context_parts[] = 'Q' . $pair_num . ': ' . substr($pair['question'], 0, 100);
+            }
+            if (!empty($pair['answer'])) {
+                $context_parts[] = 'A' . $pair_num . ': ' . substr($pair['answer'], 0, 120);
+            }
+            $pair_num++;
+        }
+        if (!empty($context_parts)) {
+            $context_string = implode(' | ', $context_parts);
+        }
+    }
+
+    // Step 2: If follow-up, enrich with context for better search
+    if ($followup_check['is_followup']) {
         if (!empty($context['topic']) || !empty($context['last_question'])) {
             $search_query = chatbot_vector_enrich_query($query, $context);
             $used_context = true;
-
-            // Build context string for gap question logging (Ver 2.5.0)
-            // Include up to 2 Q&A pairs for conversation context (enough to understand follow-ups)
-            $context_parts = [];
-            if (!empty($context['history'])) {
-                $pair_num = 1;
-                $max_pairs = 2; // Limit to 2 pairs to avoid clutter
-                foreach (array_slice($context['history'], 0, $max_pairs) as $pair) {
-                    if (!empty($pair['question'])) {
-                        $context_parts[] = 'Q' . $pair_num . ': ' . substr($pair['question'], 0, 100);
-                    }
-                    if (!empty($pair['answer'])) {
-                        $context_parts[] = 'A' . $pair_num . ': ' . substr($pair['answer'], 0, 120);
-                    }
-                    $pair_num++;
-                }
-            }
-            if (!empty($context_parts)) {
-                $context_string = implode(' | ', $context_parts);
-            }
 
             // Debug logging
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('[Chatbot Context] Follow-up detected (' . $followup_check['reason'] . '): "' . $query . '"');
                 error_log('[Chatbot Context] Enriched query: "' . $search_query . '"');
-                error_log('[Chatbot Context] Context for gap logging (' . count($context['history']) . ' pairs): "' . substr($context_string ?? 'none', 0, 200) . '..."');
             }
         }
+    }
+
+    // Debug: Log context availability
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('[Chatbot Context] Context for gap logging: ' . ($context_string ? '"' . substr($context_string, 0, 150) . '..."' : 'none (first message or cleared)'));
     }
 
     // Step 3: Perform the search with (potentially enriched) query

@@ -13,6 +13,18 @@ if (!defined('WPINC')) {
     die();
 }
 
+// Ver 2.5.0: Include vector files for PDO connection and embedding generation
+$vector_schema_path = plugin_dir_path(__FILE__) . '../vector-search/chatbot-vector-schema.php';
+if (file_exists($vector_schema_path)) {
+    require_once $vector_schema_path;
+}
+
+// Ver 2.5.0: Include migration file for embedding generation function (works via HTTP API even without PDO)
+$vector_migration_path = plugin_dir_path(__FILE__) . '../vector-search/chatbot-vector-migration.php';
+if (file_exists($vector_migration_path)) {
+    require_once $vector_migration_path;
+}
+
 /**
  * Check if Supabase is configured
  */
@@ -391,14 +403,44 @@ function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id
         ];
     }
 
-    // Try PDO first for proper vector handling
-    $pdo = function_exists('chatbot_vector_get_pg_connection') ? chatbot_vector_get_pg_connection() : null;
+    // Try PDO first for proper vector handling (required for embeddings)
+    $pdo_function_exists = function_exists('chatbot_vector_get_pg_connection');
+    $pdo = $pdo_function_exists ? chatbot_vector_get_pg_connection() : null;
+
+    // Ver 2.5.0: Debug why PDO might be failing
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('[Chatbot Gap] PDO check: function_exists=' . ($pdo_function_exists ? 'yes' : 'no') . ', pdo=' . ($pdo ? 'connected' : 'null'));
+    }
 
     if ($pdo) {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[Chatbot Gap] Using PDO path (with embedding support)');
+        }
         return chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id, $quality_data, $conversation_context);
     }
 
-    // Fallback to REST API (without embedding)
+    // Fallback to REST API - PDO connection failed but we can still generate embeddings via HTTP API
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('[Chatbot Gap] Using REST API fallback - PDO not available, will generate embedding via HTTP API');
+    }
+
+    // Ver 2.5.0: Generate embedding even in REST path (uses wp_remote_post which works without PDO)
+    $embedding = null;
+    $embedding_str = null;
+    if (function_exists('chatbot_vector_generate_embedding')) {
+        $embedding = chatbot_vector_generate_embedding($question_text);
+        if ($embedding && function_exists('chatbot_vector_to_pg_format')) {
+            $embedding_str = chatbot_vector_to_pg_format($embedding);
+        }
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            if ($embedding) {
+                error_log('[Chatbot Gap] REST path: Embedding generated successfully (' . count($embedding) . ' dimensions)');
+            } else {
+                error_log('[Chatbot Gap] REST path: WARNING - Embedding generation failed');
+            }
+        }
+    }
+
     $data = [
         'question_text' => $question_text,
         'session_id' => $session_id,
@@ -410,6 +452,11 @@ function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id
         'is_clustered' => false,
         'is_resolved' => false
     ];
+
+    // Add embedding if generated (Ver 2.5.0)
+    if ($embedding_str) {
+        $data['embedding'] = $embedding_str;
+    }
 
     // Add conversation context if available (Ver 2.5.0)
     if (!empty($conversation_context)) {
@@ -423,6 +470,10 @@ function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id
         }
         if (!empty($quality_data['validation_flags'])) {
             $data['validation_flags'] = json_encode($quality_data['validation_flags']);
+        }
+        // Ver 2.5.0: Add relevance_score
+        if (isset($quality_data['relevance_score'])) {
+            $data['relevance_score'] = $quality_data['relevance_score'];
         }
     }
 
@@ -439,7 +490,7 @@ function chatbot_supabase_log_gap_question($question_text, $session_id, $user_id
 /**
  * Log gap question using PDO (includes embedding for clustering)
  * Updated Ver 2.4.8: Includes quality_score and validation_flags
- * Updated Ver 2.5.0: Added conversation_context for follow-up questions
+ * Updated Ver 2.5.0: Added conversation_context, relevance_score for follow-up questions
  */
 function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id, $user_id, $page_id, $faq_confidence, $faq_match_id = null, $quality_data = null, $conversation_context = null) {
     try {
@@ -447,19 +498,32 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
         $embedding = null;
         if (function_exists('chatbot_vector_generate_embedding')) {
             $embedding = chatbot_vector_generate_embedding($question_text);
+            // Ver 2.5.0: Debug logging for embedding generation
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if ($embedding) {
+                    error_log('[Chatbot Gap] Embedding generated successfully for: "' . substr($question_text, 0, 50) . '..." (' . count($embedding) . ' dimensions)');
+                } else {
+                    error_log('[Chatbot Gap] WARNING: Embedding generation FAILED for: "' . substr($question_text, 0, 50) . '..."');
+                }
+            }
+        } else {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[Chatbot Gap] WARNING: chatbot_vector_generate_embedding function not available');
+            }
         }
 
-        // Prepare quality data
+        // Prepare quality data - Ver 2.5.0: Added relevance_score
         $quality_score = isset($quality_data['quality_score']) ? $quality_data['quality_score'] : null;
         $validation_flags = !empty($quality_data['validation_flags']) ? json_encode($quality_data['validation_flags']) : null;
+        $relevance_score = isset($quality_data['relevance_score']) ? $quality_data['relevance_score'] : null;
 
         if ($embedding) {
-            // Insert with embedding and quality data (Ver 2.5.0: added conversation_context)
+            // Insert with embedding and quality data (Ver 2.5.0: added conversation_context, relevance_score)
             $embedding_str = chatbot_vector_to_pg_format($embedding);
             $stmt = $pdo->prepare('
                 INSERT INTO chatbot_gap_questions
-                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, embedding, quality_score, validation_flags, conversation_context)
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?::vector, ?, ?::jsonb, ?)
+                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, embedding, quality_score, relevance_score, validation_flags, conversation_context)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?::vector, ?, ?, ?::jsonb, ?)
             ');
             $stmt->execute([
                 $question_text,
@@ -470,15 +534,16 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
                 $faq_match_id,
                 $embedding_str,
                 $quality_score,
+                $relevance_score,
                 $validation_flags,
                 $conversation_context
             ]);
         } else {
-            // Insert without embedding but with quality data (Ver 2.5.0: added conversation_context)
+            // Insert without embedding but with quality data (Ver 2.5.0: added conversation_context, relevance_score)
             $stmt = $pdo->prepare('
                 INSERT INTO chatbot_gap_questions
-                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, quality_score, validation_flags, conversation_context)
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?, ?::jsonb, ?)
+                (question_text, session_id, user_id, page_id, faq_confidence, faq_match_id, asked_date, is_clustered, is_resolved, quality_score, relevance_score, validation_flags, conversation_context)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), false, false, ?, ?, ?::jsonb, ?)
             ');
             $stmt->execute([
                 $question_text,
@@ -488,9 +553,15 @@ function chatbot_supabase_log_gap_question_pdo($pdo, $question_text, $session_id
                 $faq_confidence,
                 $faq_match_id,
                 $quality_score,
+                $relevance_score,
                 $validation_flags,
                 $conversation_context
             ]);
+        }
+
+        // Ver 2.5.0: Log success with details
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[Chatbot Gap] SUCCESS: Logged gap question - Q: "' . substr($question_text, 0, 40) . '..." | confidence: ' . $faq_confidence . ' | has_embedding: ' . ($embedding ? 'yes' : 'no') . ' | has_context: ' . ($conversation_context ? 'yes' : 'no'));
         }
 
         return true;
@@ -984,6 +1055,208 @@ function chatbot_supabase_get_faq_usage($limit = 100) {
     }
 
     return [];
+}
+
+/**
+ * Get top FAQ questions with their question text
+ * Ver 2.5.0: For dashboard visualization
+ */
+function chatbot_supabase_get_top_faqs_with_details($limit = 5) {
+    // Get FAQ usage stats
+    $usage = chatbot_supabase_get_faq_usage($limit);
+
+    if (empty($usage)) {
+        return [];
+    }
+
+    // Get FAQ details for each
+    $result = [];
+    foreach ($usage as $u) {
+        $faq_id = $u['faq_id'] ?? '';
+        if (empty($faq_id)) continue;
+
+        // Get FAQ question text
+        $faq_result = chatbot_supabase_request('chatbot_faqs', 'GET', null, ['faq_id' => 'eq.' . $faq_id]);
+
+        if ($faq_result['success'] && !empty($faq_result['data'])) {
+            $faq = $faq_result['data'][0];
+            $result[] = [
+                'faq_id' => $faq_id,
+                'question' => $faq['question'] ?? 'Unknown',
+                'category' => $faq['category'] ?? 'General',
+                'hit_count' => intval($u['hit_count'] ?? 0),
+                'avg_confidence' => floatval($u['avg_confidence'] ?? 0)
+            ];
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * Get deflection rate and KB vs AI usage stats
+ * Ver 2.5.0: For dashboard metrics
+ *
+ * Deflection = questions answered from KB (high confidence) without needing human/AI fallback
+ */
+function chatbot_supabase_get_deflection_stats($period = 'Week') {
+    // Calculate date range based on period
+    $now = new DateTime('now', new DateTimeZone('UTC'));
+
+    switch ($period) {
+        case 'Today':
+            $start_date = $now->format('Y-m-d') . 'T00:00:00Z';
+            break;
+        case 'Week':
+            $start_date = $now->modify('-7 days')->format('Y-m-d') . 'T00:00:00Z';
+            break;
+        case 'Month':
+            $start_date = $now->modify('-30 days')->format('Y-m-d') . 'T00:00:00Z';
+            break;
+        case 'Quarter':
+            $start_date = $now->modify('-90 days')->format('Y-m-d') . 'T00:00:00Z';
+            break;
+        case 'Year':
+            $start_date = $now->modify('-365 days')->format('Y-m-d') . 'T00:00:00Z';
+            break;
+        default:
+            $start_date = $now->modify('-7 days')->format('Y-m-d') . 'T00:00:00Z';
+    }
+
+    $base_url = chatbot_supabase_get_url();
+    $anon_key = chatbot_supabase_get_anon_key();
+
+    if (!$base_url || !$anon_key) {
+        return [
+            'total_questions' => 0,
+            'kb_answered' => 0,
+            'ai_fallback' => 0,
+            'deflection_rate' => 0,
+            'kb_percentage' => 0,
+            'ai_percentage' => 0
+        ];
+    }
+
+    // Get conversations in period - visitor messages only
+    $url = $base_url . '/chatbot_conversations?user_type=eq.Visitor&interaction_time=gte.' . urlencode($start_date) . '&select=confidence_score';
+
+    $headers = [
+        'apikey: ' . $anon_key,
+        'Authorization: Bearer ' . $anon_key
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    $data = json_decode($response, true);
+
+    if (!is_array($data)) {
+        return [
+            'total_questions' => 0,
+            'kb_answered' => 0,
+            'ai_fallback' => 0,
+            'deflection_rate' => 0,
+            'kb_percentage' => 0,
+            'ai_percentage' => 0
+        ];
+    }
+
+    $total = count($data);
+    $kb_answered = 0;
+    $ai_fallback = 0;
+
+    foreach ($data as $conv) {
+        $confidence = floatval($conv['confidence_score'] ?? 0);
+        // High confidence (>= 0.6) = answered from KB
+        // Low confidence (< 0.6) = AI fallback was used
+        if ($confidence >= 0.6) {
+            $kb_answered++;
+        } else {
+            $ai_fallback++;
+        }
+    }
+
+    $deflection_rate = $total > 0 ? round(($kb_answered / $total) * 100, 1) : 0;
+    $kb_percentage = $total > 0 ? round(($kb_answered / $total) * 100, 1) : 0;
+    $ai_percentage = $total > 0 ? round(($ai_fallback / $total) * 100, 1) : 0;
+
+    return [
+        'total_questions' => $total,
+        'kb_answered' => $kb_answered,
+        'ai_fallback' => $ai_fallback,
+        'deflection_rate' => $deflection_rate,
+        'kb_percentage' => $kb_percentage,
+        'ai_percentage' => $ai_percentage
+    ];
+}
+
+/**
+ * Get NPS data from conversations
+ * Ver 2.5.0: Net Promoter Score implementation
+ *
+ * NPS = % Promoters (9-10) - % Detractors (0-6)
+ * Scale: -100 to +100
+ */
+function chatbot_supabase_get_nps_stats() {
+    // NPS is stored in chatbot_chatgpt_nps_data option
+    $nps_data = get_option('chatbot_chatgpt_nps_data', [
+        'responses' => [],
+        'total' => 0
+    ]);
+
+    $responses = $nps_data['responses'] ?? [];
+    $total = count($responses);
+
+    if ($total === 0) {
+        return [
+            'nps_score' => 0,
+            'total_responses' => 0,
+            'promoters' => 0,
+            'passives' => 0,
+            'detractors' => 0,
+            'promoter_percent' => 0,
+            'passive_percent' => 0,
+            'detractor_percent' => 0
+        ];
+    }
+
+    $promoters = 0;   // 9-10
+    $passives = 0;    // 7-8
+    $detractors = 0;  // 0-6
+
+    foreach ($responses as $r) {
+        $score = intval($r['score'] ?? 0);
+        if ($score >= 9) {
+            $promoters++;
+        } elseif ($score >= 7) {
+            $passives++;
+        } else {
+            $detractors++;
+        }
+    }
+
+    $promoter_percent = round(($promoters / $total) * 100, 1);
+    $detractor_percent = round(($detractors / $total) * 100, 1);
+    $passive_percent = round(($passives / $total) * 100, 1);
+
+    // NPS = % Promoters - % Detractors
+    $nps_score = round($promoter_percent - $detractor_percent);
+
+    return [
+        'nps_score' => $nps_score,
+        'total_responses' => $total,
+        'promoters' => $promoters,
+        'passives' => $passives,
+        'detractors' => $detractors,
+        'promoter_percent' => $promoter_percent,
+        'passive_percent' => $passive_percent,
+        'detractor_percent' => $detractor_percent
+    ];
 }
 
 // =============================================================================
