@@ -14,17 +14,11 @@ if ( ! defined( 'WPINC' ) ) {
     die();
 }
 
-// Ver 2.5.1: Stub functions for removed sentiment analysis feature
-// These prevent errors when analytics-settings.php calls them
-function kognetiks_analytics_start_scoring() { return; }
-function kognetiks_analytics_stop_scoring() { return; }
-function kognetiks_analytics_restart_scoring() { return; }
-function kognetiks_analytics_reset_scoring() { return; }
-function kognetiks_analytics_score_conversations_without_sentiment_score() { return; }
-function kognetiks_analytics_get_scoring_status() { return 'disabled'; }
-function kognetiks_analytics_set_scoring_status($status) { return; }
-function kognetiks_analytics_get_scoring_control_mode() { return 'Manual'; }
-function kognetiks_analytics_set_scoring_control_mode($mode) { return true; }
+// Ver 2.5.1: Stub function for removed sentiment analysis feature
+// The scoring functions still exist in analytics-settings.php but this one was in sentiment-analysis.php
+if (!function_exists('kognetiks_analytics_score_conversations_without_sentiment_score')) {
+    function kognetiks_analytics_score_conversations_without_sentiment_score() { return; }
+}
 
 // Get conversation log data from Supabase
 function kognetiks_analytics_get_chatbot_chatgpt_conversation_log_data() {
