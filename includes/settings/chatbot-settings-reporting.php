@@ -1060,12 +1060,6 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
 
     ?>
     <div>
-        <!-- Header -->
-        <h2 style="margin: 0 0 10px 0; color: #1e293b;">AI Gap Analysis Dashboard</h2>
-        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 14px;">
-            Identifies questions users ask that your FAQ database can't answer well (confidence < 60%)
-        </p>
-
         <!-- How it works -->
         <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
             <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #374151;">How Gap Analysis Works</h3>

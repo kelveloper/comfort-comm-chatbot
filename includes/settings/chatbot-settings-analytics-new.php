@@ -314,9 +314,26 @@ function chatbot_analytics_new_page() {
             </select>
         </div>
 
+        <!-- AI Gap Analysis Dashboard - Ver 2.5.1 (Moved to TOP of page) -->
+        <div class="section-header">
+            <h2>AI Gap Analysis Dashboard</h2>
+            <p class="section-description">Identifies questions users ask that your FAQ database can't answer — AI suggests new FAQs</p>
+        </div>
+
+        <div class="analytics-section">
+            <?php
+            // Call the gap analysis callback from reporting, passing the selected period
+            if (function_exists('chatbot_chatgpt_gap_analysis_callback')) {
+                chatbot_chatgpt_gap_analysis_callback($selected_period);
+            } else {
+                echo '<p style="color: #6b7280;">Gap analysis module not loaded.</p>';
+            }
+            ?>
+        </div>
+
         <div style="margin-bottom: 30px;"></div>
 
-        <!-- KEY PERFORMANCE METRICS - Ver 2.5.0 (Top of Dashboard) -->
+        <!-- KEY PERFORMANCE METRICS - Ver 2.5.0 -->
         <div class="section-header">
             <h2>Key Performance Metrics</h2>
             <p class="section-description">At-a-glance view of your chatbot's effectiveness — the metrics that matter most</p>
@@ -606,23 +623,6 @@ function chatbot_analytics_new_page() {
                     Scores above 0 are good, above 50 are excellent.
                 </p>
             </div>
-        </div>
-
-        <!-- AI Gap Analysis Dashboard - Ver 2.5.0 (Moved after key metrics) -->
-        <div class="section-header">
-            <h2>AI Gap Analysis Dashboard</h2>
-            <p class="section-description">Identifies questions users ask that your FAQ database can't answer — AI suggests new FAQs</p>
-        </div>
-
-        <div class="analytics-section">
-            <?php
-            // Call the gap analysis callback from reporting, passing the selected period
-            if (function_exists('chatbot_chatgpt_gap_analysis_callback')) {
-                chatbot_chatgpt_gap_analysis_callback($selected_period);
-            } else {
-                echo '<p style="color: #6b7280;">Gap analysis module not loaded.</p>';
-            }
-            ?>
         </div>
 
     </div>
