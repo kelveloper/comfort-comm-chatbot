@@ -1412,22 +1412,26 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
     }
 
     function chatbotDismissCluster(clusterId) {
+        console.log('[GAP DEBUG] chatbotDismissCluster called with clusterId:', clusterId);
         chatbotShowModal({
             title: 'Dismiss Cluster',
             message: 'Dismiss this cluster? It will be removed from the queue.',
             confirmText: 'Yes, Dismiss',
             onConfirm: function() {
+                console.log('[GAP DEBUG] Confirm clicked, sending AJAX request');
                 jQuery.post(ajaxurl, {
                     action: 'chatbot_dismiss_cluster',
                     cluster_id: clusterId,
                     nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
                 }, function(response) {
+                    console.log('[GAP DEBUG] AJAX response:', response);
                     if (response.success) {
                         chatbotShowModal({
                             title: 'Success',
                             message: 'Cluster dismissed!',
                             hideCancel: true,
                             onConfirm: function() {
+                                console.log('[GAP DEBUG] Success confirm clicked - calling location.reload()');
                                 location.reload();
                             }
                         });
