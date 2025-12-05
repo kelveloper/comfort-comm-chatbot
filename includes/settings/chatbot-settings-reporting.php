@@ -300,10 +300,10 @@ function chatbot_chatgpt_reporting_overview_section_callback($args) {
             </div>
 
             <div style="display: flex; gap: 10px;">
-                <button onclick="chatbotAnalyzeFeedback()" class="button button-primary" style="font-size: 15px; padding: 10px 30px; height: auto;">
+                <button type="button" onclick="chatbotAnalyzeFeedback()" class="button button-primary" style="font-size: 15px; padding: 10px 30px; height: auto;">
                     Analyze Feedback
                 </button>
-                <button onclick="chatbotClearFeedback()" class="button" style="font-size: 15px; padding: 10px 20px; height: auto; background: #ef4444; color: white; border-color: #dc2626;">
+                <button type="button" onclick="chatbotClearFeedback()" class="button" style="font-size: 15px; padding: 10px 20px; height: auto; background: #ef4444; color: white; border-color: #dc2626;">
                     Clear Feedback Data
                 </button>
             </div>
@@ -1221,7 +1221,7 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
 
                     <!-- Apply Button -->
                     <div style="margin-top: 12px; text-align: right;">
-                        <button onclick="chatbotApplyImprovedFaq(<?php echo $cluster['id']; ?>, '<?php echo esc_js($existing_faq_id); ?>')"
+                        <button type="button" onclick="chatbotApplyImprovedFaq(<?php echo $cluster['id']; ?>, '<?php echo esc_js($existing_faq_id); ?>')"
                             class="button button-primary" style="background: #f59e0b; border-color: #d97706;">
                             Apply to Knowledge Base
                         </button>
@@ -1259,7 +1259,7 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
 
                     <!-- Add Button -->
                     <div style="text-align: right;">
-                        <button onclick="chatbotAddNewFaq(<?php echo $cluster['id']; ?>)"
+                        <button type="button" onclick="chatbotAddNewFaq(<?php echo $cluster['id']; ?>)"
                             class="button button-primary" style="background: #10b981; border-color: #059669;">
                             Add to Knowledge Base
                         </button>
@@ -1269,7 +1269,7 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
 
                 <!-- Dismiss Button -->
                 <div style="text-align: right; margin-top: 10px;">
-                    <button onclick="chatbotDismissCluster(<?php echo $cluster['id']; ?>)" class="button" style="color: #6b7280;">
+                    <button type="button" onclick="chatbotDismissCluster(<?php echo $cluster['id']; ?>)" class="button" style="color: #6b7280;">
                         Dismiss
                     </button>
                 </div>
@@ -1412,26 +1412,22 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
     }
 
     function chatbotDismissCluster(clusterId) {
-        console.log('[GAP DEBUG] chatbotDismissCluster called with clusterId:', clusterId);
         chatbotShowModal({
             title: 'Dismiss Cluster',
             message: 'Dismiss this cluster? It will be removed from the queue.',
             confirmText: 'Yes, Dismiss',
             onConfirm: function() {
-                console.log('[GAP DEBUG] Confirm clicked, sending AJAX request');
                 jQuery.post(ajaxurl, {
                     action: 'chatbot_dismiss_cluster',
                     cluster_id: clusterId,
                     nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
                 }, function(response) {
-                    console.log('[GAP DEBUG] AJAX response:', response);
                     if (response.success) {
                         chatbotShowModal({
                             title: 'Success',
                             message: 'Cluster dismissed!',
                             hideCancel: true,
                             onConfirm: function() {
-                                console.log('[GAP DEBUG] Success confirm clicked - calling location.reload()');
                                 location.reload();
                             }
                         });
@@ -1728,7 +1724,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
                     </span>
                     <?php endif; ?>
                 </h3>
-                <button onclick="chatbotRefreshReviewQueue()" class="button" style="font-size: 12px;">
+                <button type="button" onclick="chatbotRefreshReviewQueue()" class="button" style="font-size: 12px;">
                     Refresh
                 </button>
             </div>
@@ -1779,13 +1775,13 @@ function chatbot_chatgpt_learning_dashboard_callback() {
                             <?php echo esc_html($item['suggestion_type']); ?>
                         </td>
                         <td style="padding: 12px; text-align: center;">
-                            <button onclick="chatbotViewReviewItem(<?php echo $item['id']; ?>)" class="button" style="font-size: 11px; padding: 4px 8px;">
+                            <button type="button" onclick="chatbotViewReviewItem(<?php echo $item['id']; ?>)" class="button" style="font-size: 11px; padding: 4px 8px;">
                                 View
                             </button>
-                            <button onclick="chatbotResolveReviewItem(<?php echo $item['id']; ?>)" class="button button-primary" style="font-size: 11px; padding: 4px 8px;">
+                            <button type="button" onclick="chatbotResolveReviewItem(<?php echo $item['id']; ?>)" class="button button-primary" style="font-size: 11px; padding: 4px 8px;">
                                 Approve
                             </button>
-                            <button onclick="chatbotDismissReviewItem(<?php echo $item['id']; ?>)" class="button" style="font-size: 11px; padding: 4px 8px;">
+                            <button type="button" onclick="chatbotDismissReviewItem(<?php echo $item['id']; ?>)" class="button" style="font-size: 11px; padding: 4px 8px;">
                                 Dismiss
                             </button>
                         </td>
@@ -1820,7 +1816,7 @@ function chatbot_chatgpt_learning_dashboard_callback() {
                             FAQ #<?php echo esc_html($change['faq_id']); ?>
                             <span style="color: #9ca3af;">(<?php echo esc_html($change['date']); ?>)</span>
                             <?php if ($change['can_rollback']) : ?>
-                            <button onclick="chatbotRollbackChange(<?php echo $change['id']; ?>)" style="font-size: 10px; padding: 1px 6px; margin-left: 5px; cursor: pointer;">Undo</button>
+                            <button type="button" onclick="chatbotRollbackChange(<?php echo $change['id']; ?>)" style="font-size: 10px; padding: 1px 6px; margin-left: 5px; cursor: pointer;">Undo</button>
                             <?php endif; ?>
                         </li>
                         <?php endforeach; ?>
@@ -1835,10 +1831,10 @@ function chatbot_chatgpt_learning_dashboard_callback() {
                         Use these if learning has caused significant issues.
                     </p>
                     <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <button onclick="chatbotResetAllLearning()" class="button" style="background: #fca5a5; border-color: #f87171; color: #7f1d1d; font-size: 12px;">
+                        <button type="button" onclick="chatbotResetAllLearning()" class="button" style="background: #fca5a5; border-color: #f87171; color: #7f1d1d; font-size: 12px;">
                             Reset All Learning Data
                         </button>
-                        <button onclick="chatbotRegenerateEmbeddings()" class="button" style="background: #fcd34d; border-color: #fbbf24; color: #78350f; font-size: 12px;">
+                        <button type="button" onclick="chatbotRegenerateEmbeddings()" class="button" style="background: #fcd34d; border-color: #fbbf24; color: #78350f; font-size: 12px;">
                             Regenerate All Embeddings
                         </button>
                     </div>
