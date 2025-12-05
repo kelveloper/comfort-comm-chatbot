@@ -235,7 +235,7 @@ require_once plugin_dir_path(__FILE__) . 'tools/test-supabase-ajax.php';  // Sup
 require_once plugin_dir_path(__FILE__) . 'includes/analytics/analytics-settings.php';
 require_once plugin_dir_path(__FILE__) . 'includes/analytics/chatbot-analytics.php';
 require_once plugin_dir_path(__FILE__) . 'includes/analytics/languages/en_US.php';
-require_once plugin_dir_path(__FILE__) . 'includes/analytics/scoring-models/sentiment-analysis.php';
+// Sentiment analysis removed - Ver 2.5.1
 require_once plugin_dir_path(__FILE__) . 'includes/analytics/utilities.php';
 require_once plugin_dir_path(__FILE__) . 'includes/analytics/globals.php';
 
