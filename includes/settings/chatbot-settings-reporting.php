@@ -1395,7 +1395,7 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
                             message: 'Cluster marked as resolved!',
                             hideCancel: true,
                             onConfirm: function() {
-                                window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                                location.reload();
                             }
                         });
                     } else {
@@ -1428,7 +1428,7 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
                             message: 'Cluster dismissed!',
                             hideCancel: true,
                             onConfirm: function() {
-                                window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                                location.reload();
                             }
                         });
                     } else {
@@ -1476,7 +1476,7 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
                             message: 'FAQ updated successfully!',
                             hideCancel: true,
                             onConfirm: function() {
-                                window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                                location.reload();
                             }
                         });
                     } else {
@@ -1545,7 +1545,7 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
                             message: 'FAQ added successfully! ID: ' + (response.data.faq_id || 'new'),
                             hideCancel: true,
                             onConfirm: function() {
-                                window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                                location.reload();
                             }
                         });
                     } else {
@@ -1587,7 +1587,7 @@ function chatbot_chatgpt_gap_analysis_callback($selected_period = null) {
                                 confirmText: 'OK',
                                 hideCancel: true,
                                 onConfirm: function() {
-                                    window.location.href = 'admin.php?page=chatbot-chatgpt&tab=analytics_feedback';
+                                    location.reload();
                                 }
                             });
                         } else {
