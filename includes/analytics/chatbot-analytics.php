@@ -46,6 +46,9 @@ if ( empty( $steven_bot_installed_language_code ) ) {
 kognetiks_analytics_load_globals( $steven_bot_installed_language_code );
 
 // Automatically add the sentiment_score column when analytics is loaded
+// Use output buffering to prevent any error HTML output from SQLite plugin
 if (function_exists('steven_bot_add_sentiment_score_column')) {
+    ob_start();
     steven_bot_add_sentiment_score_column();
+    ob_end_clean();
 }

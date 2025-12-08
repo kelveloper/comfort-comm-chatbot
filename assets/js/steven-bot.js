@@ -526,7 +526,7 @@ window.resetAllLocks = resetAllLocks;
             .attr('src', avatarPath);
 
         // Get the stored greeting message. If it's not set, default to a custom value.
-        let avatarGreeting = kchat_settings['steven_bot_avatar_greeting_setting'] || 'Howdy!!! Great to see you today! How can I help you?';
+        let avatarGreeting = kchat_settings['steven_bot_avatar_greeting_setting'] || "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?";
 
         // Create a bubble with the greeting message
         // Using .text() for safety, as it automatically escapes HTML

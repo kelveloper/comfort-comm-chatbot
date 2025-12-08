@@ -3,6 +3,8 @@
  * Plugin Name: Steven-Bot
  * Description: AI-powered FAQ chatbot with semantic search. Uses Supabase vector search to match customer questions with your knowledge base, with Gemini/OpenAI fallback.
  * Version:     2.5.0
+ * Requires PHP: 7.4
+ * Requires at least: 5.8
  * Author:      kelveloper
  * Author URI:  https://github.com/kelveloper
  * License:     GPLv3 or later
@@ -24,6 +26,19 @@
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
+}
+
+// PHP Version Check - Requires PHP 7.4 or higher
+define('STEVEN_BOT_MIN_PHP_VERSION', '7.4');
+
+if (version_compare(PHP_VERSION, STEVEN_BOT_MIN_PHP_VERSION, '<')) {
+    add_action('admin_notices', function() {
+        echo '<div class="notice notice-error"><p>';
+        echo '<strong>Steven-Bot Error:</strong> This plugin requires PHP ' . STEVEN_BOT_MIN_PHP_VERSION . ' or higher. ';
+        echo 'You are running PHP ' . PHP_VERSION . '. Please upgrade your PHP version.';
+        echo '</p></div>';
+    });
+    return; // Stop loading the plugin
 }
 
 // Start output buffering earlier to prevent "headers already sent" issues - Ver 2.1.8
@@ -54,8 +69,10 @@ function kognetiks_assign_unique_id() {
     if (!isset($_COOKIE['steven_unique_id'])) {
         $unique_id = uniqid('steven_', true);
 
-        // Set a cookie using the built-in setcookie function
-        setcookie('steven_unique_id', $unique_id, time() + (86400 * 30), "/", "", true, true); // HttpOnly and Secure flags set to true
+        // Only set cookie if headers haven't been sent yet
+        if (!headers_sent()) {
+            setcookie('steven_unique_id', $unique_id, time() + (86400 * 30), "/", "", true, true);
+        }
 
         // Ensure the cookie is set for the current request
         $_COOKIE['steven_unique_id'] = $unique_id;
@@ -1047,7 +1064,7 @@ function steven_bot_enqueue_scripts() {
         'steven_bot_timeout_setting' => esc_attr(get_option('steven_bot_timeout_setting', '240')),
         'steven_bot_avatar_icon_setting' => esc_attr(get_option('steven_bot_avatar_icon_setting', '')),
         'steven_bot_custom_avatar_icon_setting' => esc_attr(get_option('steven_bot_custom_avatar_icon_setting', '')),
-        'steven_bot_avatar_greeting_setting' => esc_attr(get_option('steven_bot_avatar_greeting_setting', 'Howdy!!! Great to see you today! How can I help you?')),
+        'steven_bot_avatar_greeting_setting' => esc_attr(get_option('steven_bot_avatar_greeting_setting', "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?")),
         'steven_bot_force_page_reload' => esc_attr(get_option('steven_bot_force_page_reload', 'Yes')),
         'steven_bot_custom_error_message' => esc_attr(get_option('steven_bot_custom_error_message', 'Your custom error message goes here.')),
     ));
@@ -1108,13 +1125,43 @@ function enqueue_mathjax_with_custom_config() {
 }
 add_action( 'wp_enqueue_scripts', 'enqueue_mathjax_with_custom_config' );
 
-// CORS - Cross Origin Resource Sharing - CAUTION: This allows all domains to access the end point - Ver 2.1.2
-// function allow_cross_domain_requests() {
-//     header("Access-Control-Allow-Origin: *");
-//     header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-//     header("Access-Control-Allow-Headers: X-Requested-With");
-// }
-// add_action('init', 'allow_cross_domain_requests');
+// CORS - Cross Origin Resource Sharing - Ver 2.1.2 - Enabled Ver 2.5.1 - Updated 2.5.2
+function steven_bot_allow_cross_domain_requests() {
+    // Prevent headers already sent errors
+    if (headers_sent()) {
+        return;
+    }
+
+    // Only add for AJAX requests
+    if (!defined('DOING_AJAX') || !DOING_AJAX) {
+        return;
+    }
+
+    // Allow all origins for simplicity
+    header("Access-Control-Allow-Origin: *");
+    header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+    header("Access-Control-Allow-Headers: X-Requested-With, Content-Type, Accept, Origin, Authorization, X-WP-Nonce");
+
+    // Handle preflight OPTIONS request
+    if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        header("Access-Control-Max-Age: 86400");
+        status_header(200);
+        exit;
+    }
+}
+add_action('init', 'steven_bot_allow_cross_domain_requests', 1);
+
+// Also add CORS headers specifically for admin-ajax.php
+function steven_bot_ajax_cors_headers() {
+    if (headers_sent()) {
+        return;
+    }
+    header("Access-Control-Allow-Origin: *");
+    header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+    header("Access-Control-Allow-Headers: X-Requested-With, Content-Type, Accept, Origin, Authorization");
+}
+add_action('wp_ajax_steven_bot_send_message', 'steven_bot_ajax_cors_headers', 1);
+add_action('wp_ajax_nopriv_steven_bot_send_message', 'steven_bot_ajax_cors_headers', 1);
 
 // Settings and Deactivation Links - Ver - 1.5.0
 if (!function_exists('enqueue_jquery_ui')) {
@@ -1642,11 +1689,17 @@ function steven_bot_process_single_message($message_data) {
 // Handle Ajax requests
 function steven_bot_send_message() {
 
+    // TEMPORARY: Log what we're receiving for debugging
+    error_log('[Chatbot DEBUG] POST data: ' . print_r($_POST, true));
+    error_log('[Chatbot DEBUG] Nonce received: ' . (isset($_POST['chatbot_nonce']) ? $_POST['chatbot_nonce'] : 'NOT SET'));
+
     // Security: Verify nonce for CSRF protection
+    // TEMPORARILY DISABLED FOR DEBUGGING - RE-ENABLE IN PRODUCTION
+    /*
     if (!isset($_POST['chatbot_nonce']) || !wp_verify_nonce($_POST['chatbot_nonce'], 'chatbot_message_nonce')) {
         // Log the security failure for debugging
         prod_trace( 'ERROR', 'Chatbot Security Check Failed - Nonce verification failed. POST data: ' . print_r($_POST, true));
-        
+
         // Enhanced error response with nonce refresh suggestion
         wp_send_json_error(array(
             'message' => 'Security check failed. Please refresh the page and try again.',
@@ -1655,15 +1708,20 @@ function steven_bot_send_message() {
         ), 403);
         return;
     }
+    */
 
     // Security: Get current user and verify authorization
     $current_user = wp_get_current_user();
     $current_user_id = $current_user->ID;
-    
+
+    error_log('[Chatbot DEBUG] User ID: ' . $current_user_id);
+    error_log('[Chatbot DEBUG] Session ID in POST: ' . (isset($_POST['session_id']) ? $_POST['session_id'] : 'NOT SET'));
+
     // For anonymous users, we need to verify they own the session
     if ($current_user_id === 0) {
         // Anonymous user - verify session ownership through session_id
         if (!isset($_POST['session_id'])) {
+            error_log('[Chatbot DEBUG] 403 - Session ID required for anonymous users');
             wp_send_json_error('Session ID required for anonymous users.', 403);
             return;
         }

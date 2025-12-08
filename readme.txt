@@ -1,7 +1,9 @@
 === Steven-Bot ===
 Contributors: kelveloper
 Tags: chatbot, faq, ai, gemini, openai, supabase, vector search
+Requires at least: 5.8
 Tested up to: 6.9
+Requires PHP: 7.4
 Stable tag: 2.5.0
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html

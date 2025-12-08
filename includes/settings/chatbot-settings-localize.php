@@ -16,16 +16,10 @@ if ( ! defined( 'WPINC' ) ) {
 
 function steven_bot_localize(){
 
-    // Ver 2.5.0: Force update greeting to include Steven
-    // Remove flag and force update
-    delete_option('chatbot_greeting_updated_v25');
-    update_option('steven_bot_initial_greeting', "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?");
-    error_log('GREETING UPDATE: Forced greeting update to Steven');
-
     $defaults = array(
         'steven_bot_allow_file_uploads' => 'No',
         'steven_bot_audience_choice' => 'all',
-        'steven_bot_avatar_greeting_setting' => 'Howdy!!! Great to see you today! How can I help you?',
+        'steven_bot_avatar_greeting_setting' => "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?",
         'steven_bot_avatar_icon_setting' => 'icon-001.png',
         'steven_bot_avatar_icon_url_setting' => '',
         'steven_bot_bot_name' => 'Steven',

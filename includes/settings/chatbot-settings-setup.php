@@ -948,14 +948,56 @@ function chatbot_test_api_key_ajax() {
             $embedding_error = $embedding_test->get_error_message();
         }
 
+        // Test chat generation quota (used for AI fallback)
+        $model = get_option('chatbot_gemini_model_choice', 'gemini-2.0-flash');
+        $chat_test = wp_remote_post('https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent?key=' . $api_key, [
+            'timeout' => 15,
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => json_encode([
+                'contents' => [['parts' => [['text' => 'Say "test" and nothing else.']]]],
+                'generationConfig' => ['maxOutputTokens' => 10]
+            ])
+        ]);
+
+        $chat_ok = false;
+        $chat_error = '';
+        $quota_exhausted = false;
+        if (!is_wp_error($chat_test)) {
+            $chat_code = wp_remote_retrieve_response_code($chat_test);
+            $chat_body_raw = wp_remote_retrieve_body($chat_test);
+            error_log('[Chatbot Setup] Chat test response code: ' . $chat_code);
+            error_log('[Chatbot Setup] Chat test response body: ' . $chat_body_raw);
+
+            if ($chat_code === 200) {
+                $chat_ok = true;
+            } else {
+                $chat_body = json_decode($chat_body_raw, true);
+                $chat_error = isset($chat_body['error']['message']) ? $chat_body['error']['message'] : 'HTTP ' . $chat_code;
+                // Check if it's a quota error
+                if (stripos($chat_error, 'quota') !== false || stripos($chat_error, 'exceeded') !== false) {
+                    $quota_exhausted = true;
+                }
+            }
+        } else {
+            $chat_error = $chat_test->get_error_message();
+        }
+
         // Build response message
         $message = '✓ API Key Valid';
         $warnings = [];
 
         if ($embedding_ok) {
-            $message .= ' | ✓ Embeddings OK (FAQ Search)';
+            $message .= ' | ✓ Embeddings OK';
         } else {
             $warnings[] = '⚠ Embeddings: ' . $embedding_error;
+        }
+
+        if ($chat_ok) {
+            $message .= ' | ✓ Chat OK';
+        } elseif ($quota_exhausted) {
+            $warnings[] = '⚠ QUOTA EXHAUSTED - AI fallback will not work until quota resets (usually daily)';
+        } else {
+            $warnings[] = '⚠ Chat: ' . $chat_error;
         }
 
         // Add usage info

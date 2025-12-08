@@ -685,7 +685,7 @@ function steven_bot_shortcode( $atts = [], $content = null, $tag = '' ) {
         'steven_bot_timeout_setting' => esc_attr(get_option('steven_bot_timeout_setting', '240')),
         'steven_bot_avatar_icon_setting' => esc_attr(get_option('steven_bot_avatar_icon_setting', '')),
         'steven_bot_custom_avatar_icon_setting' => esc_attr(get_option('steven_bot_custom_avatar_icon_setting', '')),
-        'steven_bot_avatar_greeting_setting' => esc_attr(get_option('steven_bot_avatar_greeting_setting', 'Howdy!!! Great to see you today! How can I help you?')),
+        'steven_bot_avatar_greeting_setting' => esc_attr(get_option('steven_bot_avatar_greeting_setting', "Hi there! I'm Steven, Comfort Comm's virtual assistant. How can I help you with your internet, TV, or phone service today?")),
         'steven_bot_force_page_reload' => esc_attr(get_option('steven_bot_force_page_reload', 'Yes')),
         'steven_bot_custom_error_message' => esc_attr(get_option('steven_bot_custom_error_message', 'Your custom error message goes here.')),
         'steven_bot_appearance_open_icon' => esc_attr(get_option('steven_bot_appearance_open_icon', '')),

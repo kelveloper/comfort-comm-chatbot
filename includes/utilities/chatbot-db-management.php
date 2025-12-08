@@ -393,30 +393,66 @@ add_action('wp_footer', 'chatbot_auto_run_gap_analysis');
 function steven_bot_add_sentiment_score_column() {
 
     global $wpdb;
-    
+
     $table_name = $wpdb->prefix . 'steven_bot_conversation_log';
-    
-    // Check if the table exists
-    if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) !== $table_name) {
+
+    // Check if the table exists first
+    $wpdb->suppress_errors(true);
+    $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name));
+    $wpdb->suppress_errors(false);
+
+    if ($table_exists !== $table_name) {
         // Table doesn't exist, nothing to do
         return false;
     }
-    
-    // Check if sentiment_score column already exists
-    if ($wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM $table_name LIKE %s", 'sentiment_score')) === 'sentiment_score') {
-        // Column already exists
+
+    // Check if sentiment_score column already exists using DESCRIBE/SHOW COLUMNS
+    // This works even when the table is empty
+    $wpdb->suppress_errors(true);
+    $columns = $wpdb->get_results("SHOW COLUMNS FROM `$table_name`");
+    $wpdb->suppress_errors(false);
+
+    if (!empty($columns)) {
+        foreach ($columns as $column) {
+            if (isset($column->Field) && $column->Field === 'sentiment_score') {
+                // Column already exists
+                return true;
+            }
+        }
+    }
+
+    // Also try to check using table_info for SQLite compatibility
+    $wpdb->suppress_errors(true);
+    $pragma_columns = $wpdb->get_results("PRAGMA table_info($table_name)");
+    $wpdb->suppress_errors(false);
+
+    if (!empty($pragma_columns)) {
+        foreach ($pragma_columns as $col) {
+            if (isset($col->name) && $col->name === 'sentiment_score') {
+                return true;
+            }
+        }
+    }
+
+    // Add the sentiment_score column - suppress errors to prevent output
+    $sql = "ALTER TABLE $table_name ADD COLUMN sentiment_score FLOAT";
+    $wpdb->suppress_errors(true);
+    $wpdb->hide_errors();
+    $result = $wpdb->query($sql);
+    $last_error = $wpdb->last_error;
+    $wpdb->suppress_errors(false);
+
+    // Check if the error is about duplicate column (column already exists)
+    if ($result === false && strpos($last_error, 'duplicate column') !== false) {
+        // Column already exists, that's fine
         return true;
     }
-    
-    // Add the sentiment_score column
-    $sql = "ALTER TABLE $table_name ADD COLUMN sentiment_score FLOAT AFTER message_text";
-    $result = $wpdb->query($sql);
-    
-    if ($result === false) {
-        error_log('[Chatbot] [chatbot-db-management.php] Error adding sentiment_score column: ' . $wpdb->last_error);
+
+    if ($result === false && !empty($last_error)) {
+        error_log('[Chatbot] [chatbot-db-management.php] Error adding sentiment_score column: ' . $last_error);
         return false;
     }
-    
+
     return true;
 }
 

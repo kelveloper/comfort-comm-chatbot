@@ -83,29 +83,8 @@ function steven_bot_sanitize_select( $value ) {
     return sanitize_text_field( $value );
 }
 
-/**
- * Sanitize API key field
- * Preserves existing encrypted value if new value is empty or placeholder
- *
- * @param mixed $value The value to sanitize.
- * @return string Sanitized and possibly encrypted API key.
- */
-function steven_bot_sanitize_api_key( $value ) {
-    // If empty or placeholder, return empty
-    if ( empty( $value ) || strpos( $value, '********' ) !== false ) {
-        return '';
-    }
-
-    // Sanitize the value
-    $sanitized = sanitize_text_field( $value );
-
-    // Encrypt if function exists
-    if ( function_exists( 'steven_bot_encrypt_api_key' ) ) {
-        return steven_bot_encrypt_api_key( $sanitized );
-    }
-
-    return $sanitized;
-}
+// Note: steven_bot_sanitize_api_key() is defined in chatbot-keyguard.php
+// It handles API key encryption and should be used for all API key fields.
 
 /**
  * Sanitize color field (hex color)
