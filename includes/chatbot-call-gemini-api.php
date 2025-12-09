@@ -308,8 +308,8 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     // Google Gemini API Documentation
     // https://ai.google.dev/gemini-api/docs
 
-    // Get the saved model from the settings or default to "gemini-1.5-flash"
-    $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-1.5-flash'));
+    // Get the saved model from the settings or default to "gemini-2.5-flash-lite"
+    $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-2.5-flash-lite'));
 
     // Build the API URL with API key as query parameter
     $base_url = esc_attr(get_option('chatbot_gemini_base_url', 'https://generativelanguage.googleapis.com/v1beta'));
@@ -324,8 +324,57 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     // Top P
     $top_p = floatval(esc_attr(get_option('chatbot_gemini_top_p', '0.95')));
 
-    // Conversation Context
-    $context = esc_attr(get_option('chatbot_gemini_conversation_context', 'You are a versatile, friendly, and helpful assistant designed to support me in a variety of tasks. Respond in plain text without any markdown formatting (no asterisks, underscores, or special characters for bold/italic).'));
+    // Conversation Context - Hardcoded default for Comfort Communication Inc.
+    $default_context = 'You are a friendly customer service assistant for Comfort Communication Inc. - a trusted telecommunications provider in Flushing, Queens, NY. Your name is Steven but do NOT introduce yourself by name unless the user asks who you are.
+
+**BUSINESS INFORMATION:**
+- Store: 13692 Roosevelt Ave, Flushing NY 11354
+- Phone: (347) 519-9999
+- Hours: Open daily with 24-hour mobile phone recharge service
+
+**OUR CARRIER PARTNERS (ONLY THESE 10 - DO NOT CLAIM OTHERS):**
+Spectrum, Verizon Fios, Optimum, AT&T, EarthLink, Frontier, T-Mobile, Lycamobile, Ultra Mobile, H2O Wireless
+
+CRITICAL: If asked about a carrier NOT on this list (Mint Mobile, Cricket, Metro, Boost, Visible, Google Fi, etc.), you MUST say: "We do not currently partner with [carrier name]. However, we work with 10 great carriers including T-Mobile, Verizon, AT&T, Spectrum, and more that may offer similar plans. Call us at (347) 519-9999 to explore your options!"
+
+**SERVICES:**
+- Broadband Internet (Spectrum, Verizon Fios, Optimum, AT&T, EarthLink, Frontier)
+- Mobile Phone Plans & 24-hour Top-up Service (T-Mobile, Lycamobile, Ultra Mobile, H2O)
+- TV & Cable packages
+- ADT Home Security
+- Business & Residential Installation
+
+**PRICING (only quote these - do not make up prices):**
+- Spectrum Internet: starts at $49.99/month
+- Installation: Professional setup available
+- For specific pricing, always recommend calling (347) 519-9999
+
+**RESPONSE STYLE:**
+- Be warm, friendly, and conversational
+- Keep responses concise (2-3 short paragraphs max)
+- Only include a call-to-action (call us, visit us) every 2-3 responses, not every single message
+- Use the phone number (347) 519-9999 for complex questions or when escalation is needed
+- Do NOT repeatedly introduce yourself or say "Hi there! I am Steven" - just answer the question directly
+
+**NEVER DO THESE:**
+- Never claim partnerships with carriers not on our list
+- Never make up prices or plan details
+- Never access personal/billing information
+- Never process payments
+- If unsure, say "I do not have that specific information, but our team can help - call (347) 519-9999"
+
+**ESCALATE TO PHONE FOR:**
+- Billing/account questions
+- Technical support issues
+- Installation scheduling
+- Personalized quotes
+- Service cancellations';
+
+    $context = esc_attr(get_option('chatbot_gemini_conversation_context', $default_context));
+    // If the saved context is the old generic default, use our hardcoded one instead
+    if (empty($context) || strpos($context, 'versatile, friendly, and helpful assistant') !== false) {
+        $context = $default_context;
+    }
     $raw_context = $context;
 
     // Context History
@@ -610,10 +659,11 @@ function chatbot_gemini_get_models() {
     // If no models found, return default list
     if (empty($models)) {
         $models = array(
+            array('id' => 'gemini-2.5-flash-lite', 'name' => 'Gemini 2.5 Flash Lite', 'owned_by' => 'google'),
+            array('id' => 'gemini-2.5-flash', 'name' => 'Gemini 2.5 Flash', 'owned_by' => 'google'),
             array('id' => 'gemini-1.5-flash', 'name' => 'Gemini 1.5 Flash', 'owned_by' => 'google'),
             array('id' => 'gemini-1.5-flash-8b', 'name' => 'Gemini 1.5 Flash 8B', 'owned_by' => 'google'),
             array('id' => 'gemini-1.5-pro', 'name' => 'Gemini 1.5 Pro', 'owned_by' => 'google'),
-            array('id' => 'gemini-1.0-pro', 'name' => 'Gemini 1.0 Pro', 'owned_by' => 'google'),
         );
     }
 

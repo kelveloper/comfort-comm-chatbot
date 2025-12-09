@@ -216,8 +216,13 @@ function steven_bot_faq_import_section_callback() {
         echo '<div class="notice ' . esc_attr($class) . ' is-dismissible"><p>' . esc_html($import_message['message']) . '</p></div>';
     }
 
-    // Check if Supabase is configured
-    $supabase_configured = defined('CHATBOT_PG_HOST') && defined('CHATBOT_SUPABASE_ANON_KEY');
+    // Check if Supabase is configured (check admin settings first, then wp-config.php)
+    $supabase_configured = function_exists('chatbot_supabase_is_configured') ? chatbot_supabase_is_configured() : (defined('CHATBOT_PG_HOST') && defined('CHATBOT_SUPABASE_ANON_KEY'));
+
+    // Ver 2.5.0: Show Vector Database Management section (migration, platform warning)
+    if (function_exists('chatbot_vector_add_admin_actions')) {
+        chatbot_vector_add_admin_actions();
+    }
     ?>
     </form><!-- Close parent settings form to prevent nesting -->
 
@@ -232,7 +237,7 @@ function steven_bot_faq_import_section_callback() {
         <?php else: ?>
         <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
             <strong>Vector Database:</strong> Not configured
-            <span style="color: #721c24;"> - Add CHATBOT_PG_HOST and CHATBOT_SUPABASE_ANON_KEY to wp-config.php</span>
+            <span style="color: #721c24;"> - Go to Steven-Bot → Setup and enter your Supabase URL and Anon Key</span>
         </div>
         <?php endif; ?>
 

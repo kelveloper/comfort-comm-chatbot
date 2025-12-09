@@ -54,7 +54,7 @@ function chatbot_gemini_api_model_chat_settings_section_callback($args) {
 // Gemini Model Settings Callback
 function chatbot_gemini_chat_model_choice_callback($args) {
 
-    $model_choice = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-1.5-flash'));
+    $model_choice = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-2.5-flash-lite'));
 
     // Fetch models from the API
     $models = chatbot_gemini_get_models();
@@ -64,10 +64,11 @@ function chatbot_gemini_chat_model_choice_callback($args) {
         // If there's an error, display the hardcoded list
         ?>
         <select id="chatbot_gemini_model_choice" name="chatbot_gemini_model_choice">
+            <option value="gemini-2.5-flash-lite" <?php selected( $model_choice, 'gemini-2.5-flash-lite' ); ?>>gemini-2.5-flash-lite</option>
+            <option value="gemini-2.5-flash" <?php selected( $model_choice, 'gemini-2.5-flash' ); ?>>gemini-2.5-flash</option>
             <option value="gemini-1.5-flash" <?php selected( $model_choice, 'gemini-1.5-flash' ); ?>>gemini-1.5-flash</option>
             <option value="gemini-1.5-flash-8b" <?php selected( $model_choice, 'gemini-1.5-flash-8b' ); ?>>gemini-1.5-flash-8b</option>
             <option value="gemini-1.5-pro" <?php selected( $model_choice, 'gemini-1.5-pro' ); ?>>gemini-1.5-pro</option>
-            <option value="gemini-1.0-pro" <?php selected( $model_choice, 'gemini-1.0-pro' ); ?>>gemini-1.0-pro</option>
         </select>
         <?php
     } else {

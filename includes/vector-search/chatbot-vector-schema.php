@@ -76,10 +76,24 @@ function chatbot_vector_get_pg_connection() {
 
 /**
  * Get Supabase configuration for REST API
+ * Checks Setup page settings first, then falls back to wp-config.php constants
  *
  * @return array|null Supabase config or null if not configured
  */
 function chatbot_vector_get_supabase_config() {
+    // Check Setup page settings first (database options)
+    if (function_exists('chatbot_supabase_get_config')) {
+        $config = chatbot_supabase_get_config();
+        if (!empty($config['project_url']) && !empty($config['anon_key'])) {
+            return [
+                'url' => rtrim($config['project_url'], '/'),
+                'anon_key' => $config['anon_key'],
+                'service_key' => null,
+            ];
+        }
+    }
+
+    // Fallback to wp-config.php constants
     if (!defined('CHATBOT_PG_HOST')) {
         return null;
     }

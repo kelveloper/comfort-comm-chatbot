@@ -819,7 +819,7 @@ function steven_bot_shortcode( $atts = [], $content = null, $tag = '' ) {
     $steven_bot_allow_file_uploads = !empty($assistant_details['allow_file_uploads']) ? $assistant_details['allow_file_uploads'] : $steven_bot_allow_file_uploads;
 
     // Allow Read Aloud - Ver 2.0.5
-    $steven_bot_read_aloud_option = esc_attr(get_option('steven_bot_read_aloud_option', 'yes'));
+    $steven_bot_read_aloud_option = esc_attr(get_option('steven_bot_read_aloud_option', 'no'));
     // Assistant's Table Override - Ver 2.0.4
     $steven_bot_read_aloud_option = !empty($assistant_details['allow_read_allow']) ? $assistant_details['allow_read_allow'] : $steven_bot_read_aloud_option;
 
@@ -995,7 +995,7 @@ function steven_bot_shortcode( $atts = [], $content = null, $tag = '' ) {
     $assistant_details['allow_mp3_uploads'] = !empty($assistant_details['allow_mp3_uploads']) ? $assistant_details['allow_mp3_uploads'] : esc_attr(get_option('steven_bot_allow_mp3_uploads', 'No'));
     $kchat_settings['steven_bot_allow_mp3_uploads'] = $assistant_details['allow_mp3_uploads'];
 
-    $assistant_details['allow_read_aloud'] = !empty($assistant_details['allow_read_aloud']) ? $assistant_details['allow_read_aloud'] : esc_attr(get_option('steven_bot_read_aloud_option', 'yes'));
+    $assistant_details['allow_read_aloud'] = !empty($assistant_details['allow_read_aloud']) ? $assistant_details['allow_read_aloud'] : esc_attr(get_option('steven_bot_read_aloud_option', 'no'));
     $kchat_settings['steven_bot_read_aloud_option'] = $assistant_details['allow_read_aloud'];
 
     $assistant_details['allow_transcript_downloads'] = !empty($assistant_details['allow_transcript_downloads']) ? $assistant_details['allow_transcript_downloads'] : esc_attr(get_option('steven_bot_allow_download_transcript', 'Yes'));
@@ -1398,7 +1398,8 @@ function register_chatbot_shortcodes($number_of_shortcodes = null) {
     // Includes legacy names for backwards compatibility
     $base_shortcodes = [
         'chatbot',
-        'steven_bot',
+        'steven-bot',      // Primary shortcode (with hyphen)
+        'steven_bot',      // Alternative (with underscore)
         'chatbot_chatgpt'  // Legacy - kept for backwards compatibility
     ];
 

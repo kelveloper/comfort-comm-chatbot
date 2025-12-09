@@ -24,18 +24,19 @@ require_once plugin_dir_path(__FILE__) . 'chatbot-vector-schema.php';
  * @return array|null Embedding vector (1536 dimensions) or null on failure
  */
 function chatbot_vector_generate_embedding($text, $model = 'text-embedding-004') {
-    // Try Gemini API first (since user is using Gemini for chatbot)
-    $api_key = get_option('chatbot_gemini_api_key', '');
-    $use_gemini = !empty($api_key);
+    // Use the selected AI platform - only ONE key active at a time
+    $ai_platform = get_option('chatbot_ai_platform_choice', 'OpenAI');
+    $use_gemini = ($ai_platform === 'Gemini');
 
-    // Fall back to OpenAI if no Gemini key
-    if (empty($api_key)) {
+    // Get the appropriate API key based on selected platform
+    if ($use_gemini) {
+        $api_key = get_option('chatbot_gemini_api_key', '');
+    } else {
         $api_key = get_option('steven_bot_api_key', '');
-        $use_gemini = false;
     }
 
     if (empty($api_key)) {
-        error_log('[Chatbot Vector] No API key configured (tried Gemini and OpenAI)');
+        error_log('[Chatbot Vector] No API key configured for platform: ' . $ai_platform);
         return null;
     }
 
@@ -303,44 +304,29 @@ function chatbot_vector_upsert_faq($faq, $generate_embeddings = true) {
 }
 
 /**
- * Migrate all FAQs from JSON file to vector database
+ * Migrate all FAQs - regenerate embeddings using Supabase REST API
  *
- * @param bool $clear_existing Whether to clear existing entries first
+ * @param bool $clear_existing Whether to clear existing embeddings first
  * @return array Migration result with stats
  */
 function chatbot_vector_migrate_all_faqs($clear_existing = false) {
-    $pdo = chatbot_vector_get_pg_connection();
+    $config = chatbot_vector_get_supabase_config();
 
-    if (!$pdo) {
+    if (!$config || empty($config['anon_key'])) {
         return [
             'success' => false,
-            'message' => 'Database connection failed'
+            'message' => 'Supabase not configured. Go to Setup tab.'
         ];
     }
 
-    // Initialize schema if needed
-    $schema_result = chatbot_vector_init_schema();
-    if (!$schema_result['success']) {
-        return $schema_result;
-    }
-
-    // Load FAQs from JSON file
+    // Load existing FAQs from Supabase
     $faqs = chatbot_faq_load();
 
     if (empty($faqs)) {
         return [
             'success' => false,
-            'message' => 'No FAQs found in JSON file'
+            'message' => 'No FAQs found in database'
         ];
-    }
-
-    // Clear existing entries if requested
-    if ($clear_existing) {
-        try {
-            $pdo->exec('TRUNCATE TABLE chatbot_faqs RESTART IDENTITY');
-        } catch (PDOException $e) {
-            error_log('[Chatbot Vector] Failed to clear table: ' . $e->getMessage());
-        }
     }
 
     $total = count($faqs);
@@ -348,41 +334,92 @@ function chatbot_vector_migrate_all_faqs($clear_existing = false) {
     $error_count = 0;
     $errors = [];
 
-    error_log("[Chatbot Vector] Starting migration of {$total} FAQs...");
+    $ai_platform = get_option('chatbot_ai_platform_choice', 'OpenAI');
+    error_log("[Chatbot Vector] Starting migration of {$total} FAQs using {$ai_platform}...");
 
     foreach ($faqs as $index => $faq) {
-        $result = chatbot_vector_upsert_faq($faq, true);
+        $faq_id = $faq['id'] ?? $faq['faq_id'] ?? null;
+        $question = $faq['question'] ?? '';
+        $answer = $faq['answer'] ?? '';
 
-        if ($result['success']) {
-            $success_count++;
-            error_log("[Chatbot Vector] Migrated FAQ " . ($index + 1) . "/{$total}: " . substr($faq['question'], 0, 50));
-        } else {
+        if (empty($faq_id) || empty($question) || empty($answer)) {
             $error_count++;
-            $errors[] = [
-                'faq_id' => $faq['id'] ?? 'unknown',
-                'question' => substr($faq['question'], 0, 50),
-                'error' => $result['message']
-            ];
-            error_log("[Chatbot Vector] Failed to migrate FAQ: " . $result['message']);
+            continue;
         }
 
-        // Add a small delay to avoid rate limiting
-        usleep(100000); // 100ms delay
+        // Generate new embeddings
+        $question_embedding = chatbot_vector_generate_embedding($question);
+        $combined_embedding = chatbot_vector_generate_embedding($question . ' ' . $answer);
+
+        if (!$question_embedding || !$combined_embedding) {
+            $error_count++;
+            $errors[] = [
+                'faq_id' => $faq_id,
+                'error' => 'Failed to generate embedding'
+            ];
+            error_log("[Chatbot Vector] Failed embedding for FAQ {$faq_id}");
+            continue;
+        }
+
+        // Update FAQ with new embeddings via REST API
+        $url = $config['url'] . '/rest/v1/chatbot_faqs?faq_id=eq.' . urlencode($faq_id);
+
+        $update_data = [
+            'question_embedding' => $question_embedding,
+            'combined_embedding' => $combined_embedding,
+            'updated_at' => gmdate('Y-m-d\TH:i:s\Z')
+        ];
+
+        $response = wp_remote_request($url, [
+            'method' => 'PATCH',
+            'headers' => [
+                'apikey' => $config['anon_key'],
+                'Authorization' => 'Bearer ' . $config['anon_key'],
+                'Content-Type' => 'application/json',
+            ],
+            'body' => json_encode($update_data),
+            'timeout' => 30,
+        ]);
+
+        if (is_wp_error($response)) {
+            $error_count++;
+            $errors[] = [
+                'faq_id' => $faq_id,
+                'error' => $response->get_error_message()
+            ];
+            continue;
+        }
+
+        $status = wp_remote_retrieve_response_code($response);
+        if ($status >= 400) {
+            $error_count++;
+            $body = wp_remote_retrieve_body($response);
+            $errors[] = [
+                'faq_id' => $faq_id,
+                'error' => $body
+            ];
+            continue;
+        }
+
+        $success_count++;
+        error_log("[Chatbot Vector] Migrated FAQ " . ($index + 1) . "/{$total}");
+
+        // Small delay to avoid rate limiting
+        usleep(200000); // 200ms delay
     }
 
-    // Create search index after migration
-    if ($success_count > 0) {
-        // For 66 FAQs, use lists = 10
-        $lists = max(1, (int) sqrt($success_count));
-        chatbot_vector_create_search_index($lists);
-    }
-
-    $message = "Migration complete: {$success_count}/{$total} FAQs migrated successfully.";
+    $message = "Migration complete: {$success_count}/{$total} FAQs.";
     if ($error_count > 0) {
-        $message .= " {$error_count} errors occurred.";
+        $message .= " {$error_count} errors.";
     }
 
     error_log("[Chatbot Vector] " . $message);
+
+    // Save which platform was used for embeddings
+    if ($success_count > 0) {
+        update_option('chatbot_embedding_platform', $ai_platform);
+        update_option('chatbot_embedding_timestamp', current_time('mysql'));
+    }
 
     return [
         'success' => $error_count === 0,

@@ -47,6 +47,28 @@ function steven_bot_call_api($api_key, $message, $user_id = null, $page_id = nul
     // Lock check removed - main send function handles locking
     set_transient($duplicate_key, true, 300); // 5 minutes to prevent duplicates
 
+    error_log('@@@ CHATBOT: steven_bot_call_api() CALLED with message: ' . $message . ' @@@');
+
+    // PRE-PROCESSING: Guardrails check (off-topic, escalation) - Ver 2.5.0
+    if (function_exists('chatbot_preprocess_message')) {
+        $preprocess_result = chatbot_preprocess_message($message, $user_id, $page_id, $session_id);
+        if ($preprocess_result && isset($preprocess_result['handled']) && $preprocess_result['handled']) {
+            error_log('[OpenAI ChatGPT] Pre-processing handled message: ' . ($preprocess_result['reason'] ?? 'unknown'));
+            return $preprocess_result['response'];
+        }
+    }
+
+    // SMART FAQ SEARCH - Ver 2.5.0
+    $faq_context = '';
+    if (function_exists('chatbot_smart_faq_search')) {
+        $faq_result = chatbot_smart_faq_search($message);
+        if ($faq_result['skip_ai'] && !empty($faq_result['direct_response'])) {
+            error_log('[OpenAI ChatGPT] Returning FAQ direct response (high confidence)');
+            return $faq_result['direct_response'];
+        }
+        $faq_context = $faq_result['faq_context'] ?? '';
+    }
+
     // DIAG - Diagnostics - Ver 1.8.6
     // back_trace( 'NOTICE', 'chatbot_call_api()');
     // back_trace( 'NOTICE', 'BEGIN $user_id: ' . $user_id);
@@ -65,21 +87,70 @@ function steven_bot_call_api($api_key, $message, $user_id = null, $page_id = nul
     );
 
     // Select the OpenAI Model
-    // Get the saved model from the settings or default to "gpt-3.5-turbo"
-    $model = esc_attr(get_option('steven_bot_model_choice', 'gpt-3.5-turbo'));
+    // Hardcoded to gpt-4o-mini for consistency
+    $model = 'gpt-4o-mini';
  
     // Max tokens - Ver 1.4.2
     $max_tokens = intval(esc_attr(get_option('steven_bot_max_tokens_setting', '500')));
 
-    // Conversation Context - Ver 1.6.1
-    $context = esc_attr(get_option('steven_bot_conversation_context', 'You are a versatile, friendly, and helpful assistant designed to support me in a variety of tasks that responds in Markdown.'));
+    // Conversation Context - Hardcoded default for Comfort Communication Inc. (Ver 2.5.0)
+    $default_context = 'You are a friendly customer service assistant for Comfort Communication Inc. - a trusted telecommunications provider in Flushing, Queens, NY. Your name is Steven but do NOT introduce yourself by name unless the user asks who you are.
+
+**BUSINESS INFORMATION:**
+- Store: 13692 Roosevelt Ave, Flushing NY 11354
+- Phone: (347) 519-9999
+- Hours: Open daily with 24-hour mobile phone recharge service
+
+**OUR CARRIER PARTNERS (ONLY THESE 10 - DO NOT CLAIM OTHERS):**
+Spectrum, Verizon Fios, Optimum, AT&T, EarthLink, Frontier, T-Mobile, Lycamobile, Ultra Mobile, H2O Wireless
+
+CRITICAL: If asked about a carrier NOT on this list (Mint Mobile, Cricket, Metro, Boost, Visible, Google Fi, etc.), you MUST say: "We do not currently partner with [carrier name]. However, we work with 10 great carriers including T-Mobile, Verizon, AT&T, Spectrum, and more that may offer similar plans. Call us at (347) 519-9999 to explore your options!"
+
+**SERVICES:**
+- Broadband Internet (Spectrum, Verizon Fios, Optimum, AT&T, EarthLink, Frontier)
+- Mobile Phone Plans & 24-hour Top-up Service (T-Mobile, Lycamobile, Ultra Mobile, H2O)
+- TV & Cable packages
+- ADT Home Security
+- Business & Residential Installation
+
+**PRICING (only quote these - do not make up prices):**
+- Spectrum Internet: starts at $49.99/month
+- Installation: Professional setup available
+- For specific pricing, always recommend calling (347) 519-9999
+
+**RESPONSE STYLE:**
+- Be warm, friendly, and conversational
+- Keep responses concise (2-3 short paragraphs max)
+- Only include a call-to-action (call us, visit us) every 2-3 responses, not every single message
+- Use the phone number (347) 519-9999 for complex questions or when escalation is needed
+- Do NOT repeatedly introduce yourself or say "Hi there! I am Steven" - just answer the question directly
+
+**NEVER DO THESE:**
+- Never claim partnerships with carriers not on our list
+- Never make up prices or plan details
+- Never access personal/billing information
+- Never process payments
+- If unsure, say "I do not have that specific information, but our team can help - call (347) 519-9999"
+
+**ESCALATE TO PHONE FOR:**
+- Billing/account questions
+- Technical support issues
+- Installation scheduling
+- Personalized quotes
+- Service cancellations';
+
+    $context = esc_attr(get_option('steven_bot_conversation_context', $default_context));
+    // If the saved context is the old generic default, use our hardcoded one instead
+    if (empty($context) || strpos($context, 'versatile, friendly, and helpful assistant') !== false) {
+        $context = $default_context;
+    }
 
     // Temperature - Ver 2.1.8
     $temperature = floatval(esc_attr(get_option('steven_bot_temperature', '0.5')));
 
     // Top P - Ver 2.1.8
     $top_p = floatval(esc_attr(get_option('steven_bot_top_p', '1.0')));
- 
+
     // Context History - Ver 1.6.1
     $chatgpt_last_response = concatenateHistory('steven_bot_context_history');
     // DIAG Diagnostics - Ver 1.6.1
@@ -136,6 +207,12 @@ function steven_bot_call_api($api_key, $message, $user_id = null, $page_id = nul
         // Original Context Instructions - No Enhanced Context
         $context = $sys_message . ' ' . $chatgpt_last_response . ' ' . $context . ' ' . $steven_bot_kn_conversation_context;
 
+    }
+
+    // Append FAQ context if available - Ver 2.5.0
+    if (!empty($faq_context)) {
+        $context .= "\n\n" . $faq_context;
+        error_log('[OpenAI ChatGPT] Added FAQ context to system message');
     }
 
     // Conversation Continuity - Ver 2.1.8
@@ -304,21 +381,70 @@ function steven_bot_call_api_basic($api_key, $message) {
     );
 
     // Select the OpenAI Model
-    // Get the saved model from the settings or default to "gpt-3.5-turbo"
-    $model = esc_attr(get_option('steven_bot_model_choice', 'gpt-3.5-turbo'));
+    // Hardcoded to gpt-4o-mini for consistency
+    $model = 'gpt-4o-mini';
  
     // Max tokens - Ver 1.4.2
     $max_tokens = intval(esc_attr(get_option('steven_bot_max_tokens_setting', '500')));
 
-    // Conversation Context - Ver 1.6.1
-    $context = esc_attr(get_option('steven_bot_conversation_context', 'You are a versatile, friendly, and helpful assistant designed to support me in a variety of tasks that responds in Markdown.'));
+    // Conversation Context - Hardcoded default for Comfort Communication Inc. (Ver 2.5.0)
+    $default_context = 'You are a friendly customer service assistant for Comfort Communication Inc. - a trusted telecommunications provider in Flushing, Queens, NY. Your name is Steven but do NOT introduce yourself by name unless the user asks who you are.
+
+**BUSINESS INFORMATION:**
+- Store: 13692 Roosevelt Ave, Flushing NY 11354
+- Phone: (347) 519-9999
+- Hours: Open daily with 24-hour mobile phone recharge service
+
+**OUR CARRIER PARTNERS (ONLY THESE 10 - DO NOT CLAIM OTHERS):**
+Spectrum, Verizon Fios, Optimum, AT&T, EarthLink, Frontier, T-Mobile, Lycamobile, Ultra Mobile, H2O Wireless
+
+CRITICAL: If asked about a carrier NOT on this list (Mint Mobile, Cricket, Metro, Boost, Visible, Google Fi, etc.), you MUST say: "We do not currently partner with [carrier name]. However, we work with 10 great carriers including T-Mobile, Verizon, AT&T, Spectrum, and more that may offer similar plans. Call us at (347) 519-9999 to explore your options!"
+
+**SERVICES:**
+- Broadband Internet (Spectrum, Verizon Fios, Optimum, AT&T, EarthLink, Frontier)
+- Mobile Phone Plans & 24-hour Top-up Service (T-Mobile, Lycamobile, Ultra Mobile, H2O)
+- TV & Cable packages
+- ADT Home Security
+- Business & Residential Installation
+
+**PRICING (only quote these - do not make up prices):**
+- Spectrum Internet: starts at $49.99/month
+- Installation: Professional setup available
+- For specific pricing, always recommend calling (347) 519-9999
+
+**RESPONSE STYLE:**
+- Be warm, friendly, and conversational
+- Keep responses concise (2-3 short paragraphs max)
+- Only include a call-to-action (call us, visit us) every 2-3 responses, not every single message
+- Use the phone number (347) 519-9999 for complex questions or when escalation is needed
+- Do NOT repeatedly introduce yourself or say "Hi there! I am Steven" - just answer the question directly
+
+**NEVER DO THESE:**
+- Never claim partnerships with carriers not on our list
+- Never make up prices or plan details
+- Never access personal/billing information
+- Never process payments
+- If unsure, say "I do not have that specific information, but our team can help - call (347) 519-9999"
+
+**ESCALATE TO PHONE FOR:**
+- Billing/account questions
+- Technical support issues
+- Installation scheduling
+- Personalized quotes
+- Service cancellations';
+
+    $context = esc_attr(get_option('steven_bot_conversation_context', $default_context));
+    // If the saved context is the old generic default, use our hardcoded one instead
+    if (empty($context) || strpos($context, 'versatile, friendly, and helpful assistant') !== false) {
+        $context = $default_context;
+    }
 
     // Temperature - Ver 2.1.8
     $temperature = floatval(esc_attr(get_option('steven_bot_temperature', '0.5')));
 
     // Top P - Ver 2.1.8
     $top_p = floatval(esc_attr(get_option('steven_bot_top_p', '1.0')));
- 
+
     // Added Role, System, Content Static Variable - Ver 1.6.0
     $body = array(
         'model' => $model,

@@ -282,6 +282,41 @@ function chatbot_setup_page_content() {
             cursor: not-allowed;
         }
 
+        /* Sticky save reminder bar */
+        .save-reminder-bar {
+            position: sticky;
+            top: 32px; /* Below WP admin bar */
+            z-index: 100;
+            background: linear-gradient(135deg, #0073aa 0%, #005a87 100%);
+            color: #fff;
+            padding: 12px 20px;
+            margin: -15px -15px 20px -15px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .save-reminder-bar.visible {
+            display: flex;
+        }
+        .save-reminder-bar .reminder-text {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .save-reminder-bar .save-now-btn {
+            background: #fff;
+            color: #0073aa;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .save-reminder-bar .save-now-btn:hover {
+            background: #f0f0f0;
+        }
+
         .info-box {
             background: #fff3cd;
             border: 1px solid #ffc107;
@@ -293,6 +328,12 @@ function chatbot_setup_page_content() {
             margin: 10px 0 0 20px;
         }
     </style>
+
+    <!-- Sticky Save Reminder Bar -->
+    <div class="save-reminder-bar" id="save-reminder-bar">
+        <span class="reminder-text">✓ Test passed! Click <strong>Save Settings</strong> to apply your changes.</span>
+        <button type="button" class="save-now-btn" onclick="document.getElementById('setup-save-btn').click(); document.getElementById('setup-save-btn').scrollIntoView({behavior: 'smooth'});">Save Settings Now</button>
+    </div>
 
     <!-- AI Platform Section -->
     <div class="setup-section" id="ai-section">
@@ -487,20 +528,29 @@ function chatbot_setup_page_content() {
         }
         updateSaveButton();
 
-        // Platform change handler
+        // Platform change handler - clears the OTHER platform's key
         $('#chatbot_ai_platform_choice').on('change', function() {
             var platform = $(this).val();
             $('.api-key-field').hide();
             if (platform === 'Gemini') {
                 $('#gemini-key-field').show();
+                // Clear OpenAI key when switching to Gemini
+                $('#steven_bot_api_key').val('');
             } else if (platform === 'OpenAI') {
                 $('#openai-key-field').show();
+                // Clear Gemini key when switching to OpenAI
+                $('#chatbot_gemini_api_key').val('');
             }
             // Reset AI test status when platform changes
             aiTestPassed = false;
             $('#ai-status-icon').removeClass('success error').addClass('pending').text('●');
             $('.test-result').text('');
             updateSaveButton();
+
+            // Show warning about re-embedding FAQs
+            if (!$('#platform-switch-warning').length) {
+                $('#ai-section').append('<div id="platform-switch-warning" class="info-box" style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; margin-top: 15px; border-radius: 4px;"><strong>⚠️ Important:</strong> After switching platforms and saving, go to the <strong>Database</strong> tab and click <strong>"Migrate FAQs"</strong> to re-generate embeddings with the new AI platform. This ensures accurate FAQ matching.</div>');
+            }
         });
 
 
@@ -748,19 +798,27 @@ function chatbot_setup_page_content() {
         function updateSaveButton() {
             var $btn = $('#setup-save-btn');
             var $status = $('#validation-status');
+            var $saveReminder = $('#save-reminder-bar');
 
             if (aiTestPassed && dbTestPassed) {
                 $btn.prop('disabled', false);
                 $status.html('<span class="status-icon success">✓</span> All connections verified - ready to save');
+                // Show sticky save reminder
+                $saveReminder.addClass('visible');
             } else if (aiTestPassed || dbTestPassed) {
                 $btn.prop('disabled', false);
                 var missing = [];
                 if (!aiTestPassed) missing.push('AI API');
                 if (!dbTestPassed) missing.push('Database');
                 $status.html('<span class="status-icon pending">●</span> Test ' + missing.join(' and ') + ' connection');
+                // Show sticky save reminder if AI test passed (most important)
+                if (aiTestPassed) {
+                    $saveReminder.addClass('visible');
+                }
             } else {
                 $btn.prop('disabled', false);
                 $status.html('<span class="status-icon pending">●</span> Test your connections before saving');
+                $saveReminder.removeClass('visible');
             }
         }
 
@@ -949,7 +1007,7 @@ function chatbot_test_api_key_ajax() {
         }
 
         // Test chat generation quota (used for AI fallback)
-        $model = get_option('chatbot_gemini_model_choice', 'gemini-2.0-flash');
+        $model = get_option('chatbot_gemini_model_choice', 'gemini-2.5-flash-lite');
         $chat_test = wp_remote_post('https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent?key=' . $api_key, [
             'timeout' => 15,
             'headers' => ['Content-Type' => 'application/json'],

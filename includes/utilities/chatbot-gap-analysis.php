@@ -306,7 +306,7 @@ Respond with a JSON array of suggestions:
 
 Only suggest improvements for conversations where the FAQ system could perform better.";
 
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $api_key;
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' . $api_key;
 
     // Use direct cURL for better timeout control (wp_remote_post has 30s low-speed limit)
     $ch = curl_init($url);
@@ -601,7 +601,7 @@ Example:
 ]";
 
     // Call Gemini API with direct cURL for better timeout control
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $api_key;
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' . $api_key;
 
     $body = json_encode([
         'contents' => [

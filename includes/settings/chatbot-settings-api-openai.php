@@ -118,8 +118,8 @@ function steven_bot_api_key_callback($args) {
 // Model choice
 function steven_bot_model_choice_callback($args) {
   
-    // Get the saved steven_bot_model_choice value or default to "gpt-3.5-turbo"
-    $model_choice = esc_attr(get_option('steven_bot_model_choice', 'gpt-3.5-turbo'));
+    // Get the saved steven_bot_model_choice value or default to "gpt-4o-mini"
+    $model_choice = esc_attr(get_option('steven_bot_model_choice', 'gpt-4o-mini'));
 
     // Fetch models from the API
     $models = chatbot_openai_get_models();
@@ -135,9 +135,11 @@ function steven_bot_model_choice_callback($args) {
     // Check for errors
     if (is_string($models) && strpos($models, 'Error:') === 0) {
         // If there's an error, display the hardcoded list
-        $model_choice = esc_attr(get_option('steven_bot_model_choice', 'gpt-3.5-turbo'));
+        $model_choice = esc_attr(get_option('steven_bot_model_choice', 'gpt-4o-mini'));
         ?>
         <select id="steven_bot_model_choice" name="steven_bot_model_choice">
+            <option value="<?php echo esc_attr( 'gpt-4o-mini' ); ?>" <?php selected( $model_choice, 'gpt-4o-mini' ); ?>><?php echo esc_html( 'gpt-4o-mini (Recommended)' ); ?></option>
+            <option value="<?php echo esc_attr( 'gpt-4o' ); ?>" <?php selected( $model_choice, 'gpt-4o' ); ?>><?php echo esc_html( 'gpt-4o' ); ?></option>
             <option value="<?php echo esc_attr( 'gpt-4-1106-preview' ); ?>" <?php selected( $model_choice, 'gpt-4-1106-preview' ); ?>><?php echo esc_html( 'gpt-4-1106-preview' ); ?></option>
             <option value="<?php echo esc_attr( 'gpt-4' ); ?>" <?php selected( $model_choice, 'gpt-4' ); ?>><?php echo esc_html( 'gpt-4' ); ?></option>
             <option value="<?php echo esc_attr( 'gpt-3.5-turbo' ); ?>" <?php selected( $model_choice, 'gpt-3.5-turbo' ); ?>><?php echo esc_html( 'gpt-3.5-turbo' ); ?></option>
@@ -343,8 +345,8 @@ function steven_bot_audio_output_format_callback($args) {
 // Read Aloud Option Callback - Ver 2.0.0
 function steven_bot_read_aloud_option_callback($args) {
 
-    // Get the saved steven_bot_read_aloud_option value or default to "yes"
-    $read_aloud_option = esc_attr(get_option('steven_bot_read_aloud_option', 'yes'));
+    // Get the saved steven_bot_read_aloud_option value or default to "no"
+    $read_aloud_option = esc_attr(get_option('steven_bot_read_aloud_option', 'no'));
     ?>
     <select id="steven_bot_read_aloud_option" name="steven_bot_read_aloud_option">
         <option value="yes" <?php selected($read_aloud_option, 'yes'); ?>>Yes</option>

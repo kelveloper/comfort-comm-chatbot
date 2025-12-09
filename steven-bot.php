@@ -127,6 +127,7 @@ if (!function_exists('steven_bot_appearance_icon_path')) {
 }
 
 // Include necessary files - Main files
+require_once plugin_dir_path(__FILE__) . 'includes/chatbot-guardrails.php';                 // Shared Guardrails - Ver 2.5.0
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-anthropic-api.php';         // ANT API - Ver 2.0.7
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-azure-openai-api.php';      // Azure OpenAI API - Ver 2.2.6
 require_once plugin_dir_path(__FILE__) . 'includes/chatbot-call-azure-api-assistant.php';   // Azure OpenAI Assistants API - Ver 2.2.6
@@ -620,10 +621,10 @@ switch ($chatbot_ai_platform_choice) {
 
         // Model choice - Ver 2.3.7
         if (esc_attr(get_option('chatbot_gemini_model_choice')) === null) {
-            $model = 'gemini-1.5-flash';
+            $model = 'gemini-2.5-flash-lite';
             update_option('chatbot_gemini_model_choice', $model);
         } elseif (empty($model)) {
-            $model = 'gemini-1.5-flash';
+            $model = 'gemini-2.5-flash-lite';
         }
 
         // Disable Read Aloud - Ver 2.3.7
@@ -1400,7 +1401,7 @@ function steven_bot_process_queued_message($message_data) {
         case 'Gemini':
             $api_key = esc_attr(get_option('chatbot_gemini_api_key'));
             $api_key = steven_bot_decrypt_api_key($api_key);
-            $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-1.5-flash'));
+            $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-2.5-flash-lite'));
             break;
         case 'Markov Chain':
             $api_key = esc_attr(get_option('chatbot_markov_chain_api_key', 'NOT REQUIRED'));
@@ -1423,7 +1424,7 @@ function steven_bot_process_queued_message($message_data) {
         default:
             $api_key = esc_attr(get_option('steven_bot_api_key'));
             $api_key = steven_bot_decrypt_api_key($api_key);
-            $model = esc_attr(get_option('steven_bot_model_choice', 'gpt-3.5-turbo'));
+            $model = esc_attr(get_option('steven_bot_model_choice', 'gpt-4o-mini'));
             break;
     }
 
@@ -1850,7 +1851,7 @@ function steven_bot_send_message() {
             $api_key = esc_attr(get_option('chatbot_gemini_api_key'));
             // Decrypt the API key - Ver 2.3.7
             $api_key = steven_bot_decrypt_api_key($api_key);
-            $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-1.5-flash'));
+            $model = esc_attr(get_option('chatbot_gemini_model_choice', 'gemini-2.5-flash-lite'));
             $kchat_settings['steven_bot_model'] = $model;
             $kchat_settings['model'] = $model;
             // DIAG - Diagnostics - Ver 2.3.7
@@ -1906,7 +1907,7 @@ function steven_bot_send_message() {
             $api_key = esc_attr(get_option('steven_bot_api_key'));
             // Decrypt the API key - Ver 2.2.6
             $api_key = steven_bot_decrypt_api_key($api_key);
-            $model = esc_attr(get_option('steven_bot_model_choice', 'gpt-3.5-turbo'));
+            $model = esc_attr(get_option('steven_bot_model_choice', 'gpt-4o-mini'));
             $kchat_settings['steven_bot_model'] = $model;
             $kchat_settings['model'] = $model;
             // DIAG - Diagnostics - Ver 2.1.8

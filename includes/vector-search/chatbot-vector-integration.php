@@ -258,82 +258,166 @@ function chatbot_vector_admin_notice() {
 add_action('admin_notices', 'chatbot_vector_admin_notice');
 
 /**
- * Add sync/migrate button to admin
+ * Add sync/migrate button to admin - Shows when migration is needed
  */
 function chatbot_vector_add_admin_actions() {
-    $status = chatbot_vector_check_status();
+    $current_platform = get_option('chatbot_ai_platform_choice', 'OpenAI');
+    $embedding_platform = get_option('chatbot_embedding_platform', '');
+
+    // Get FAQ count to check if there are FAQs to migrate
+    $faq_count = function_exists('chatbot_faq_get_count') ? chatbot_faq_get_count() : 0;
+
+    // Determine if migration is needed:
+    // 1. Never migrated (embedding_platform empty) AND have FAQs to migrate
+    // 2. Platform changed since last migration
+    $never_migrated = empty($embedding_platform) && $faq_count > 0;
+    $platform_changed = !empty($embedding_platform) && $embedding_platform !== $current_platform;
+
+    // If embeddings match current platform, don't show anything
+    if (!$never_migrated && !$platform_changed) {
+        return;
+    }
+
+    // Determine message
+    if ($never_migrated) {
+        $title = "⚠️ Migration Required";
+        $message = "You have <strong>{$faq_count} FAQs</strong> that need embeddings generated with <strong>{$current_platform}</strong>.";
+    } else {
+        $title = "⚠️ Re-migration Required";
+        $message = "Embeddings: <strong>{$embedding_platform}</strong> → Now using: <strong>{$current_platform}</strong>";
+    }
     ?>
-    <div class="chatbot-vector-admin-section" style="margin: 20px 0; padding: 20px; background: #fff; border: 1px solid #ccd0d4; border-radius: 4px;">
-        <h3 style="margin-top: 0;">Vector Database Management</h3>
-
-        <?php if ($status['ready']): ?>
-            <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                <strong style="color: #155724;">Status: Ready</strong><br>
-                FAQs in database: <?php echo $status['faq_count']; ?><br>
-                FAQs with embeddings: <?php echo $status['faqs_with_embeddings']; ?>
-            </div>
-        <?php else: ?>
-            <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-                <strong style="color: #721c24;">Status: Not Ready</strong><br>
-                <?php echo implode('<br>', $status['errors']); ?>
-            </div>
-        <?php endif; ?>
-
-        <p>
-            <button type="button" id="chatbot-vector-migrate-btn" class="button button-primary">
-                Migrate FAQs to Vector Database
-            </button>
-            <span id="chatbot-vector-migrate-status" style="margin-left: 10px;"></span>
-        </p>
-
-        <p>
-            <label>
-                <input type="checkbox" id="chatbot-vector-clear-existing" value="1">
-                Clear existing entries before migration
+    <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px;">
+        <strong><?php echo $title; ?></strong>
+        <p style="margin: 8px 0;"><?php echo $message; ?></p>
+        <?php if ($platform_changed): ?>
+        <p style="margin: 0 0 10px 0;">
+            <label style="cursor: pointer;">
+                <input type="checkbox" id="chatbot-vector-clear-existing" value="1" checked>
+                Clear existing entries
             </label>
         </p>
-
-        <script>
-        jQuery(document).ready(function($) {
-            $('#chatbot-vector-migrate-btn').on('click', function() {
-                var btn = $(this);
-                var status = $('#chatbot-vector-migrate-status');
-                var clearExisting = $('#chatbot-vector-clear-existing').is(':checked') ? '1' : '0';
-
-                if (!confirm('This will migrate all FAQs to the vector database. This may take a few minutes. Continue?')) {
-                    return;
-                }
-
-                btn.prop('disabled', true);
-                status.html('<span style="color:#666;">Migrating... This may take a few minutes.</span>');
-
-                $.ajax({
-                    url: ajaxurl,
-                    type: 'POST',
-                    data: {
-                        action: 'chatbot_vector_migrate',
-                        nonce: '<?php echo wp_create_nonce('chatbot_vector_migrate'); ?>',
-                        clear_existing: clearExisting
-                    },
-                    timeout: 300000, // 5 minute timeout
-                    success: function(response) {
-                        if (response.success) {
-                            status.html('<span style="color:green;">✓ ' + response.data.message + '</span>');
-                            setTimeout(function() { location.reload(); }, 2000);
-                        } else {
-                            status.html('<span style="color:red;">✗ ' + (response.data.message || 'Migration failed') + '</span>');
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        status.html('<span style="color:red;">✗ Migration failed: ' + error + '</span>');
-                    },
-                    complete: function() {
-                        btn.prop('disabled', false);
-                    }
-                });
-            });
-        });
-        </script>
+        <?php else: ?>
+        <input type="hidden" id="chatbot-vector-clear-existing" value="0">
+        <?php endif; ?>
+        <button type="button" id="chatbot-vector-migrate-btn" class="button button-primary">
+            Migrate FAQs Now
+        </button>
+        <span id="chatbot-vector-migrate-status" style="margin-left: 10px;"></span>
     </div>
+
+    <script>
+    jQuery(document).ready(function($) {
+        // Branded modal function
+        function showModal(title, message, options) {
+            options = options || {};
+            var borderColor = options.type === 'success' ? '#46b450' : options.type === 'error' ? '#dc3232' : '#0073aa';
+            var showCancel = options.showCancel !== false;
+            var confirmText = options.confirmText || 'OK';
+
+            var overlay = document.createElement('div');
+            overlay.id = 'chatbot-modal-overlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100000;';
+
+            var modal = document.createElement('div');
+            modal.style.cssText = 'background:white;border-radius:4px;box-shadow:0 3px 6px rgba(0,0,0,0.3);max-width:400px;width:90%;border-top:4px solid ' + borderColor + ';';
+
+            var buttonsHtml = showCancel
+                ? '<button id="chatbot-modal-cancel" class="button" style="margin-right:10px;">Cancel</button><button id="chatbot-modal-confirm" class="button button-primary">' + confirmText + '</button>'
+                : '<button id="chatbot-modal-confirm" class="button button-primary">' + confirmText + '</button>';
+
+            modal.innerHTML =
+                '<div style="padding:20px;">' +
+                    '<h3 style="margin:0 0 10px 0;">' + title + '</h3>' +
+                    '<p style="margin:0;color:#666;">' + message + '</p>' +
+                '</div>' +
+                '<div style="padding:15px 20px;background:#f7f7f7;text-align:right;border-radius:0 0 4px 4px;">' +
+                    buttonsHtml +
+                '</div>';
+
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            document.getElementById('chatbot-modal-confirm').onclick = function() {
+                document.body.removeChild(overlay);
+                if (options.onConfirm) options.onConfirm();
+            };
+
+            var cancelBtn = document.getElementById('chatbot-modal-cancel');
+            if (cancelBtn) {
+                cancelBtn.onclick = function() {
+                    document.body.removeChild(overlay);
+                    if (options.onCancel) options.onCancel();
+                };
+            }
+        }
+
+        $('#chatbot-vector-migrate-btn').on('click', function() {
+            var btn = $(this);
+            var status = $('#chatbot-vector-migrate-status');
+            var clearExisting = $('#chatbot-vector-clear-existing').is(':checked') || $('#chatbot-vector-clear-existing').val() === '1' ? '1' : '0';
+
+            showModal(
+                'Generate Embeddings',
+                'Generate embeddings with <?php echo esc_js($current_platform); ?>? This may take a few minutes.',
+                {
+                    confirmText: 'Migrate',
+                    onConfirm: function() {
+                        btn.prop('disabled', true);
+                        status.html('<span style="color:#666;">Migrating...</span>');
+
+                        $.ajax({
+                            url: ajaxurl,
+                            type: 'POST',
+                            data: {
+                                action: 'chatbot_vector_migrate',
+                                nonce: '<?php echo wp_create_nonce('chatbot_vector_migrate'); ?>',
+                                clear_existing: clearExisting
+                            },
+                            timeout: 300000,
+                            success: function(response) {
+                                btn.prop('disabled', false);
+                                if (response.success) {
+                                    showModal(
+                                        'Migration Complete',
+                                        response.data.message || 'All FAQs have been migrated successfully.',
+                                        {
+                                            type: 'success',
+                                            showCancel: false,
+                                            confirmText: 'Done',
+                                            onConfirm: function() {
+                                                location.reload();
+                                            }
+                                        }
+                                    );
+                                } else {
+                                    showModal(
+                                        'Migration Failed',
+                                        response.data.message || 'An error occurred during migration.',
+                                        {
+                                            type: 'error',
+                                            showCancel: false
+                                        }
+                                    );
+                                }
+                            },
+                            error: function(xhr, textStatus, error) {
+                                btn.prop('disabled', false);
+                                showModal(
+                                    'Migration Failed',
+                                    'Request failed: ' + error,
+                                    {
+                                        type: 'error',
+                                        showCancel: false
+                                    }
+                                );
+                            }
+                        });
+                    }
+                }
+            );
+        });
+    });
+    </script>
     <?php
 }
