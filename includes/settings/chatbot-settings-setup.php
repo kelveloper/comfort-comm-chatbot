@@ -17,8 +17,10 @@ if (!defined('WPINC')) {
  * Register Setup settings
  */
 function chatbot_setup_settings_init() {
-    // Register AI Platform settings
-    register_setting('steven_bot_setup', 'chatbot_ai_platform_choice', 'steven_bot_sanitize_text');
+    // Register AI Platform settings with custom sanitize callback to detect changes
+    register_setting('steven_bot_setup', 'chatbot_ai_platform_choice', [
+        'sanitize_callback' => 'chatbot_setup_sanitize_platform_choice'
+    ]);
 
     // Register Gemini API key - use custom callback to preserve existing if empty
     register_setting('steven_bot_setup', 'chatbot_gemini_api_key', [
@@ -35,6 +37,26 @@ function chatbot_setup_settings_init() {
     register_setting('steven_bot_setup', 'chatbot_supabase_anon_key', 'steven_bot_sanitize_text');
 }
 add_action('admin_init', 'chatbot_setup_settings_init');
+
+/**
+ * Sanitize AI Platform choice - detect platform changes for embedding regeneration
+ */
+function chatbot_setup_sanitize_platform_choice($input) {
+    $input = sanitize_text_field($input);
+    $old_platform = get_option('chatbot_ai_platform_choice', 'Gemini');
+    $embedding_platform = get_option('chatbot_embedding_platform', '');
+
+    // If the platform changed AND there was a previous embedding platform set, flag for regeneration
+    if (!empty($embedding_platform) && $input !== $embedding_platform) {
+        // Set a transient to show the regenerate embeddings prompt
+        set_transient('steven_bot_platform_changed', [
+            'old_platform' => $embedding_platform,
+            'new_platform' => $input
+        ], 60 * 5); // 5 minute expiry
+    }
+
+    return $input;
+}
 
 /**
  * Sanitize Gemini API key - preserve existing if empty
@@ -96,6 +118,18 @@ function chatbot_setup_sanitize_openai_key($input) {
  */
 function chatbot_setup_page_content() {
     $ai_platform = esc_attr(get_option('chatbot_ai_platform_choice', 'Gemini'));
+
+    // Check if platform was just changed (after save)
+    $platform_changed = get_transient('steven_bot_platform_changed');
+    $show_regen_prompt = false;
+    $old_embed_platform = '';
+    $new_embed_platform = '';
+    if ($platform_changed) {
+        $show_regen_prompt = true;
+        $old_embed_platform = $platform_changed['old_platform'];
+        $new_embed_platform = $platform_changed['new_platform'];
+        // Don't delete transient yet - user needs to see and act on it
+    }
 
     // Get current API keys (check if set and can be decrypted)
     $gemini_key_encrypted = get_option('chatbot_gemini_api_key', '');
@@ -365,6 +399,26 @@ function chatbot_setup_page_content() {
                 <?php endif; ?>
             </p>
         </div>
+
+        <!-- Ver 2.5.2: Regenerate Embeddings Section - Only shown after platform change -->
+        <?php if ($show_regen_prompt): ?>
+        <div class="setup-field" id="regen-embeddings-section" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e5e7eb; background: #fff3cd; padding: 20px; border-radius: 5px;">
+            <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 15px;">
+                <span style="font-size: 24px;">⚠️</span>
+                <div>
+                    <strong style="font-size: 15px; color: #856404;">AI Platform Changed</strong>
+                    <p style="margin: 5px 0 0; color: #856404;">
+                        You switched from <strong><?php echo esc_html($old_embed_platform); ?></strong> to <strong><?php echo esc_html($new_embed_platform); ?></strong>.
+                        Your existing FAQ and gap question embeddings need to be regenerated for vector search to work properly.
+                    </p>
+                </div>
+            </div>
+            <div class="field-row">
+                <button type="button" class="button button-primary" id="regen-embeddings-btn" style="margin-right: 10px;">🔄 Regenerate All Embeddings</button>
+                <span class="test-result" id="regen-result"></span>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 
     <!-- Database Section -->
@@ -493,6 +547,9 @@ function chatbot_setup_page_content() {
         }
         updateSaveButton();
 
+        // Store embedding platform for comparison when user changes platform
+        var embeddingPlatform = '<?php echo esc_js(get_option('chatbot_embedding_platform', '')); ?>';
+
         // Platform change handler - clears the OTHER platform's key
         $('#chatbot_ai_platform_choice').on('change', function() {
             var platform = $(this).val();
@@ -512,12 +569,103 @@ function chatbot_setup_page_content() {
             $('.test-result').text('');
             updateSaveButton();
 
-            // Show warning about re-embedding FAQs
-            if (!$('#platform-switch-warning').length) {
-                $('#ai-section').append('<div id="platform-switch-warning" class="info-box warning"><strong>⚠️ Important:</strong> After switching platforms and saving, go to the <strong>Database</strong> tab and click <strong>"Migrate FAQs"</strong> to re-generate embeddings with the new AI platform. This ensures accurate FAQ matching.</div>');
+            // Show simple info note if switching platforms with existing embeddings
+            $('#platform-switch-info').remove();
+            if (embeddingPlatform && platform !== embeddingPlatform) {
+                var infoHtml = '<p id="platform-switch-info" style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">' +
+                    '<strong>Note:</strong> After saving, you\'ll be prompted to regenerate embeddings for the new platform.' +
+                '</p>';
+                $('#chatbot_ai_platform_choice').closest('.setup-field').append(infoHtml);
             }
         });
 
+        // Regeneration Modal
+        function showRegenerationModal() {
+            var modalHtml = '<div id="regen-modal-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100000;display:flex;align-items:center;justify-content:center;">' +
+                '<div style="background:white;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);max-width:500px;width:90%;border-top:4px solid #0073aa;">' +
+                    '<div style="padding:25px 25px 15px;">' +
+                        '<h2 style="margin:0 0 8px;font-size:20px;font-weight:600;color:#1d2327;">Regenerating Embeddings</h2>' +
+                        '<p style="margin:0 0 20px;color:#50575e;font-size:14px;">Converting your FAQs and gap questions to the new platform...</p>' +
+                        '<div id="regen-progress-container" style="background:#f0f0f0;border-radius:4px;height:24px;overflow:hidden;margin-bottom:15px;">' +
+                            '<div id="regen-progress-bar" style="background:linear-gradient(90deg, #0073aa 0%, #00a0d2 100%);height:100%;width:0%;transition:width 0.3s ease;"></div>' +
+                        '</div>' +
+                        '<div id="regen-status" style="font-size:14px;color:#666;margin-bottom:10px;">Initializing...</div>' +
+                        '<div id="regen-details" style="font-size:12px;color:#999;"></div>' +
+                    '</div>' +
+                    '<div id="regen-actions" style="padding:15px 25px;display:none;border-top:1px solid #dcdcde;">' +
+                        '<button id="regen-close-btn" class="button button-primary">Close</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+            $('body').append(modalHtml);
+
+            // Start regeneration
+            runEmbeddingRegeneration(0);
+
+            // Close button
+            $('#regen-close-btn').on('click', function() {
+                $('#regen-modal-overlay').remove();
+                location.reload();
+            });
+        }
+
+        // Run embedding regeneration in batches
+        function runEmbeddingRegeneration(offset) {
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'steven_bot_regenerate_embeddings',
+                    type: 'all',
+                    batch_size: 25,  // Ver 2.5.2: Increased from 10 for faster processing
+                    offset: offset,
+                    nonce: '<?php echo wp_create_nonce('steven_bot_regenerate_embeddings'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var data = response.data;
+                        var percent = data.progress_percent || 0;
+
+                        $('#regen-progress-bar').css('width', percent + '%');
+                        $('#regen-status').html('Processing... <strong>' + Math.round(percent) + '%</strong> complete');
+                        $('#regen-details').text(
+                            'FAQs: ' + data.faqs_processed + ' | ' +
+                            'Gap Questions: ' + data.gaps_processed
+                        );
+
+                        if (data.complete) {
+                            $('#regen-progress-bar').css('width', '100%').css('background', 'linear-gradient(90deg, #46b450 0%, #7ad03a 100%)');
+                            $('#regen-status').html('<span style="color:#46b450;font-weight:600;">✓ Regeneration Complete!</span>');
+                            $('#regen-details').html(
+                                'Successfully regenerated embeddings for <strong>' + data.faqs_total + '</strong> FAQs and <strong>' + data.gaps_total + '</strong> gap questions using <strong>' + data.platform + '</strong>.'
+                            );
+                            $('#regen-actions').show();
+                        } else {
+                            // Continue with next batch
+                            setTimeout(function() {
+                                runEmbeddingRegeneration(data.next_offset);
+                            }, 500);
+                        }
+                    } else {
+                        $('#regen-progress-bar').css('background', '#dc3232');
+                        $('#regen-status').html('<span style="color:#dc3232;">✗ Error: ' + (response.data.message || 'Unknown error') + '</span>');
+                        $('#regen-actions').show();
+                    }
+                },
+                error: function() {
+                    $('#regen-progress-bar').css('background', '#dc3232');
+                    $('#regen-status').html('<span style="color:#dc3232;">✗ Connection failed. Please try again.</span>');
+                    $('#regen-actions').show();
+                }
+            });
+        }
+
+        // Ver 2.5.2: Regenerate Embeddings button (shown only after platform change)
+        $('#regen-embeddings-btn').on('click', function() {
+            var $btn = $(this);
+            $btn.prop('disabled', true);
+            showRegenerationModal();
+        });
 
         // Test Gemini API
         $('#test-gemini-btn').on('click', function() {
@@ -1231,3 +1379,64 @@ function chatbot_check_schema_tables_ajax() {
     wp_die();
 }
 add_action('wp_ajax_chatbot_check_schema_tables', 'chatbot_check_schema_tables_ajax');
+
+/**
+ * Check if platform change requires embedding regeneration
+ * Ver 2.5.2
+ */
+function steven_bot_check_platform_change_ajax() {
+    // Clean any output buffer
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot_setup_test')) {
+        wp_send_json_error(['message' => 'Security check failed']);
+        wp_die();
+    }
+
+    $new_platform = isset($_POST['new_platform']) ? sanitize_text_field($_POST['new_platform']) : '';
+    $embedding_platform = get_option('chatbot_embedding_platform', '');
+
+    // Check if the platform supports embeddings
+    $embedding_platforms = ['OpenAI', 'Gemini', 'Azure OpenAI', 'Mistral'];
+    $new_supports_embeddings = in_array($new_platform, $embedding_platforms);
+
+    // Get counts
+    $faq_count = 0;
+    $gap_count = 0;
+
+    if (function_exists('chatbot_vector_get_pg_connection')) {
+        $pdo = chatbot_vector_get_pg_connection();
+        if ($pdo) {
+            try {
+                $stmt = $pdo->query('SELECT COUNT(*) FROM chatbot_faqs');
+                $faq_count = intval($stmt->fetchColumn());
+
+                $stmt = $pdo->query('SELECT COUNT(*) FROM chatbot_gap_questions WHERE question_text IS NOT NULL');
+                $gap_count = intval($stmt->fetchColumn());
+            } catch (Exception $e) {
+                // Ignore
+            }
+        }
+    }
+
+    $total_items = $faq_count + $gap_count;
+    $needs_regen = $new_supports_embeddings && !empty($embedding_platform) && $embedding_platform !== $new_platform && $total_items > 0;
+
+    wp_send_json_success([
+        'needs_regen' => $needs_regen,
+        'new_platform' => $new_platform,
+        'embedding_platform' => $embedding_platform,
+        'new_supports_embeddings' => $new_supports_embeddings,
+        'faq_count' => $faq_count,
+        'gap_count' => $gap_count,
+        'total_items' => $total_items,
+        'message' => $needs_regen
+            ? "You're switching from {$embedding_platform} to {$new_platform}. Your FAQ and gap question embeddings ({$total_items} items) need to be regenerated."
+            : "No embedding regeneration needed."
+    ]);
+    wp_die();
+}
+add_action('wp_ajax_steven_bot_check_platform_change', 'steven_bot_check_platform_change_ajax');

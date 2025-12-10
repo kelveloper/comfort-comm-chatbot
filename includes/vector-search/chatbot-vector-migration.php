@@ -17,35 +17,28 @@ if (!defined('WPINC')) {
 require_once plugin_dir_path(__FILE__) . 'chatbot-vector-schema.php';
 
 /**
- * Generate embedding using OpenAI API
+ * Generate embedding using the user's configured AI platform
+ * Ver 2.5.2: Uses steven_bot_get_api_config() for platform-aware API calls
  *
  * @param string $text Text to generate embedding for
- * @param string $model Model to use (default: text-embedding-3-small)
+ * @param string $model Model to use (ignored - uses config model)
  * @return array|null Embedding vector (1536 dimensions) or null on failure
  */
-function chatbot_vector_generate_embedding($text, $model = 'text-embedding-004') {
-    // Use the selected AI platform - only ONE key active at a time
-    $ai_platform = get_option('chatbot_ai_platform_choice', 'OpenAI');
-    $use_gemini = ($ai_platform === 'Gemini');
+function chatbot_vector_generate_embedding($text, $model = null) {
+    // Get API config based on user's platform choice
+    $api_config = steven_bot_get_api_config();
+    $platform = $api_config['platform'];
+    $api_key = $api_config['api_key'];
 
-    // Get the appropriate API key based on selected platform
-    if ($use_gemini) {
-        $api_key = get_option('chatbot_gemini_api_key', '');
-    } else {
-        $api_key = get_option('steven_bot_api_key', '');
-    }
-
-    if (empty($api_key)) {
-        error_log('[Chatbot Vector] No API key configured for platform: ' . $ai_platform);
+    // Check if platform supports embeddings
+    if (!steven_bot_platform_supports_embeddings()) {
+        error_log('[Chatbot Vector] Platform ' . $platform . ' does not support embeddings');
         return null;
     }
 
-    // Decrypt the API key if it's encrypted (contains iv and encrypted fields)
-    if (function_exists('steven_bot_decrypt_api_key')) {
-        $decrypted = steven_bot_decrypt_api_key($api_key);
-        if (!empty($decrypted)) {
-            $api_key = $decrypted;
-        }
+    if (empty($api_key)) {
+        error_log('[Chatbot Vector] No API key configured for platform: ' . $platform);
+        return null;
     }
 
     // Clean and prepare text
@@ -59,10 +52,13 @@ function chatbot_vector_generate_embedding($text, $model = 'text-embedding-004')
         $text = substr($text, 0, 30000);
     }
 
-    if ($use_gemini) {
-        return chatbot_vector_generate_embedding_gemini($text, $api_key, $model);
+    if ($platform === 'Gemini') {
+        return chatbot_vector_generate_embedding_gemini($text, $api_key, $api_config['embedding_model']);
+    } elseif ($platform === 'Mistral') {
+        return chatbot_vector_generate_embedding_mistral($text, $api_key, $api_config['embedding_model'], $api_config['embedding_url']);
     } else {
-        return chatbot_vector_generate_embedding_openai($text, $api_key, 'text-embedding-3-small');
+        // OpenAI, Azure OpenAI - use OpenAI format
+        return chatbot_vector_generate_embedding_openai($text, $api_key, $api_config['embedding_model'], $api_config['embedding_url'], $platform);
     }
 }
 
@@ -124,15 +120,69 @@ function chatbot_vector_generate_embedding_gemini($text, $api_key, $model = 'tex
 }
 
 /**
- * Generate embedding using OpenAI API
+ * Generate embedding using OpenAI API (and Azure OpenAI)
+ * Ver 2.5.2: Accepts URL and platform parameters for Azure support
  */
-function chatbot_vector_generate_embedding_openai($text, $api_key, $model = 'text-embedding-3-small') {
-    $url = 'https://api.openai.com/v1/embeddings';
+function chatbot_vector_generate_embedding_openai($text, $api_key, $model = 'text-embedding-3-small', $url = null, $platform = 'OpenAI') {
+    if (empty($url)) {
+        $url = 'https://api.openai.com/v1/embeddings';
+    }
 
     $body = json_encode([
         'model' => $model,
         'input' => $text,
         'encoding_format' => 'float'
+    ]);
+
+    $headers = ['Content-Type' => 'application/json'];
+
+    if ($platform === 'Azure OpenAI') {
+        $headers['api-key'] = $api_key;
+    } else {
+        $headers['Authorization'] = 'Bearer ' . $api_key;
+    }
+
+    $response = wp_remote_post($url, [
+        'timeout' => 30,
+        'headers' => $headers,
+        'body' => $body
+    ]);
+
+    if (is_wp_error($response)) {
+        error_log('[Chatbot Vector] ' . $platform . ' API request failed: ' . $response->get_error_message());
+        return null;
+    }
+
+    $status_code = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if ($status_code !== 200) {
+        $error_msg = isset($data['error']['message']) ? $data['error']['message'] : 'Unknown error';
+        error_log('[Chatbot Vector] ' . $platform . ' API error: ' . $error_msg);
+        return null;
+    }
+
+    if (!isset($data['data'][0]['embedding'])) {
+        error_log('[Chatbot Vector] No embedding in response');
+        return null;
+    }
+
+    return $data['data'][0]['embedding'];
+}
+
+/**
+ * Generate embedding using Mistral API
+ * Ver 2.5.2: Added Mistral embedding support
+ */
+function chatbot_vector_generate_embedding_mistral($text, $api_key, $model = 'mistral-embed', $url = null) {
+    if (empty($url)) {
+        $url = 'https://api.mistral.ai/v1/embeddings';
+    }
+
+    $body = json_encode([
+        'model' => $model,
+        'input' => [$text]
     ]);
 
     $response = wp_remote_post($url, [
@@ -145,7 +195,7 @@ function chatbot_vector_generate_embedding_openai($text, $api_key, $model = 'tex
     ]);
 
     if (is_wp_error($response)) {
-        error_log('[Chatbot Vector] OpenAI API request failed: ' . $response->get_error_message());
+        error_log('[Chatbot Vector] Mistral API request failed: ' . $response->get_error_message());
         return null;
     }
 
@@ -155,16 +205,23 @@ function chatbot_vector_generate_embedding_openai($text, $api_key, $model = 'tex
 
     if ($status_code !== 200) {
         $error_msg = isset($data['error']['message']) ? $data['error']['message'] : 'Unknown error';
-        error_log('[Chatbot Vector] OpenAI API error: ' . $error_msg);
+        error_log('[Chatbot Vector] Mistral API error: ' . $error_msg);
         return null;
     }
 
     if (!isset($data['data'][0]['embedding'])) {
-        error_log('[Chatbot Vector] No embedding in response');
+        error_log('[Chatbot Vector] No embedding in Mistral response');
         return null;
     }
 
-    return $data['data'][0]['embedding'];
+    $embedding = $data['data'][0]['embedding'];
+
+    // Mistral embeddings are 1024 dimensions, pad to 1536 for consistency
+    while (count($embedding) < 1536) {
+        $embedding[] = 0.0;
+    }
+
+    return $embedding;
 }
 
 /**
@@ -304,7 +361,52 @@ function chatbot_vector_upsert_faq($faq, $generate_embeddings = true) {
 }
 
 /**
+ * Check if embeddings need to be regenerated due to platform change
+ * Ver 2.5.2
+ *
+ * @return array ['needs_regen' => bool, 'current_platform' => string, 'embedding_platform' => string]
+ */
+function steven_bot_check_embedding_platform_mismatch() {
+    $api_config = steven_bot_get_api_config();
+    $current_platform = $api_config['platform'];
+    $embedding_platform = get_option('chatbot_embedding_platform', '');
+
+    // If no embedding platform saved, embeddings haven't been generated yet
+    if (empty($embedding_platform)) {
+        return [
+            'needs_regen' => false,
+            'current_platform' => $current_platform,
+            'embedding_platform' => 'none',
+            'message' => 'No embeddings generated yet'
+        ];
+    }
+
+    // Check if current platform supports embeddings
+    if (!steven_bot_platform_supports_embeddings()) {
+        return [
+            'needs_regen' => false,
+            'current_platform' => $current_platform,
+            'embedding_platform' => $embedding_platform,
+            'message' => $current_platform . ' does not support embeddings'
+        ];
+    }
+
+    // Check if platform has changed
+    $needs_regen = ($current_platform !== $embedding_platform);
+
+    return [
+        'needs_regen' => $needs_regen,
+        'current_platform' => $current_platform,
+        'embedding_platform' => $embedding_platform,
+        'message' => $needs_regen
+            ? "Platform changed from {$embedding_platform} to {$current_platform}. Embeddings need regeneration."
+            : "Embeddings are using {$current_platform}"
+    ];
+}
+
+/**
  * Migrate all FAQs - regenerate embeddings using Supabase REST API
+ * Ver 2.5.2: Uses steven_bot_get_api_config() for platform-aware API calls
  *
  * @param bool $clear_existing Whether to clear existing embeddings first
  * @return array Migration result with stats
@@ -316,6 +418,18 @@ function chatbot_vector_migrate_all_faqs($clear_existing = false) {
         return [
             'success' => false,
             'message' => 'Supabase not configured. Go to Setup tab.'
+        ];
+    }
+
+    // Get API config using helper function
+    $api_config = steven_bot_get_api_config();
+    $ai_platform = $api_config['platform'];
+
+    // Check if platform supports embeddings
+    if (!steven_bot_platform_supports_embeddings()) {
+        return [
+            'success' => false,
+            'message' => $ai_platform . ' does not support embeddings. Please use OpenAI, Gemini, Azure OpenAI, or Mistral.'
         ];
     }
 
@@ -334,7 +448,6 @@ function chatbot_vector_migrate_all_faqs($clear_existing = false) {
     $error_count = 0;
     $errors = [];
 
-    $ai_platform = get_option('chatbot_ai_platform_choice', 'OpenAI');
     error_log("[Chatbot Vector] Starting migration of {$total} FAQs using {$ai_platform}...");
 
     foreach ($faqs as $index => $faq) {
@@ -552,3 +665,217 @@ function chatbot_vector_ajax_status() {
     wp_send_json_success($stats);
 }
 add_action('wp_ajax_chatbot_vector_status', 'chatbot_vector_ajax_status');
+
+/**
+ * Regenerate all embeddings for FAQs and gap questions
+ * Ver 2.5.2: Complete regeneration when platform changes
+ *
+ * @param string $type 'all', 'faqs', or 'gap_questions'
+ * @param int $batch_size Items per batch
+ * @param int $offset Starting offset
+ * @return array Progress info
+ */
+function steven_bot_regenerate_embeddings($type = 'all', $batch_size = 10, $offset = 0) {
+    $api_config = steven_bot_get_api_config();
+    $platform = $api_config['platform'];
+
+    if (!steven_bot_platform_supports_embeddings()) {
+        return [
+            'success' => false,
+            'message' => $platform . ' does not support embeddings',
+            'complete' => true
+        ];
+    }
+
+    $results = [
+        'success' => true,
+        'platform' => $platform,
+        'faqs_processed' => 0,
+        'faqs_total' => 0,
+        'gaps_processed' => 0,
+        'gaps_total' => 0,
+        'errors' => [],
+        'complete' => false
+    ];
+
+    // Ver 2.5.2: Use Supabase REST API instead of PDO
+    if (!function_exists('chatbot_supabase_request')) {
+        $results['success'] = false;
+        $results['message'] = 'Supabase functions not available';
+        $results['complete'] = true;
+        return $results;
+    }
+
+    try {
+        // Get total counts first - NOTE: chatbot_supabase_request returns ['success' => bool, 'data' => array]
+        $faq_count_response = chatbot_supabase_request('chatbot_faqs', 'GET', null, ['select' => 'faq_id']);
+        $faq_count_data = isset($faq_count_response['data']) ? $faq_count_response['data'] : $faq_count_response;
+        $results['faqs_total'] = is_array($faq_count_data) ? count($faq_count_data) : 0;
+
+        $gap_count_response = chatbot_supabase_request('chatbot_gap_questions', 'GET', null, [
+            'select' => 'id',
+            'question_text' => 'not.is.null'
+        ]);
+        $gap_count_data = isset($gap_count_response['data']) ? $gap_count_response['data'] : $gap_count_response;
+        $results['gaps_total'] = is_array($gap_count_data) ? count($gap_count_data) : 0;
+
+        $total_items = $results['faqs_total'] + $results['gaps_total'];
+
+        error_log("[Chatbot Regen] Totals: {$results['faqs_total']} FAQs, {$results['gaps_total']} gaps. Offset: {$offset}, Batch: {$batch_size}");
+
+        // Ver 2.5.2: Process FAQs first, then gap questions (sequential offsets)
+        $faq_offset = $offset;
+        $gap_offset = max(0, $offset - $results['faqs_total']);
+        $items_to_process = $batch_size;
+
+        // Process FAQs if we haven't finished them yet
+        if (($type === 'all' || $type === 'faqs') && $offset < $results['faqs_total']) {
+            $faqs_response = chatbot_supabase_request('chatbot_faqs', 'GET', null, [
+                'select' => 'faq_id,question,answer',
+                'order' => 'faq_id.asc',
+                'limit' => $items_to_process,
+                'offset' => $faq_offset
+            ]);
+            $faqs_data = isset($faqs_response['data']) ? $faqs_response['data'] : $faqs_response;
+
+            if (is_array($faqs_data)) {
+                foreach ($faqs_data as $faq) {
+                    $question_embedding = chatbot_vector_generate_embedding($faq['question']);
+                    $combined_embedding = chatbot_vector_generate_embedding($faq['question'] . ' ' . $faq['answer']);
+
+                    if ($question_embedding && $combined_embedding) {
+                        chatbot_supabase_request('chatbot_faqs', 'PATCH', [
+                            'question_embedding' => chatbot_vector_to_pg_format($question_embedding),
+                            'combined_embedding' => chatbot_vector_to_pg_format($combined_embedding)
+                        ], ['faq_id' => 'eq.' . $faq['faq_id']]);
+                        $results['faqs_processed']++;
+                    } else {
+                        $results['errors'][] = 'Failed: FAQ ' . $faq['faq_id'];
+                    }
+                    $items_to_process--;
+                    usleep(150000);
+                }
+            }
+        }
+
+        // Process gap questions if we've finished FAQs or if doing gaps only
+        if (($type === 'all' || $type === 'gap_questions') && $items_to_process > 0 && $offset >= $results['faqs_total'] - $batch_size) {
+            $gaps_response = chatbot_supabase_request('chatbot_gap_questions', 'GET', null, [
+                'select' => 'id,question_text',
+                'question_text' => 'not.is.null',
+                'order' => 'id.asc',
+                'limit' => $items_to_process,
+                'offset' => $gap_offset
+            ]);
+            $gaps_data = isset($gaps_response['data']) ? $gaps_response['data'] : $gaps_response;
+
+            if (is_array($gaps_data)) {
+                foreach ($gaps_data as $gap) {
+                    if (empty($gap['question_text']) || strlen($gap['question_text']) <= 3) {
+                        continue;
+                    }
+
+                    $embedding = chatbot_vector_generate_embedding($gap['question_text']);
+
+                    if ($embedding) {
+                        chatbot_supabase_request('chatbot_gap_questions', 'PATCH', [
+                            'embedding' => chatbot_vector_to_pg_format($embedding)
+                        ], ['id' => 'eq.' . $gap['id']]);
+                        $results['gaps_processed']++;
+                    } else {
+                        $results['errors'][] = 'Failed: Gap ' . $gap['id'];
+                    }
+                    usleep(150000);
+                }
+            }
+        }
+
+        error_log("[Chatbot Regen] Processed: {$results['faqs_processed']} FAQs, {$results['gaps_processed']} gaps");
+
+        // Check if complete
+        $total_processed = $results['faqs_processed'] + $results['gaps_processed'];
+        $next_offset = $offset + $batch_size;
+        $results['complete'] = ($next_offset >= $total_items) || ($total_processed === 0 && $offset > 0);
+
+        // If complete, save the new embedding platform and clear the platform change prompt
+        if ($results['complete'] && $results['success']) {
+            update_option('chatbot_embedding_platform', $platform);
+            update_option('chatbot_embedding_timestamp', current_time('mysql'));
+            // Clear the platform change transient since embeddings are now regenerated
+            delete_transient('steven_bot_platform_changed');
+        }
+
+        $results['next_offset'] = $next_offset;
+        $results['progress_percent'] = $total_items > 0
+            ? min(100, round(($next_offset / $total_items) * 100, 1))
+            : 100;
+
+    } catch (Exception $e) {
+        $results['success'] = false;
+        $results['message'] = $e->getMessage();
+        $results['complete'] = true;
+    }
+
+    return $results;
+}
+
+/**
+ * AJAX handler for regenerating embeddings with progress
+ * Ver 2.5.2
+ */
+function steven_bot_ajax_regenerate_embeddings() {
+    check_ajax_referer('steven_bot_regenerate_embeddings', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Unauthorized']);
+    }
+
+    $type = isset($_POST['type']) ? sanitize_text_field($_POST['type']) : 'all';
+    $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 10;
+    $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+
+    set_time_limit(300); // 5 minutes max
+
+    $result = steven_bot_regenerate_embeddings($type, $batch_size, $offset);
+
+    if ($result['success']) {
+        wp_send_json_success($result);
+    } else {
+        wp_send_json_error($result);
+    }
+}
+add_action('wp_ajax_steven_bot_regenerate_embeddings', 'steven_bot_ajax_regenerate_embeddings');
+
+/**
+ * AJAX handler for checking embedding platform status
+ * Ver 2.5.2
+ */
+function steven_bot_ajax_check_embedding_status() {
+    check_ajax_referer('steven_bot_embedding_status', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Unauthorized']);
+    }
+
+    $status = steven_bot_check_embedding_platform_mismatch();
+
+    // Add counts
+    $pdo = function_exists('chatbot_vector_get_pg_connection') ? chatbot_vector_get_pg_connection() : null;
+    if ($pdo) {
+        try {
+            $stmt = $pdo->query('SELECT COUNT(*) FROM chatbot_faqs');
+            $status['faq_count'] = intval($stmt->fetchColumn());
+
+            $stmt = $pdo->query('SELECT COUNT(*) FROM chatbot_gap_questions WHERE question_text IS NOT NULL');
+            $status['gap_count'] = intval($stmt->fetchColumn());
+
+            $status['total_items'] = $status['faq_count'] + $status['gap_count'];
+        } catch (PDOException $e) {
+            $status['faq_count'] = 0;
+            $status['gap_count'] = 0;
+        }
+    }
+
+    wp_send_json_success($status);
+}
+add_action('wp_ajax_steven_bot_check_embedding_status', 'steven_bot_ajax_check_embedding_status');

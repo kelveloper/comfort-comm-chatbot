@@ -318,7 +318,8 @@ function steven_bot_reporting_overview_section_callback($args) {
             overlay.id = 'chatbot-modal-overlay';
             overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
 
-            const borderColor = options.isError ? '#dc3232' : '#2271b1';
+            // Ver 2.5.2: Added isWarning for amber/orange color
+        const borderColor = options.isError ? '#dc3232' : (options.isWarning ? '#f59e0b' : '#2271b1');
             const modal = document.createElement('div');
             modal.style.cssText = 'background:white;border-radius:4px;box-shadow:0 3px 6px rgba(0,0,0,0.3);max-width:400px;width:90%;border-top:4px solid ' + borderColor + ';';
 
@@ -1076,7 +1077,7 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
                 <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #374151;">Analysis Options:</h4>
                 <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #4b5563; line-height: 1.6;">
                     <li><strong>Manual:</strong> Click "Run Analysis Now" anytime</li>
-                    <li><strong>Auto:</strong> Enable auto-analysis to run automatically when 30+ questions accumulate</li>
+                    <li><strong>Auto:</strong> Enable auto-analysis to run automatically when 50+ questions accumulate</li>
                 </ul>
             </div>
         </div>
@@ -1085,35 +1086,89 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
         <?php
         $auto_analysis_enabled = get_option('chatbot_gap_auto_analysis_enabled', 'off');
         $min_unique_users = intval(get_option('chatbot_gap_min_unique_users', 3));
+        $api_usage = get_option('chatbot_gap_analysis_api_usage', []);
+        $last_analysis = isset($api_usage['last_analysis_date']) ? $api_usage['last_analysis_date'] : null;
+        $last_analysis_display = $last_analysis ? human_time_diff(strtotime($last_analysis), current_time('timestamp')) . ' ago' : 'Never';
         ?>
-        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-            <div style="font-size: 12px; color: #6b7280;">
-                <span>Gap questions: <strong><?php echo $unclustered_gaps; ?></strong> waiting</span>
-                <span style="margin: 0 10px;">|</span>
-                <span>Min. unique users:
-                    <select id="min_unique_users_select" style="padding: 2px 5px; font-size: 12px; border-radius: 4px; border: 1px solid #d1d5db;">
-                        <?php for ($i = 1; $i <= 10; $i++) : ?>
-                            <option value="<?php echo $i; ?>" <?php selected($min_unique_users, $i); ?>><?php echo $i; ?></option>
-                        <?php endfor; ?>
-                    </select>
-                    <span style="font-size: 11px; color: #9ca3af;">(clusters need this many different people asking)</span>
-                </span>
-                <span style="margin: 0 10px;">|</span>
-                <span>Auto-analysis:
-                    <label style="cursor: pointer; margin-left: 5px;">
-                        <input type="checkbox" id="auto_analysis_toggle" <?php echo $auto_analysis_enabled === 'on' ? 'checked' : ''; ?> style="cursor: pointer;">
-                        <strong id="auto_analysis_status" style="color: <?php echo $auto_analysis_enabled === 'on' ? '#10b981' : '#6b7280'; ?>;">
-                            <?php echo $auto_analysis_enabled === 'on' ? 'ON' : 'OFF'; ?>
-                        </strong>
-                    </label>
-                    <span style="font-size: 11px; color: #9ca3af;">(runs when 30+ questions)</span>
-                </span>
+        <style>
+            @keyframes pulse-dot {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.4; }
+            }
+            .auto-status-dot {
+                display: inline-block;
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                margin-right: 5px;
+            }
+            .auto-status-dot.on {
+                background: #10b981;
+                animation: pulse-dot 2s ease-in-out infinite;
+            }
+            .auto-status-dot.off {
+                background: #9ca3af;
+            }
+        </style>
+        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div style="font-size: 12px; color: #6b7280;">
+                    <span>Gap questions: <strong><?php echo $unclustered_gaps; ?></strong> waiting</span>
+                    <span style="margin: 0 10px;">|</span>
+                    <span>Min. unique users:
+                        <select id="min_unique_users_select" style="padding: 4px 8px; font-size: 13px; border-radius: 5px; border: 1px solid #d1d5db; background: #f9fafb; font-weight: 500; cursor: pointer;">
+                            <?php if ($min_unique_users == 1) : ?>
+                                <option value="1" selected>1</option>
+                            <?php endif; ?>
+                            <?php for ($i = 2; $i <= 5; $i++) : ?>
+                                <option value="<?php echo $i; ?>" <?php selected($min_unique_users, $i); ?>><?php echo $i; ?></option>
+                            <?php endfor; ?>
+                        </select>
+                        <span style="font-size: 11px; color: #9ca3af;">(clusters need this many different people asking)</span>
+                    </span>
+                    <span style="margin: 0 10px;">|</span>
+                    <span>Auto-analysis:
+                        <label style="cursor: pointer; margin-left: 5px;">
+                            <input type="checkbox" id="auto_analysis_toggle" <?php echo $auto_analysis_enabled === 'on' ? 'checked' : ''; ?> style="cursor: pointer;">
+                            <span class="auto-status-dot <?php echo $auto_analysis_enabled === 'on' ? 'on' : 'off'; ?>" id="auto_status_dot"></span>
+                            <strong id="auto_analysis_status" style="color: <?php echo $auto_analysis_enabled === 'on' ? '#10b981' : '#6b7280'; ?>;">
+                                <?php echo $auto_analysis_enabled === 'on' ? 'ON' : 'OFF'; ?>
+                            </strong>
+                        </label>
+                        <span style="font-size: 11px; color: #9ca3af;">(runs when 50+ questions)</span>
+                    </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 12px; color: #6b7280;">Manually trigger AI analysis</span>
+                    <button type="button" id="run_gap_analysis_now" class="button button-primary" style="padding: 6px 12px; font-size: 13px;">
+                        Run Analysis Now
+                    </button>
+                </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 12px; color: #6b7280;">Manually trigger AI analysis</span>
-                <button type="button" id="run_gap_analysis_now" class="button button-primary" style="padding: 6px 12px; font-size: 13px;">
-                    Run Analysis Now
-                </button>
+            <!-- Last analysis info -->
+            <?php
+            $cooldown_days = 7;
+            $days_since_last = $last_analysis ? (current_time('timestamp') - strtotime($last_analysis)) / 86400 : 999;
+            $next_auto_days = $days_since_last < $cooldown_days ? ceil($cooldown_days - $days_since_last) : 0;
+            $last_result = isset($api_usage['last_analysis_result']) ? $api_usage['last_analysis_result'] : null;
+            ?>
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #9ca3af;">
+                <div>
+                    Last analysis: <strong style="color: #6b7280;"><?php echo esc_html($last_analysis_display); ?></strong>
+                    <?php if ($last_analysis) : ?>
+                        <span style="margin-left: 5px;">(<?php echo esc_html(date('M j, Y g:i A', strtotime($last_analysis))); ?>)</span>
+                    <?php endif; ?>
+                    <?php if ($auto_analysis_enabled === 'on' && $next_auto_days > 0) : ?>
+                        <span style="margin-left: 10px; color: #f59e0b;">• Next auto-run in ~<?php echo $next_auto_days; ?> day<?php echo $next_auto_days > 1 ? 's' : ''; ?></span>
+                    <?php elseif ($auto_analysis_enabled === 'on') : ?>
+                        <span style="margin-left: 10px; color: #10b981;">• Auto-analysis ready</span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($last_result) : ?>
+                <div style="margin-top: 5px;">
+                    Result: <span style="color: #6b7280;"><?php echo esc_html($last_result); ?></span>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -1352,7 +1407,8 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
         overlay.id = 'chatbot-modal-overlay';
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
 
-        const borderColor = options.isError ? '#dc3232' : '#2271b1';
+        // Ver 2.5.2: Added isWarning for amber/orange color
+        const borderColor = options.isError ? '#dc3232' : (options.isWarning ? '#f59e0b' : '#2271b1');
         const modal = document.createElement('div');
         modal.style.cssText = 'background:white;border-radius:4px;box-shadow:0 3px 6px rgba(0,0,0,0.3);max-width:400px;width:90%;border-top:4px solid ' + borderColor + ';';
 
@@ -1589,21 +1645,105 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
                 onConfirm: function() {
                     $btn.prop('disabled', true).text('Running...');
 
+                    // Ver 2.5.2: Show progress modal with animated progress bar
+                    const progressModalHtml = `
+                        <div id="gap-analysis-progress-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100001; display: flex; align-items: center; justify-content: center;">
+                            <div style="background: #fff; border-radius: 8px; padding: 30px 40px; max-width: 450px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.3); text-align: center;">
+                                <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e293b;">Analyzing Gap Questions</h3>
+                                <p id="gap-progress-status" style="margin: 0 0 20px 0; color: #64748b; font-size: 14px;">Connecting to AI...</p>
+                                <div style="background: #e2e8f0; border-radius: 8px; height: 12px; overflow: hidden; margin-bottom: 15px;">
+                                    <div id="gap-progress-bar" style="background: linear-gradient(90deg, #3b82f6, #8b5cf6); height: 100%; width: 0%; border-radius: 8px; transition: width 0.3s ease;"></div>
+                                </div>
+                                <p id="gap-progress-detail" style="margin: 0; color: #94a3b8; font-size: 12px;">Please wait...</p>
+                            </div>
+                        </div>
+                    `;
+                    $('body').append(progressModalHtml);
+
+                    // Animate progress bar (simulated stages)
+                    const stages = [
+                        { pct: 15, status: 'Loading gap questions...', detail: 'Fetching from database' },
+                        { pct: 30, status: 'Preparing AI prompt...', detail: 'Building context with FAQ database' },
+                        { pct: 50, status: 'Sending to AI for analysis...', detail: 'This may take 20-40 seconds' },
+                        { pct: 75, status: 'Processing AI response...', detail: 'Parsing clusters and suggestions' },
+                        { pct: 90, status: 'Saving clusters...', detail: 'Almost done!' }
+                    ];
+                    let stageIndex = 0;
+                    const progressInterval = setInterval(() => {
+                        if (stageIndex < stages.length) {
+                            $('#gap-progress-bar').css('width', stages[stageIndex].pct + '%');
+                            $('#gap-progress-status').text(stages[stageIndex].status);
+                            $('#gap-progress-detail').text(stages[stageIndex].detail);
+                            stageIndex++;
+                        }
+                    }, 2500);
+
+                    const startTime = Date.now();
+
                     $.post(ajaxurl, {
                         action: 'chatbot_run_gap_analysis_manual',
                         nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
                     }, function(response) {
+                        clearInterval(progressInterval);
+                        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
                         if (response.success) {
-                            chatbotShowModal({
-                                title: 'Analysis Complete',
-                                message: response.data.message || 'FAQ suggestions have been generated.',
-                                confirmText: 'OK',
-                                hideCancel: true,
-                                onConfirm: function() {
-                                    location.reload();
-                                }
-                            });
+                            const status = response.data.status || 'unknown';
+                            const clustersCreated = response.data.clusters_created || 0;
+                            const questionsAnalyzed = response.data.questions_analyzed || 0;
+
+                            // Ver 2.5.2: Different UI based on result status
+                            let title, message, isWarning = false;
+
+                            if (status === 'created') {
+                                // Success - clusters created
+                                $('#gap-progress-bar').css('background', 'linear-gradient(90deg, #10b981, #34d399)');
+                                $('#gap-progress-bar').css('width', '100%');
+                                $('#gap-progress-status').text('Analysis Complete!');
+                                $('#gap-progress-detail').text(clustersCreated + ' cluster(s) created');
+                                title = 'Analysis Complete';
+                                message = response.data.message + '<br><small style="color:#64748b;">Completed in ' + elapsed + 's</small>';
+                            } else if (status === 'skipped') {
+                                // Analyzed but skipped due to unique users
+                                $('#gap-progress-bar').css('background', 'linear-gradient(90deg, #f59e0b, #fbbf24)');
+                                $('#gap-progress-bar').css('width', '100%');
+                                $('#gap-progress-status').text('Analysis Complete - No Clusters Saved');
+                                $('#gap-progress-detail').text('Unique users requirement not met');
+                                title = 'No Clusters Created';
+                                message = response.data.message + (response.data.hint ? '<br><br><small style="color:#64748b;"><strong>Tip:</strong> ' + response.data.hint + '</small>' : '');
+                                isWarning = true;
+                            } else if (status === 'empty') {
+                                // No questions
+                                $('#gap-progress-bar').css('background', '#94a3b8');
+                                $('#gap-progress-bar').css('width', '100%');
+                                $('#gap-progress-status').text('Nothing to Analyze');
+                                $('#gap-progress-detail').text('No gap questions waiting');
+                                title = 'Nothing to Analyze';
+                                message = response.data.message;
+                                isWarning = true;
+                            } else {
+                                // Unknown/legacy
+                                $('#gap-progress-bar').css('width', '100%');
+                                $('#gap-progress-status').text('Complete');
+                                title = 'Analysis Complete';
+                                message = response.data.message || 'Gap analysis finished.';
+                            }
+
+                            setTimeout(() => {
+                                $('#gap-analysis-progress-modal').remove();
+                                chatbotShowModal({
+                                    title: title,
+                                    message: message,
+                                    confirmText: 'OK',
+                                    hideCancel: true,
+                                    isWarning: isWarning,
+                                    onConfirm: function() {
+                                        location.reload();
+                                    }
+                                });
+                            }, 800);
                         } else {
+                            $('#gap-analysis-progress-modal').remove();
                             chatbotShowModal({
                                 title: 'Analysis Failed',
                                 message: response.data || 'An error occurred during analysis.',
@@ -1614,6 +1754,8 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
                             });
                         }
                     }).fail(function() {
+                        clearInterval(progressInterval);
+                        $('#gap-analysis-progress-modal').remove();
                         chatbotShowModal({
                             title: 'Request Failed',
                             message: 'Could not connect to server. Please try again.',
@@ -1631,6 +1773,7 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
         $('#auto_analysis_toggle').on('change', function() {
             const isEnabled = $(this).is(':checked') ? 'on' : 'off';
             const $status = $('#auto_analysis_status');
+            const $dot = $('#auto_status_dot');
 
             $.post(ajaxurl, {
                 action: 'chatbot_toggle_auto_analysis',
@@ -1640,6 +1783,8 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
                 if (response.success) {
                     $status.text(isEnabled === 'on' ? 'ON' : 'OFF');
                     $status.css('color', isEnabled === 'on' ? '#10b981' : '#6b7280');
+                    // Update pulsing dot
+                    $dot.removeClass('on off').addClass(isEnabled === 'on' ? 'on' : 'off');
                 } else {
                     alert('Error: ' + (response.data || 'Failed to save setting'));
                     // Revert checkbox
@@ -1861,10 +2006,10 @@ function steven_bot_learning_dashboard_callback() {
                         <button type="button" onclick="chatbotResetAllLearning()" class="button" style="background: #fca5a5; border-color: #f87171; color: #7f1d1d; font-size: 12px;">
                             Reset All Learning Data
                         </button>
-                        <button type="button" onclick="chatbotRegenerateEmbeddings()" class="button" style="background: #fcd34d; border-color: #fbbf24; color: #78350f; font-size: 12px;">
-                            Regenerate All Embeddings
-                        </button>
                     </div>
+                    <p style="margin: 12px 0 0 0; font-size: 11px; color: #9ca3af;">
+                        To regenerate embeddings, go to <strong>Setup</strong> tab and change AI platform.
+                    </p>
                 </div>
             </div>
         </div>
@@ -1900,7 +2045,8 @@ function steven_bot_learning_dashboard_callback() {
         overlay.id = 'chatbot-modal-overlay';
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
 
-        const borderColor = options.isError ? '#dc3232' : '#2271b1';
+        // Ver 2.5.2: Added isWarning for amber/orange color
+        const borderColor = options.isError ? '#dc3232' : (options.isWarning ? '#f59e0b' : '#2271b1');
         const modal = document.createElement('div');
         modal.style.cssText = 'background:white;border-radius:4px;box-shadow:0 3px 6px rgba(0,0,0,0.3);max-width:400px;width:90%;border-top:4px solid ' + borderColor + ';';
 
@@ -2111,50 +2257,8 @@ function steven_bot_learning_dashboard_callback() {
         });
     }
 
-    function chatbotRegenerateEmbeddings() {
-        chatbotShowModal({
-            title: 'Regenerate Embeddings',
-            message: 'Regenerate all FAQ embeddings?<br><br>This will:<br>• Re-generate vector embeddings for all FAQs<br>• May take several minutes<br>• Temporarily affect search accuracy',
-            confirmText: 'Yes, Regenerate',
-            onConfirm: function() {
-                const btn = document.querySelector('[onclick*="chatbotRegenerateEmbeddings"]');
-                btn.disabled = true;
-                btn.textContent = 'Regenerating...';
-
-                jQuery.post(ajaxurl, {
-                    action: 'chatbot_regenerate_embeddings',
-                    nonce: '<?php echo wp_create_nonce('chatbot_learning_dashboard'); ?>'
-                }, function(response) {
-                    btn.disabled = false;
-                    btn.textContent = 'Regenerate All Embeddings';
-
-                    if (response.success) {
-                        chatbotShowModal({
-                            title: 'Success',
-                            message: 'Embeddings regenerated successfully!<br><br>Processed: ' + response.data.processed + ' FAQs',
-                            hideCancel: true
-                        });
-                    } else {
-                        chatbotShowModal({
-                            title: 'Error',
-                            message: response.data || 'Unknown error',
-                            isError: true,
-                            hideCancel: true
-                        });
-                    }
-                }).fail(function() {
-                    btn.disabled = false;
-                    btn.textContent = 'Regenerate All Embeddings';
-                    chatbotShowModal({
-                        title: 'Error',
-                        message: 'Request failed. Please try again.',
-                        isError: true,
-                        hideCancel: true
-                    });
-                });
-            }
-        });
-    }
+    // Note: Embedding regeneration is now handled via the Setup page platform switch
+    // See chatbot-settings-setup.php for the new modal-based regeneration system
     </script>
     <?php
 }

@@ -284,11 +284,8 @@ function chatbot_smart_faq_search($message, $session_id = null, $user_id = null,
 }
 
 /**
- * AI-powered topic classification using Gemini Flash Lite (fast & cheap)
- *
- * Model: gemini-2.0-flash-lite
- * Cost: ~$0.075 per 1M input tokens (very cheap)
- * Speed: ~100-200ms
+ * AI-powered topic classification using the user's configured platform
+ * Ver 2.5.2: Uses steven_bot_get_api_config() for platform-aware API calls
  *
  * @param string $message The user's message
  * @return array ['is_on_topic' => bool, 'confidence' => float, 'reason' => string]
@@ -300,16 +297,16 @@ function chatbot_gemini_topic_classification($message) {
         'reason' => 'default'
     ];
 
-    // Get Gemini API key
-    $api_key = esc_attr(get_option('chatbot_gemini_api_key', ''));
-    if (empty($api_key)) {
-        error_log('[Chatbot Guardrails] Gemini classification skipped - no API key');
+    // Get API config based on user's platform choice
+    $api_config = steven_bot_get_api_config();
+
+    if (empty($api_config['api_key'])) {
+        error_log('[Chatbot Guardrails] Topic classification skipped - no API key for ' . $api_config['platform']);
         return $result;
     }
 
-    // Use Gemini Flash Lite - fastest and cheapest option
-    $model = 'gemini-2.0-flash-lite';
-    $api_url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$api_key}";
+    $api_key = $api_config['api_key'];
+    $platform = $api_config['platform'];
 
     $classification_prompt = 'You are a topic classifier for a telecommunications company chatbot (Comfort Communication Inc. - internet, TV, phone services).
 
@@ -332,51 +329,111 @@ User message: "' . addslashes($message) . '"
 
 Respond ONLY with JSON (no markdown): {"on_topic": true/false, "confidence": 0.0-1.0, "reason": "2-3 words"}';
 
-    $body = [
-        'contents' => [
-            ['parts' => [['text' => $classification_prompt]]]
-        ],
-        'generationConfig' => [
-            'temperature' => 0.1,
-            'maxOutputTokens' => 50,
-            'topP' => 0.1
-        ]
-    ];
-
     $start_time = microtime(true);
 
-    $response = wp_remote_post($api_url, [
-        'headers' => ['Content-Type' => 'application/json'],
-        'body' => wp_json_encode($body),
-        'timeout' => 5,
-    ]);
+    // Make API call based on platform
+    if ($platform === 'Gemini') {
+        $api_url = $api_config['base_url'] . '/models/' . $api_config['model'] . ':generateContent?key=' . $api_key;
+
+        $response = wp_remote_post($api_url, [
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => wp_json_encode([
+                'contents' => [['parts' => [['text' => $classification_prompt]]]],
+                'generationConfig' => [
+                    'temperature' => 0.1,
+                    'maxOutputTokens' => 50,
+                    'topP' => 0.1
+                ]
+            ]),
+            'timeout' => 5,
+        ]);
+
+        if (is_wp_error($response)) {
+            error_log('[Chatbot Guardrails] Gemini classification error: ' . $response->get_error_message());
+            return $result;
+        }
+
+        $response_body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (!isset($response_body['candidates'][0]['content']['parts'][0]['text'])) {
+            error_log('[Chatbot Guardrails] Gemini classification - unexpected response');
+            return $result;
+        }
+
+        $ai_response = $response_body['candidates'][0]['content']['parts'][0]['text'];
+
+    } else {
+        // OpenAI and compatible APIs
+        $api_url = $api_config['chat_url'];
+        $headers = ['Content-Type' => 'application/json'];
+
+        if ($platform === 'Azure OpenAI') {
+            $headers['api-key'] = $api_key;
+        } elseif ($platform === 'Anthropic') {
+            $headers['x-api-key'] = $api_key;
+            $headers['anthropic-version'] = '2023-06-01';
+        } else {
+            $headers['Authorization'] = 'Bearer ' . $api_key;
+        }
+
+        if ($platform === 'Anthropic') {
+            $post_body = wp_json_encode([
+                'model' => $api_config['model'],
+                'max_tokens' => 50,
+                'messages' => [['role' => 'user', 'content' => $classification_prompt]]
+            ]);
+        } else {
+            $post_body = wp_json_encode([
+                'model' => $api_config['model'],
+                'messages' => [
+                    ['role' => 'system', 'content' => $classification_prompt],
+                    ['role' => 'user', 'content' => $message]
+                ],
+                'temperature' => 0.1,
+                'max_tokens' => 50
+            ]);
+        }
+
+        $response = wp_remote_post($api_url, [
+            'headers' => $headers,
+            'body' => $post_body,
+            'timeout' => 5,
+        ]);
+
+        if (is_wp_error($response)) {
+            error_log('[Chatbot Guardrails] ' . $platform . ' classification error: ' . $response->get_error_message());
+            return $result;
+        }
+
+        $response_body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($platform === 'Anthropic') {
+            if (!isset($response_body['content'][0]['text'])) {
+                error_log('[Chatbot Guardrails] Anthropic classification - unexpected response');
+                return $result;
+            }
+            $ai_response = $response_body['content'][0]['text'];
+        } else {
+            if (!isset($response_body['choices'][0]['message']['content'])) {
+                error_log('[Chatbot Guardrails] ' . $platform . ' classification - unexpected response');
+                return $result;
+            }
+            $ai_response = $response_body['choices'][0]['message']['content'];
+        }
+    }
 
     $elapsed = round((microtime(true) - $start_time) * 1000);
-    error_log("[Chatbot Guardrails] Gemini classification took {$elapsed}ms");
+    error_log("[Chatbot Guardrails] {$platform} classification took {$elapsed}ms");
 
-    if (is_wp_error($response)) {
-        error_log('[Chatbot Guardrails] Gemini classification error: ' . $response->get_error_message());
-        return $result;
-    }
-
-    $response_body = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (!isset($response_body['candidates'][0]['content']['parts'][0]['text'])) {
-        error_log('[Chatbot Guardrails] Gemini classification - unexpected response');
-        return $result;
-    }
-
-    $ai_response = $response_body['candidates'][0]['content']['parts'][0]['text'];
     $ai_response = preg_replace('/```json\s*|```\s*/', '', trim($ai_response));
-
     $classification = json_decode($ai_response, true);
 
     if (json_last_error() === JSON_ERROR_NONE && isset($classification['on_topic'])) {
         $result['is_on_topic'] = (bool) $classification['on_topic'];
         $result['confidence'] = floatval($classification['confidence'] ?? 0.8);
-        $result['reason'] = $classification['reason'] ?? 'gemini_classified';
+        $result['reason'] = $classification['reason'] ?? $platform . '_classified';
 
-        error_log('[Chatbot Guardrails] Gemini: ' .
+        error_log('[Chatbot Guardrails] ' . $platform . ': ' .
             ($result['is_on_topic'] ? 'ON-TOPIC' : 'OFF-TOPIC') .
             ' (' . round($result['confidence'] * 100) . '% - ' . $result['reason'] . ')');
     }
@@ -385,16 +442,21 @@ Respond ONLY with JSON (no markdown): {"on_topic": true/false, "confidence": 0.0
 }
 
 /**
- * AI-powered topic classification using OpenAI GPT-4o-mini (fast & cheap)
- *
- * Model: gpt-4o-mini
- * Cost: ~$0.15 per 1M input tokens (very cheap)
- * Speed: ~150-300ms
+ * AI-powered topic classification using OpenAI
+ * @deprecated Use chatbot_gemini_topic_classification() which now handles all platforms
  *
  * @param string $message The user's message
  * @return array ['is_on_topic' => bool, 'confidence' => float, 'reason' => string]
  */
 function chatbot_openai_topic_classification($message) {
+    // Redirect to the unified function that uses steven_bot_get_api_config()
+    return chatbot_gemini_topic_classification($message);
+}
+
+/**
+ * @deprecated Legacy function kept for backwards compatibility
+ */
+function chatbot_openai_topic_classification_legacy($message) {
     $result = [
         'is_on_topic' => true,
         'confidence' => 0.5,

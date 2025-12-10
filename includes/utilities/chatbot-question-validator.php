@@ -15,6 +15,7 @@ if (!defined('WPINC')) {
 
 /**
  * Validate a question for quality and relevance
+ * Ver 2.5.2: Added on-topic whitelist to prevent valid telecom questions from being logged as gaps
  *
  * @param string $question The question to validate
  * @param float $faq_confidence The FAQ match confidence (0-1)
@@ -25,11 +26,12 @@ function chatbot_validate_gap_question($question, $faq_confidence = 0, $options 
     $defaults = [
         'min_length' => 10,           // Minimum characters
         'max_length' => 1000,         // Maximum characters
-        'min_words' => 3,             // Minimum words
+        'min_words' => 2,             // Reduced from 3 - allow short valid questions
         'min_quality_score' => 0.3,   // Minimum quality score to accept
         'check_relevance' => true,    // Check topic relevance
         'check_spam' => true,         // Check for spam patterns
         'check_gibberish' => true,    // Check for gibberish
+        'check_off_topic' => true,    // Check for off-topic keywords
     ];
     $options = array_merge($defaults, $options);
 
@@ -41,6 +43,84 @@ function chatbot_validate_gap_question($question, $faq_confidence = 0, $options 
     ];
 
     $question = trim($question);
+    $question_lower = strtolower($question);
+
+    // 0. OFF-TOPIC CHECK - Same keywords as chatbot guardrails (chatbot-guardrails.php)
+    // These questions should never be logged as gaps
+    if ($options['check_off_topic']) {
+        $off_topic_keywords = [
+            // Cryptocurrency
+            'bitcoin', 'crypto', 'cryptocurrency', 'ethereum', 'blockchain', 'nft', 'dogecoin',
+            // Finance (non-telecom)
+            'stock', 'stocks', 'forex', 'trading', 'investment', 'invest in',
+            // Weather
+            'weather', 'forecast', 'temperature', 'rain', 'snow', 'sunny',
+            // Sports
+            'football', 'basketball', 'baseball', 'soccer', 'nfl', 'nba', 'super bowl', 'world cup',
+            // Politics
+            'president', 'election', 'vote', 'congress', 'senate', 'political',
+            // Religion
+            'god', 'jesus', 'allah', 'buddha', 'bible', 'quran', 'church', 'mosque', 'temple',
+            // Entertainment (non-TV service)
+            'movie', 'actor', 'actress', 'celebrity', 'netflix', 'spotify',
+            // General knowledge (that's clearly not telecom)
+            'recipe', 'cooking', 'restaurant', 'hotel', 'flight', 'vacation',
+            // Health
+            'doctor', 'hospital', 'medicine', 'sick', 'disease', 'covid',
+            // Education (non-telecom)
+            'homework', 'essay', 'school assignment', 'university application',
+            // Math/Science
+            'math', 'calculate', 'equation', 'formula', 'inches', 'centimeter', 'convert',
+            // Personal/inappropriate
+            'die', 'death', 'kill', 'drugs', 'social security', 'ssn',
+            // Prompt injection attempts
+            'system prompt', 'system instruction', 'forget your', 'ignore your', 'control',
+        ];
+
+        foreach ($off_topic_keywords as $keyword) {
+            if (strpos($question_lower, $keyword) !== false) {
+                return [
+                    'is_valid' => false,
+                    'reason' => 'off_topic_keyword',
+                    'quality_score' => 0,
+                    'flags' => ['off_topic'],
+                    'blocked_keyword' => $keyword
+                ];
+            }
+        }
+    }
+
+    // 0b. ON-TOPIC WHITELIST - Questions about our services should ALWAYS be valid
+    // These are clearly about telecom and should NOT be filtered out as gaps
+    $on_topic_keywords = [
+        // Our carrier partners
+        'spectrum', 'verizon', 'fios', 'optimum', 'at&t', 'att', 'earthlink', 'frontier',
+        't-mobile', 'tmobile', 'lycamobile', 'ultra mobile', 'h2o',
+        // Services
+        'internet', 'broadband', 'wifi', 'wi-fi', 'fiber', 'cable',
+        'tv', 'television', 'channel', 'streaming',
+        'phone', 'mobile', 'landline', 'top-up', 'topup', 'recharge',
+        'adt', 'security', 'alarm',
+        // Equipment
+        'router', 'modem', 'equipment', 'box', 'set-top',
+        // Service-related
+        'provider', 'carrier', 'plan', 'package', 'bundle',
+        'install', 'installation', 'setup', 'set up',
+        'price', 'pricing', 'cost', 'fee', 'monthly', 'deal',
+        'speed', 'mbps', 'fast', 'slow',
+        // Company
+        'comfort comm', 'comfort communication', 'your service', 'you guys',
+        'store', 'location', 'address', 'visit', 'hours', 'open',
+    ];
+
+    $is_clearly_on_topic = false;
+    foreach ($on_topic_keywords as $keyword) {
+        if (strpos($question_lower, $keyword) !== false) {
+            $is_clearly_on_topic = true;
+            $result['flags'][] = 'on_topic_' . str_replace([' ', '-'], '_', $keyword);
+            break;
+        }
+    }
 
     // 1. Basic length checks
     if (strlen($question) < $options['min_length']) {
@@ -61,10 +141,10 @@ function chatbot_validate_gap_question($question, $faq_confidence = 0, $options 
         ];
     }
 
-    // 2. Word count check
+    // 2. Word count check - Skip for clearly on-topic questions
     $words = preg_split('/\s+/', $question);
     $word_count = count($words);
-    if ($word_count < $options['min_words']) {
+    if ($word_count < $options['min_words'] && !$is_clearly_on_topic) {
         return [
             'is_valid' => false,
             'reason' => 'too_few_words',
@@ -352,11 +432,13 @@ function chatbot_calculate_question_quality($question) {
 
 /**
  * Check if question is relevant to the knowledge base using Vector + AI (Option B)
+ * Ver 2.5.2: Added on-topic keyword whitelist to skip expensive checks for clearly relevant questions
  *
  * Flow:
+ * 0. Check for on-topic keywords (instant pass)
  * 1. Generate embedding for question
  * 2. Compare to FAQ embeddings (vector similarity)
- * 3. If borderline (0.20-0.35), ask AI to verify
+ * 3. If borderline (0.15-0.30), ask AI to verify
  *
  * @param string $question
  * @return array ['is_relevant' => bool, 'score' => float, 'method' => string, 'reason' => string]
@@ -369,6 +451,40 @@ function chatbot_check_topic_relevance_smart($question) {
         'reason' => 'No check performed'
     ];
 
+    $question_lower = strtolower($question);
+
+    // Step 0: Quick keyword check - if question contains telecom keywords, it's relevant
+    // This saves API calls and prevents false negatives
+    $on_topic_keywords = [
+        // Our carrier partners
+        'spectrum', 'verizon', 'fios', 'optimum', 'at&t', 'att', 'earthlink', 'frontier',
+        't-mobile', 'tmobile', 'lycamobile', 'ultra mobile', 'h2o',
+        // Services
+        'internet', 'broadband', 'wifi', 'wi-fi', 'fiber', 'cable',
+        'tv', 'television', 'channel', 'streaming',
+        'phone', 'mobile', 'landline', 'top-up', 'topup', 'recharge',
+        'adt', 'security', 'alarm',
+        // Equipment
+        'router', 'modem', 'equipment',
+        // Service-related
+        'provider', 'carrier', 'plan', 'package', 'bundle',
+        'install', 'installation', 'setup',
+        'price', 'pricing', 'cost', 'fee', 'deal',
+        'speed', 'mbps',
+        // Company
+        'comfort comm', 'comfort communication',
+    ];
+
+    foreach ($on_topic_keywords as $keyword) {
+        if (strpos($question_lower, $keyword) !== false) {
+            $result['is_relevant'] = true;
+            $result['score'] = 1.0;
+            $result['method'] = 'keyword_whitelist';
+            $result['reason'] = 'Contains telecom keyword: ' . $keyword;
+            return $result;
+        }
+    }
+
     // Step 1: Try vector similarity first (FREE with Gemini)
     $vector_result = chatbot_check_relevance_vector($question);
 
@@ -376,22 +492,23 @@ function chatbot_check_topic_relevance_smart($question) {
         $result['score'] = $vector_result['max_similarity'];
         $result['method'] = 'vector';
 
+        // Relaxed thresholds - Ver 2.5.2
         // Clear cases - no AI needed
-        if ($vector_result['max_similarity'] >= 0.35) {
+        if ($vector_result['max_similarity'] >= 0.30) {
             // Clearly relevant
             $result['is_relevant'] = true;
             $result['reason'] = 'High similarity to FAQ: ' . ($vector_result['best_match_question'] ?? 'unknown');
             return $result;
         }
 
-        if ($vector_result['max_similarity'] < 0.20) {
+        if ($vector_result['max_similarity'] < 0.15) {
             // Clearly off-topic
             $result['is_relevant'] = false;
             $result['reason'] = 'Very low similarity to all FAQs';
             return $result;
         }
 
-        // Borderline case (0.20 - 0.35) - ask AI to verify
+        // Borderline case (0.15 - 0.30) - ask AI to verify
         $result['method'] = 'vector+ai';
         $ai_result = chatbot_verify_relevance_with_ai($question, $vector_result);
 
@@ -822,11 +939,20 @@ function chatbot_should_log_gap_question($question, $faq_confidence, $context = 
         }
     }
 
-    return [
+    // Ver 2.5.2: Include relevance_score in successful validation result
+    $result = [
         'should_log' => true,
         'reason' => 'valid_gap_question',
         'validation' => $validation
     ];
+
+    // Add relevance score if relevance check was performed
+    if (isset($validation['relevance'])) {
+        $result['relevance_score'] = $validation['relevance']['score'] ?? null;
+        $result['relevance_method'] = $validation['relevance']['method'] ?? null;
+    }
+
+    return $result;
 }
 
 /**

@@ -93,8 +93,14 @@ function chatbot_supabase_request($endpoint, $method = 'GET', $data = null, $que
     $url = $base_url . '/' . $endpoint;
 
     // Add query parameters
+    // Note: We build the query string manually because http_build_query() URL-encodes
+    // the values, which breaks Supabase operators like eq.false and is.null
     if (!empty($query_params)) {
-        $url .= '?' . http_build_query($query_params);
+        $params = [];
+        foreach ($query_params as $key => $value) {
+            $params[] = urlencode($key) . '=' . $value; // Don't encode value - Supabase operators need literal dots
+        }
+        $url .= '?' . implode('&', $params);
     }
 
     $headers = [
@@ -581,38 +587,30 @@ function chatbot_supabase_get_gap_questions($limit = 200, $include_resolved = fa
         'limit' => $limit
     ];
 
-    // Build 'or' conditions for nullable boolean fields
-    $or_conditions = [];
-
-    if (!$include_resolved) {
-        $or_conditions[] = 'is_resolved.eq.false';
-        $or_conditions[] = 'is_resolved.is.null';
-    }
-
     // By default, only get questions that haven't been clustered yet
     // This prevents re-analyzing the same questions
     if (!$include_clustered) {
-        // We need a separate AND condition for is_clustered
-        // Supabase doesn't easily combine AND/OR, so we filter is_resolved first
-        // then add is_clustered as a simple filter
-    }
-
-    // For now, just filter out clustered questions with eq.false (most common case)
-    // The UPDATE query should have set them to false, not null
-    if (!$include_clustered) {
         $query_params['is_clustered'] = 'eq.false';
+        // Ver 2.5.2: Also exclude questions that already have a cluster_id
+        // This prevents questions from being re-clustered if is_clustered flag is inconsistent
+        $query_params['cluster_id'] = 'is.null';
     }
 
     if (!$include_resolved) {
         $query_params['is_resolved'] = 'eq.false';
     }
 
+    // Debug: Log query params to verify filters
+    error_log('[Chatbot Gap] get_gap_questions query: is_clustered=' . ($query_params['is_clustered'] ?? 'not set') . ', cluster_id=' . ($query_params['cluster_id'] ?? 'not set') . ', is_resolved=' . ($query_params['is_resolved'] ?? 'not set'));
+
     $result = chatbot_supabase_request('chatbot_gap_questions', 'GET', null, $query_params);
 
     if ($result['success']) {
+        error_log('[Chatbot Gap] get_gap_questions returned ' . count($result['data']) . ' questions');
         return $result['data'];
     }
 
+    error_log('[Chatbot Gap] get_gap_questions failed: ' . ($result['error'] ?? 'unknown error'));
     return [];
 }
 
@@ -630,8 +628,9 @@ function chatbot_supabase_get_gap_questions_count($include_resolved = false, $in
     }
 
     // By default, only count questions that haven't been clustered yet
+    // Ver 2.5.2: Also exclude questions with cluster_id to match get_gap_questions()
     if (!$include_clustered) {
-        $url .= '&is_clustered=eq.false';
+        $url .= '&is_clustered=eq.false&cluster_id=is.null';
     }
 
     $headers = [
@@ -668,6 +667,26 @@ function chatbot_supabase_resolve_gap_question($id) {
     $result = chatbot_supabase_request('chatbot_gap_questions', 'PATCH', $data, $query_params);
 
     return $result['success'];
+}
+
+/**
+ * Mark multiple gap questions as resolved (bulk)
+ * Ver 2.5.2: Added for dismiss action in gap analysis
+ */
+function chatbot_supabase_mark_questions_resolved($question_ids) {
+    if (empty($question_ids)) {
+        return false;
+    }
+
+    $success_count = 0;
+    foreach ($question_ids as $id) {
+        if (chatbot_supabase_resolve_gap_question($id)) {
+            $success_count++;
+        }
+    }
+
+    error_log("[Chatbot Supabase] Marked {$success_count}/" . count($question_ids) . " questions as resolved");
+    return $success_count > 0;
 }
 
 /**
@@ -1413,19 +1432,32 @@ function chatbot_supabase_get_gap_clusters_summary() {
  */
 function chatbot_supabase_mark_questions_clustered($question_ids, $cluster_id) {
     if (empty($question_ids)) {
+        error_log('[Chatbot Gap] mark_questions_clustered called with empty question_ids');
         return false;
     }
 
+    error_log('[Chatbot Gap] Marking ' . count($question_ids) . ' questions as clustered with cluster_id=' . ($cluster_id ?? 'null'));
+
     // Supabase doesn't support IN directly, so we update one by one
+    $success_count = 0;
     foreach ($question_ids as $qid) {
         $query_params = ['id' => 'eq.' . intval($qid)];
         $data = [
-            'is_clustered' => true,
-            'cluster_id' => intval($cluster_id)
+            'is_clustered' => true
         ];
-        chatbot_supabase_request('chatbot_gap_questions', 'PATCH', $data, $query_params);
+        // Ver 2.5.2: Only set cluster_id if provided (null = analyzed but skipped)
+        if ($cluster_id !== null) {
+            $data['cluster_id'] = intval($cluster_id);
+        }
+        $result = chatbot_supabase_request('chatbot_gap_questions', 'PATCH', $data, $query_params);
+        if ($result['success']) {
+            $success_count++;
+        } else {
+            error_log('[Chatbot Gap] Failed to mark question ' . $qid . ' as clustered: ' . json_encode($result));
+        }
     }
 
+    error_log('[Chatbot Gap] Successfully marked ' . $success_count . '/' . count($question_ids) . ' questions as clustered');
     return true;
 }
 

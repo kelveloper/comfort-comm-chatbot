@@ -101,24 +101,20 @@ function chatbot_ajax_analyze_feedback() {
 add_action('wp_ajax_chatbot_analyze_feedback', 'chatbot_ajax_analyze_feedback');
 
 /**
- * Analyze feedback with Gemini AI
+ * Analyze feedback with AI
+ * Ver 2.5.2: Uses steven_bot_get_api_config() for platform-aware API calls
  */
 function chatbot_analyze_feedback_with_ai($feedback_items) {
-    // Get Gemini API key
-    $api_key_encrypted = get_option('chatbot_gemini_api_key', '');
+    // Get API config based on user's platform choice
+    $api_config = steven_bot_get_api_config();
 
-    if (empty($api_key_encrypted)) {
-        error_log('[Chatbot] Gemini API key not set');
+    if (empty($api_config['api_key'])) {
+        error_log('[Chatbot] API key not set for platform: ' . $api_config['platform']);
         return [];
     }
 
-    // Decrypt the API key
-    $api_key = steven_bot_decrypt_api_key($api_key_encrypted, 'chatbot_gemini_api_key');
-
-    if (empty($api_key)) {
-        error_log('[Chatbot] Failed to decrypt Gemini API key');
-        return [];
-    }
+    $api_key = $api_config['api_key'];
+    $platform = $api_config['platform'];
 
     // Load existing FAQs
     $existing_faqs = chatbot_load_existing_faqs();
@@ -179,32 +175,94 @@ IMPORTANT:
 - Be specific and actionable
 - Only respond with valid JSON";
 
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' . $api_key;
+    // Make API call based on platform
+    if ($platform === 'Gemini') {
+        $url = $api_config['base_url'] . '/models/' . $api_config['model'] . ':generateContent?key=' . $api_key;
 
-    $response = wp_remote_post($url, [
-        'headers' => ['Content-Type' => 'application/json'],
-        'body' => json_encode([
-            'contents' => [['parts' => [['text' => $prompt]]]],
-            'generationConfig' => [
+        $response = wp_remote_post($url, [
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => json_encode([
+                'contents' => [['parts' => [['text' => $prompt]]]],
+                'generationConfig' => [
+                    'temperature' => 0.3,
+                    'maxOutputTokens' => 4096
+                ]
+            ]),
+            'timeout' => 45
+        ]);
+
+        if (is_wp_error($response)) {
+            error_log('[Chatbot] Gemini API error: ' . $response->get_error_message());
+            return [];
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (!isset($body['candidates'][0]['content']['parts'][0]['text'])) {
+            error_log('[Chatbot] Unexpected Gemini API response');
+            return [];
+        }
+
+        $ai_response = $body['candidates'][0]['content']['parts'][0]['text'];
+
+    } else {
+        // OpenAI and compatible APIs
+        $url = $api_config['chat_url'];
+        $headers = ['Content-Type' => 'application/json'];
+
+        if ($platform === 'Azure OpenAI') {
+            $headers['api-key'] = $api_key;
+        } elseif ($platform === 'Anthropic') {
+            $headers['x-api-key'] = $api_key;
+            $headers['anthropic-version'] = '2023-06-01';
+        } else {
+            $headers['Authorization'] = 'Bearer ' . $api_key;
+        }
+
+        if ($platform === 'Anthropic') {
+            $post_body = json_encode([
+                'model' => $api_config['model'],
+                'max_tokens' => 4096,
+                'messages' => [['role' => 'user', 'content' => $prompt]]
+            ]);
+        } else {
+            $post_body = json_encode([
+                'model' => $api_config['model'],
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are an expert FAQ analyst. Respond only with valid JSON.'],
+                    ['role' => 'user', 'content' => $prompt]
+                ],
                 'temperature' => 0.3,
-                'maxOutputTokens' => 4096
-            ]
-        ]),
-        'timeout' => 45
-    ]);
+                'max_tokens' => 4096
+            ]);
+        }
 
-    if (is_wp_error($response)) {
-        error_log('[Chatbot] Gemini API error: ' . $response->get_error_message());
-        return [];
+        $response = wp_remote_post($url, [
+            'headers' => $headers,
+            'body' => $post_body,
+            'timeout' => 45
+        ]);
+
+        if (is_wp_error($response)) {
+            error_log('[Chatbot] ' . $platform . ' API error: ' . $response->get_error_message());
+            return [];
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($platform === 'Anthropic') {
+            if (!isset($body['content'][0]['text'])) {
+                error_log('[Chatbot] Unexpected Anthropic API response');
+                return [];
+            }
+            $ai_response = $body['content'][0]['text'];
+        } else {
+            if (!isset($body['choices'][0]['message']['content'])) {
+                error_log('[Chatbot] Unexpected ' . $platform . ' API response');
+                return [];
+            }
+            $ai_response = $body['choices'][0]['message']['content'];
+        }
     }
-
-    $body = json_decode(wp_remote_retrieve_body($response), true);
-    if (!isset($body['candidates'][0]['content']['parts'][0]['text'])) {
-        error_log('[Chatbot] Unexpected Gemini API response');
-        return [];
-    }
-
-    $ai_response = $body['candidates'][0]['content']['parts'][0]['text'];
     $ai_response = preg_replace('/```json\n?/', '', $ai_response);
     $ai_response = preg_replace('/```\n?/', '', $ai_response);
     $ai_response = trim($ai_response);

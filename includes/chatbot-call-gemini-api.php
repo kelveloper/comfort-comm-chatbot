@@ -19,6 +19,12 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     error_log('@@@ CHATBOT: chatbot_call_gemini_api() CALLED with message: ' . $message . ' @@@');
     error_log('CHATBOT: Parameters - user_id: ' . ($user_id ?? 'NULL') . ', page_id: ' . ($page_id ?? 'NULL') . ', session_id: ' . ($session_id ?? 'NULL'));
 
+    // Ver 2.5.2: Save parameters BEFORE global declarations overwrite them
+    $param_session_id = $session_id;
+    $param_user_id = $user_id;
+    $param_page_id = $page_id;
+    $param_assistant_id = $assistant_id;
+
     global $session_id;
     global $user_id;
     global $page_id;
@@ -31,6 +37,20 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     global $voice;
 
     global $errorResponses;
+
+    // Ver 2.5.2: Restore parameters if globals are empty (fixes gap question session_id tracking)
+    if (empty($session_id) && !empty($param_session_id)) {
+        $session_id = $param_session_id;
+    }
+    if (empty($user_id) && !empty($param_user_id)) {
+        $user_id = $param_user_id;
+    }
+    if (empty($page_id) && !empty($param_page_id)) {
+        $page_id = $param_page_id;
+    }
+    if (empty($assistant_id) && !empty($param_assistant_id)) {
+        $assistant_id = $param_assistant_id;
+    }
 
     // Use client_message_id if provided, otherwise generate a unique message UUID for idempotency
     $message_uuid = $client_message_id ? $client_message_id : wp_generate_uuid4();

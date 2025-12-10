@@ -347,7 +347,7 @@ function chatbot_ensure_gap_analysis_scheduled() {
 add_action('admin_init', 'chatbot_ensure_gap_analysis_scheduled');
 
 /**
- * Auto-run gap analysis when there are 30+ unclustered questions
+ * Auto-run gap analysis when there are 50+ unclustered questions
  * Runs on wp_footer (frontend) to avoid slowing down admin
  * Uses transient to prevent running too frequently (max once per hour)
  * Only runs if auto-analysis is enabled in settings
@@ -372,8 +372,8 @@ function chatbot_auto_run_gap_analysis() {
 
     $unclustered_count = chatbot_supabase_get_gap_questions_count(false, false);
 
-    // Only auto-run if 30+ questions waiting
-    if ($unclustered_count < 30) {
+    // Only auto-run if 50+ questions waiting (Ver 2.5.2: increased from 30)
+    if ($unclustered_count < 50) {
         return;
     }
 
