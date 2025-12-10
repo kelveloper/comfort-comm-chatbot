@@ -696,7 +696,7 @@
 
 /* Updated Ver 2.4.9 - Match website blue #1F7CEC */
 #chatgpt-open-btn {
-    transition: width 0.5s ease, height 0.5s ease;
+    transition: width 0.5s ease, height 0.5s ease, transform 0.3s ease, box-shadow 0.3s ease;
     position: fixed;
     bottom: 2%;
     right: 2%;
@@ -714,12 +714,28 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    animation: chatIconPulse 2s ease-in-out infinite;
 }
 
 #chatgpt-open-btn:hover {
     background-color: #1F7CEC;
-    transform: scale(1.05);
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(31, 124, 236, 0.5);
+    animation: none;
 }
+
+/* Pulse animation for chat icon to attract attention */
+@keyframes chatIconPulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 4px 12px rgba(13, 60, 116, 0.4);
+    }
+    50% {
+        transform: scale(1.08);
+        box-shadow: 0 6px 18px rgba(31, 124, 236, 0.6);
+    }
+}
+
 
 #steven-bot-title.title {
     color: #ffffff;

@@ -924,7 +924,7 @@ function steven_bot_shortcode( $atts = [], $content = null, $tag = '' ) {
     // $assistant_details['steven_bot_width_setting'] = $steven_bot_width_setting;
     $kchat_settings['steven_bot_width_setting'] = $steven_bot_width_setting;
 
-    $steven_bot_start_status = esc_attr(get_option('steven_bot_start_status', 'open'));
+    $steven_bot_start_status = esc_attr(get_option('steven_bot_start_status', 'closed'));
     // $assistant_details['steven_bot_start_status'] = $steven_bot_start_status;
     $kchat_settings['steven_bot_start_status'] = $steven_bot_start_status;
 

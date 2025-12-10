@@ -21,9 +21,10 @@ if (!defined('WPINC')) {
  * @param string $user_id User ID
  * @param string $page_id Page ID
  * @param string $session_id Session ID
+ * @param string $preferred_api 'gemini' or 'openai' - which API to use for AI classification
  * @return array|null Returns response array if handled, null to continue to AI
  */
-function chatbot_preprocess_message($message, $user_id = null, $page_id = null, $session_id = null) {
+function chatbot_preprocess_message($message, $user_id = null, $page_id = null, $session_id = null, $preferred_api = 'openai') {
     $message_lower = strtolower(trim($message));
 
     // GREETING DETECTION - Mark for fresh start (no old conversation context)
@@ -34,8 +35,8 @@ function chatbot_preprocess_message($message, $user_id = null, $page_id = null, 
         delete_transient('steven_bot_context_history');
     }
 
-    // OFF-TOPIC FILTER - Block questions unrelated to telecommunications
-    $off_topic_result = chatbot_check_off_topic($message_lower);
+    // ENHANCED OFF-TOPIC FILTER - Keyword check + AI classification - Ver 2.5.0
+    $off_topic_result = chatbot_enhanced_off_topic_check($message, $preferred_api);
     if ($off_topic_result) {
         return $off_topic_result;
     }
@@ -280,4 +281,223 @@ function chatbot_smart_faq_search($message, $session_id = null, $user_id = null,
     // TIER 4: Low Confidence - Don't use FAQ, let AI handle naturally
     error_log('[Chatbot Guardrails] LOW confidence - ignoring FAQ');
     return $result;
+}
+
+/**
+ * AI-powered topic classification using Gemini Flash Lite (fast & cheap)
+ *
+ * Model: gemini-2.0-flash-lite
+ * Cost: ~$0.075 per 1M input tokens (very cheap)
+ * Speed: ~100-200ms
+ *
+ * @param string $message The user's message
+ * @return array ['is_on_topic' => bool, 'confidence' => float, 'reason' => string]
+ */
+function chatbot_gemini_topic_classification($message) {
+    $result = [
+        'is_on_topic' => true,  // Default to on-topic if classification fails
+        'confidence' => 0.5,
+        'reason' => 'default'
+    ];
+
+    // Get Gemini API key
+    $api_key = esc_attr(get_option('chatbot_gemini_api_key', ''));
+    if (empty($api_key)) {
+        error_log('[Chatbot Guardrails] Gemini classification skipped - no API key');
+        return $result;
+    }
+
+    // Use Gemini Flash Lite - fastest and cheapest option
+    $model = 'gemini-2.0-flash-lite';
+    $api_url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$api_key}";
+
+    $classification_prompt = 'You are a topic classifier for a telecommunications company chatbot (Comfort Communication Inc. - internet, TV, phone services).
+
+ONLY these topics are ON-TOPIC:
+- Internet, broadband, WiFi, fiber, cable services
+- TV, streaming, cable packages, channels
+- Phone services (landline, mobile plans, top-up, prepaid recharge)
+- Telecom carriers: Spectrum, Verizon, Optimum, AT&T, T-Mobile, EarthLink, Frontier, Lycamobile, Ultra Mobile, H2O
+- Equipment: routers, modems, set-top boxes
+- ADT Home Security (cameras, alarms, monitoring)
+- Billing, pricing, plans, installation, technical support
+- Company info (store location, hours, contact)
+- General questions about what services we offer or how we can help
+
+EVERYTHING ELSE is OFF-TOPIC (math, science, recipes, crypto, sports, weather, general knowledge, etc.)
+
+IMPORTANT: If the message mentions "Comfort Comm", "Comfort Communication", or asks what we can help with, it is ON-TOPIC.
+
+User message: "' . addslashes($message) . '"
+
+Respond ONLY with JSON (no markdown): {"on_topic": true/false, "confidence": 0.0-1.0, "reason": "2-3 words"}';
+
+    $body = [
+        'contents' => [
+            ['parts' => [['text' => $classification_prompt]]]
+        ],
+        'generationConfig' => [
+            'temperature' => 0.1,
+            'maxOutputTokens' => 50,
+            'topP' => 0.1
+        ]
+    ];
+
+    $start_time = microtime(true);
+
+    $response = wp_remote_post($api_url, [
+        'headers' => ['Content-Type' => 'application/json'],
+        'body' => wp_json_encode($body),
+        'timeout' => 5,
+    ]);
+
+    $elapsed = round((microtime(true) - $start_time) * 1000);
+    error_log("[Chatbot Guardrails] Gemini classification took {$elapsed}ms");
+
+    if (is_wp_error($response)) {
+        error_log('[Chatbot Guardrails] Gemini classification error: ' . $response->get_error_message());
+        return $result;
+    }
+
+    $response_body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (!isset($response_body['candidates'][0]['content']['parts'][0]['text'])) {
+        error_log('[Chatbot Guardrails] Gemini classification - unexpected response');
+        return $result;
+    }
+
+    $ai_response = $response_body['candidates'][0]['content']['parts'][0]['text'];
+    $ai_response = preg_replace('/```json\s*|```\s*/', '', trim($ai_response));
+
+    $classification = json_decode($ai_response, true);
+
+    if (json_last_error() === JSON_ERROR_NONE && isset($classification['on_topic'])) {
+        $result['is_on_topic'] = (bool) $classification['on_topic'];
+        $result['confidence'] = floatval($classification['confidence'] ?? 0.8);
+        $result['reason'] = $classification['reason'] ?? 'gemini_classified';
+
+        error_log('[Chatbot Guardrails] Gemini: ' .
+            ($result['is_on_topic'] ? 'ON-TOPIC' : 'OFF-TOPIC') .
+            ' (' . round($result['confidence'] * 100) . '% - ' . $result['reason'] . ')');
+    }
+
+    return $result;
+}
+
+/**
+ * AI-powered topic classification using OpenAI GPT-4o-mini (fast & cheap)
+ *
+ * Model: gpt-4o-mini
+ * Cost: ~$0.15 per 1M input tokens (very cheap)
+ * Speed: ~150-300ms
+ *
+ * @param string $message The user's message
+ * @return array ['is_on_topic' => bool, 'confidence' => float, 'reason' => string]
+ */
+function chatbot_openai_topic_classification($message) {
+    $result = [
+        'is_on_topic' => true,
+        'confidence' => 0.5,
+        'reason' => 'default'
+    ];
+
+    // Get OpenAI API key
+    $api_key = esc_attr(get_option('chatbot_chatgpt_api_key', ''));
+    if (empty($api_key)) {
+        error_log('[Chatbot Guardrails] OpenAI classification skipped - no API key');
+        return $result;
+    }
+
+    $api_url = 'https://api.openai.com/v1/chat/completions';
+
+    $classification_prompt = 'You are a topic classifier for a telecommunications company chatbot (Comfort Communication Inc. - internet, TV, phone services).
+
+ONLY these topics are ON-TOPIC:
+- Internet, broadband, WiFi, fiber, cable services
+- TV, streaming, cable packages, channels
+- Phone services (landline, mobile plans, top-up, prepaid recharge)
+- Telecom carriers: Spectrum, Verizon, Optimum, AT&T, T-Mobile, EarthLink, Frontier, Lycamobile, Ultra Mobile, H2O
+- Equipment: routers, modems, set-top boxes
+- ADT Home Security (cameras, alarms, monitoring)
+- Billing, pricing, plans, installation, technical support
+- Company info (store location, hours, contact)
+- General questions about what services we offer or how we can help
+
+EVERYTHING ELSE is OFF-TOPIC (math, science, recipes, crypto, sports, weather, general knowledge, etc.)
+
+IMPORTANT: If the message mentions "Comfort Comm", "Comfort Communication", or asks what we can help with, it is ON-TOPIC.
+
+Respond ONLY with JSON: {"on_topic": true/false, "confidence": 0.0-1.0, "reason": "2-3 words"}';
+
+    $body = [
+        'model' => 'gpt-4o-mini',
+        'messages' => [
+            ['role' => 'system', 'content' => $classification_prompt],
+            ['role' => 'user', 'content' => $message]
+        ],
+        'temperature' => 0.1,
+        'max_tokens' => 50
+    ];
+
+    $start_time = microtime(true);
+
+    $response = wp_remote_post($api_url, [
+        'headers' => [
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $api_key
+        ],
+        'body' => wp_json_encode($body),
+        'timeout' => 5,
+    ]);
+
+    $elapsed = round((microtime(true) - $start_time) * 1000);
+    error_log("[Chatbot Guardrails] OpenAI classification took {$elapsed}ms");
+
+    if (is_wp_error($response)) {
+        error_log('[Chatbot Guardrails] OpenAI classification error: ' . $response->get_error_message());
+        return $result;
+    }
+
+    $response_body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (!isset($response_body['choices'][0]['message']['content'])) {
+        error_log('[Chatbot Guardrails] OpenAI classification - unexpected response');
+        return $result;
+    }
+
+    $ai_response = trim($response_body['choices'][0]['message']['content']);
+    $ai_response = preg_replace('/```json\s*|```\s*/', '', $ai_response);
+
+    $classification = json_decode($ai_response, true);
+
+    if (json_last_error() === JSON_ERROR_NONE && isset($classification['on_topic'])) {
+        $result['is_on_topic'] = (bool) $classification['on_topic'];
+        $result['confidence'] = floatval($classification['confidence'] ?? 0.8);
+        $result['reason'] = $classification['reason'] ?? 'openai_classified';
+
+        error_log('[Chatbot Guardrails] OpenAI: ' .
+            ($result['is_on_topic'] ? 'ON-TOPIC' : 'OFF-TOPIC') .
+            ' (' . round($result['confidence'] * 100) . '% - ' . $result['reason'] . ')');
+    }
+
+    return $result;
+}
+
+/**
+ * Enhanced off-topic check - keyword filter only
+ * AI classification removed due to false positives on follow-up questions
+ *
+ * The main AI model's system prompt handles nuanced off-topic detection.
+ * This function only blocks obvious off-topic keywords.
+ *
+ * @param string $message The user's message
+ * @param string $preferred_api Unused, kept for backward compatibility
+ * @return array|null Response if off-topic, null to continue
+ */
+function chatbot_enhanced_off_topic_check($message, $preferred_api = 'gemini') {
+    $message_lower = strtolower(trim($message));
+
+    // Only use keyword-based off-topic check
+    // The AI's system prompt handles nuanced cases
+    return chatbot_check_off_topic($message_lower);
 }

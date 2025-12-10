@@ -1,6 +1,6 @@
 <?php
 /**
- * Steve-Bot - Knowledge Base - TF-IDF Analyzer
+ * Steven-Bot - Knowledge Base - TF-IDF Analyzer
  *
  * This file contains the code for the Chatbot Knowledge Base analysis.
  * 

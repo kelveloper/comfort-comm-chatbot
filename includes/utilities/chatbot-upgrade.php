@@ -79,6 +79,11 @@ function steven_bot_upgrade() {
         update_option('chatbot_greeting_updated_v25', true);
     }
 
+    // Ver 2.5.1: Enable conversation logging by default
+    if (!get_option('steven_bot_enable_conversation_logging')) {
+        update_option('steven_bot_enable_conversation_logging', 'On');
+    }
+
     // Removed obsolete or replaced options
     if ( esc_attr(get_option( 'steven_bot_crawler_status' )) ) {
         delete_option( 'steven_bot_crawler_status' );

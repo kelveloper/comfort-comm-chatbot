@@ -1,6 +1,6 @@
 <?php
 /**
- * Steve-Bot - Knowledge Base - Settings
+ * Steven-Bot - Knowledge Base - Settings
  *
  * This file contains the code for the Chatbot settings page.
  * These are all the options for the Knowledge Base.
@@ -130,13 +130,13 @@ function steven_bot_kn_results_callback($run_scanner) {
 function steven_bot_knowledge_navigator_section_callback($args) {
     ?>
         <div class="wrap">
-            <p>The <b>Knowledge Base</b> powers Steve-Bot's intelligent FAQ system using AI-driven semantic search. Instead of basic keyword matching, it understands the meaning behind questions to deliver accurate, contextual answers.</p>
+            <p>The <b>Knowledge Base</b> powers Steven's intelligent FAQ system using AI-driven semantic search. Instead of basic keyword matching, it understands the meaning behind questions to deliver accurate, contextual answers.</p>
             <p>Your FAQs are stored in a Supabase vector database with AI-generated embeddings. When a visitor asks a question, the system finds the most semantically similar FAQ - even if the wording is completely different. This means "What are your hours?" matches "When are you open?" naturally.</p>
             <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 15px 0;">
                 <strong>How it works:</strong>
                 <ol style="margin: 10px 0 0 20px;">
                     <li><strong>Add FAQs:</strong> Create question-answer pairs in the FAQ section below</li>
-                    <li><strong>AI Embedding:</strong> Each FAQ is converted to a vector embedding using Gemini AI</li>
+                    <li><strong>AI Embedding:</strong> Each FAQ is converted to a vector embedding using your configured AI platform</li>
                     <li><strong>Semantic Search:</strong> Visitor questions are matched by meaning, not just keywords</li>
                     <li><strong>Confidence Scoring:</strong> High-confidence matches return FAQ answers directly; lower matches provide context to the AI</li>
                 </ol>

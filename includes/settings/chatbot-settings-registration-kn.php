@@ -1,6 +1,6 @@
 <?php
 /**
- * Steve-Bot - Registration - Knowledge Base Settings - Ver 2.0.0
+ * Steven-Bot - Registration - Knowledge Base Settings - Ver 2.0.0
  *
  * This file contains the code for the Chatbot settings page.
  * It handles the registration of settings and other parameters.
@@ -227,28 +227,14 @@ function steven_bot_faq_import_section_callback() {
     </form><!-- Close parent settings form to prevent nesting -->
 
     <div class="wrap">
-        <p>Manage your FAQ entries. The chatbot uses semantic vector search to match questions naturally.</p>
-
         <?php if ($supabase_configured): ?>
-        <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
-            <strong>Vector Database:</strong> Connected to Supabase
-            <span style="color: #0c5460;"> - Using AI-powered semantic search</span>
-        </div>
+        <p>Manage your FAQ entries. The chatbot uses AI-powered semantic vector search to match questions naturally.</p>
         <?php else: ?>
         <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
             <strong>Vector Database:</strong> Not configured
             <span style="color: #721c24;"> - Go to Steven-Bot → Setup and enter your Supabase URL and Anon Key</span>
         </div>
         <?php endif; ?>
-
-        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-            <strong>Current FAQ Entries:</strong> <?php echo esc_html($faq_count); ?>
-            <?php if ($faq_count > 0): ?>
-                <span style="color: #155724;"> - Ready to use</span>
-            <?php else: ?>
-                <span style="color: #856404;"> - Add FAQs to get started</span>
-            <?php endif; ?>
-        </div>
 
         <button type="button" id="chatbot-faq-add-btn" class="button button-primary" style="margin-bottom: 20px;">
             Add New FAQ
@@ -264,26 +250,25 @@ function steven_bot_faq_import_section_callback() {
                 sort($categories);
                 ?>
 
-                <!-- Category Filter & Pagination Controls (Ver 2.5.0) -->
+                <!-- Search, Category Filter & Pagination Controls (Ver 2.5.1) -->
                 <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                    <div>
-                        <label for="chatbot-faq-filter"><strong>Filter by Category:</strong></label>
-                        <select id="chatbot-faq-filter" style="margin-left: 10px;">
-                            <option value="">All Categories (<?php echo count($faqs); ?>)</option>
-                            <?php foreach ($categories as $cat): ?>
-                                <option value="<?php echo esc_attr($cat); ?>"><?php echo esc_html($cat); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <span id="chatbot-faq-filter-count" style="margin-left: 10px; color: #666;"></span>
+                    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                        <div>
+                            <label for="chatbot-faq-search"><strong>Search:</strong></label>
+                            <input type="text" id="chatbot-faq-search" placeholder="Search questions..." style="margin-left: 10px; padding: 5px 10px; width: 200px;">
+                        </div>
+                        <div>
+                            <label for="chatbot-faq-filter"><strong>Category:</strong></label>
+                            <select id="chatbot-faq-filter" style="margin-left: 10px;">
+                                <option value="">All (<?php echo count($faqs); ?>)</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?php echo esc_attr($cat); ?>"><?php echo esc_html($cat); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <span id="chatbot-faq-filter-count" style="color: #666;"></span>
                     </div>
                     <div id="chatbot-faq-pagination" style="display: flex; align-items: center; gap: 10px;">
-                        <label for="chatbot-faq-per-page"><strong>Per page:</strong></label>
-                        <select id="chatbot-faq-per-page" style="width: 70px;">
-                            <option value="25">25</option>
-                            <option value="50" selected>50</option>
-                            <option value="100">100</option>
-                            <option value="all">All</option>
-                        </select>
                         <button type="button" id="chatbot-faq-prev" class="button button-small" disabled>&laquo; Prev</button>
                         <span id="chatbot-faq-page-info" style="min-width: 100px; text-align: center;">Page 1 of 1</span>
                         <button type="button" id="chatbot-faq-next" class="button button-small">Next &raquo;</button>
@@ -305,9 +290,9 @@ function steven_bot_faq_import_section_callback() {
                         $faq_number = 1;
                         foreach ($faqs as $faq) :
                         ?>
-                        <tr data-faq-id="<?php echo esc_attr($faq->id); ?>" data-faq-number="<?php echo $faq_number; ?>" data-category="<?php echo esc_attr($faq->category); ?>">
+                        <tr data-faq-id="<?php echo esc_attr($faq->id); ?>" data-faq-number="<?php echo $faq_number; ?>" data-category="<?php echo esc_attr($faq->category); ?>" data-question="<?php echo esc_attr(strtolower($faq->question)); ?>">
                             <td><strong><?php echo $faq_number; ?></strong></td>
-                            <td><?php echo esc_html($faq->question); ?></td>
+                            <td class="faq-question-cell"><?php echo esc_html($faq->question); ?></td>
                             <td><?php echo esc_html(substr($faq->answer, 0, 150)); ?><?php echo strlen($faq->answer) > 150 ? '...' : ''; ?></td>
                             <td><span style="background: #e0e0e0; padding: 2px 8px; border-radius: 3px; font-size: 12px;"><?php echo esc_html($faq->category); ?></span></td>
                             <td>
@@ -328,32 +313,68 @@ function steven_bot_faq_import_section_callback() {
 
                 <!-- Ver 2.5.0: Bottom pagination controls -->
                 <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 15px; padding: 10px 0; border-top: 1px solid #e2e8f0;">
-                    <label for="chatbot-faq-per-page-bottom"><strong>Per page:</strong></label>
-                    <select id="chatbot-faq-per-page-bottom" style="width: 70px;">
-                        <option value="25">25</option>
-                        <option value="50" selected>50</option>
-                        <option value="100">100</option>
-                        <option value="all">All</option>
-                    </select>
                     <button type="button" id="chatbot-faq-prev-bottom" class="button button-small" disabled>&laquo; Prev</button>
                     <span id="chatbot-faq-page-info-bottom" style="min-width: 100px; text-align: center;">Page 1 of 1</span>
                     <button type="button" id="chatbot-faq-next-bottom" class="button button-small">Next &raquo;</button>
                 </div>
 
+                <style>
+                    .faq-highlight { background-color: #fff59d; }
+                </style>
                 <script>
-                // Category filter and pagination functionality (Ver 2.5.0)
+                // Search, Category filter and pagination functionality (Ver 2.5.1)
                 jQuery(document).ready(function($) {
                     let currentPage = 1;
-                    let perPage = 50;
+                    let perPage = 20;
                     let filteredRows = [];
+                    let searchTerm = '';
+
+                    // Store original question text for each row
+                    $('#chatbot-faq-table tbody tr').each(function() {
+                        const $cell = $(this).find('.faq-question-cell');
+                        $cell.data('original-text', $cell.text());
+                    });
+
+                    function escapeRegex(string) {
+                        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    }
+
+                    function highlightText(text, term) {
+                        if (!term) return text;
+                        const regex = new RegExp('(' + escapeRegex(term) + ')', 'gi');
+                        return text.replace(regex, '<span class="faq-highlight">$1</span>');
+                    }
 
                     function getFilteredRows() {
                         const category = $('#chatbot-faq-filter').val();
+                        searchTerm = $('#chatbot-faq-search').val().toLowerCase().trim();
                         filteredRows = [];
+
                         $('#chatbot-faq-table tbody tr').each(function() {
-                            const rowCategory = $(this).data('category');
-                            if (!category || rowCategory === category) {
-                                filteredRows.push($(this));
+                            const $row = $(this);
+                            const rowCategory = $row.data('category');
+                            const rowQuestion = $row.data('question') || '';
+                            const $cell = $row.find('.faq-question-cell');
+                            const originalText = $cell.data('original-text') || $cell.text();
+
+                            // Check category filter
+                            const categoryMatch = !category || rowCategory === category;
+
+                            // Check search filter (question only)
+                            const searchMatch = !searchTerm || rowQuestion.includes(searchTerm);
+
+                            if (categoryMatch && searchMatch) {
+                                filteredRows.push($row);
+
+                                // Apply or remove highlighting
+                                if (searchTerm) {
+                                    $cell.html(highlightText(originalText, searchTerm));
+                                } else {
+                                    $cell.text(originalText);
+                                }
+                            } else {
+                                // Reset text for hidden rows
+                                $cell.text(originalText);
                             }
                         });
                         return filteredRows;
@@ -362,7 +383,7 @@ function steven_bot_faq_import_section_callback() {
                     function updatePagination() {
                         const rows = getFilteredRows();
                         const totalRows = rows.length;
-                        const totalPages = perPage === 'all' ? 1 : Math.ceil(totalRows / perPage);
+                        const totalPages = Math.ceil(totalRows / perPage) || 1;
 
                         // Clamp current page
                         if (currentPage > totalPages) currentPage = totalPages;
@@ -372,8 +393,8 @@ function steven_bot_faq_import_section_callback() {
                         $('#chatbot-faq-table tbody tr').hide();
 
                         // Show rows for current page
-                        const startIdx = perPage === 'all' ? 0 : (currentPage - 1) * perPage;
-                        const endIdx = perPage === 'all' ? totalRows : Math.min(startIdx + perPage, totalRows);
+                        const startIdx = (currentPage - 1) * perPage;
+                        const endIdx = Math.min(startIdx + perPage, totalRows);
 
                         for (let i = startIdx; i < endIdx; i++) {
                             rows[i].show();
@@ -383,38 +404,37 @@ function steven_bot_faq_import_section_callback() {
                         let pageText = '';
                         if (totalRows === 0) {
                             pageText = 'No results';
-                        } else if (perPage === 'all') {
-                            pageText = 'Showing all ' + totalRows;
                         } else {
                             pageText = 'Page ' + currentPage + ' of ' + totalPages;
                         }
                         $('#chatbot-faq-page-info, #chatbot-faq-page-info-bottom').text(pageText);
 
                         // Update button states (both top and bottom)
-                        $('#chatbot-faq-prev, #chatbot-faq-prev-bottom').prop('disabled', currentPage <= 1 || perPage === 'all');
-                        $('#chatbot-faq-next, #chatbot-faq-next-bottom').prop('disabled', currentPage >= totalPages || perPage === 'all');
-
-                        // Sync per-page dropdowns
-                        $('#chatbot-faq-per-page, #chatbot-faq-per-page-bottom').val(perPage === 'all' ? 'all' : perPage);
+                        $('#chatbot-faq-prev, #chatbot-faq-prev-bottom').prop('disabled', currentPage <= 1);
+                        $('#chatbot-faq-next, #chatbot-faq-next-bottom').prop('disabled', currentPage >= totalPages);
 
                         // Update filter count
                         const filterVal = $('#chatbot-faq-filter').val();
-                        if (filterVal) {
+                        const searchVal = $('#chatbot-faq-search').val().trim();
+                        if (filterVal || searchVal) {
                             $('#chatbot-faq-filter-count').text('Showing ' + totalRows + ' FAQs');
                         } else {
                             $('#chatbot-faq-filter-count').text('');
                         }
                     }
 
-                    // Category filter change
-                    $('#chatbot-faq-filter').on('change', function() {
-                        currentPage = 1;
-                        updatePagination();
+                    // Search input (with debounce)
+                    let searchTimeout;
+                    $('#chatbot-faq-search').on('input', function() {
+                        clearTimeout(searchTimeout);
+                        searchTimeout = setTimeout(function() {
+                            currentPage = 1;
+                            updatePagination();
+                        }, 200);
                     });
 
-                    // Per page change (both top and bottom)
-                    $('#chatbot-faq-per-page, #chatbot-faq-per-page-bottom').on('change', function() {
-                        perPage = $(this).val() === 'all' ? 'all' : parseInt($(this).val());
+                    // Category filter change
+                    $('#chatbot-faq-filter').on('change', function() {
                         currentPage = 1;
                         updatePagination();
                     });

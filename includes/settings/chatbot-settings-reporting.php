@@ -570,8 +570,8 @@ function steven_bot_reporting_period_callback($args) {
 
 // Conversation Logging - Ver 1.7.6
 function  steven_bot_enable_conversation_logging_callback($args) {
-    // Get the saved steven_bot_enable_conversation_logging value or default to "Off"
-    $output_choice = esc_attr(get_option('steven_bot_enable_conversation_logging', 'Off'));
+    // Get the saved steven_bot_enable_conversation_logging value or default to "On"
+    $output_choice = esc_attr(get_option('steven_bot_enable_conversation_logging', 'On'));
     // DIAG - Log the output choice
     // back_trace( 'NOTICE', 'steven_bot_enable_conversation_logging' . $output_choice);
     ?>
@@ -1082,10 +1082,22 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
         </div>
 
         <!-- Run Analysis Button -->
-        <?php $auto_analysis_enabled = get_option('chatbot_gap_auto_analysis_enabled', 'off'); ?>
+        <?php
+        $auto_analysis_enabled = get_option('chatbot_gap_auto_analysis_enabled', 'off');
+        $min_unique_users = intval(get_option('chatbot_gap_min_unique_users', 3));
+        ?>
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div style="font-size: 12px; color: #6b7280;">
                 <span>Gap questions: <strong><?php echo $unclustered_gaps; ?></strong> waiting</span>
+                <span style="margin: 0 10px;">|</span>
+                <span>Min. unique users:
+                    <select id="min_unique_users_select" style="padding: 2px 5px; font-size: 12px; border-radius: 4px; border: 1px solid #d1d5db;">
+                        <?php for ($i = 1; $i <= 10; $i++) : ?>
+                            <option value="<?php echo $i; ?>" <?php selected($min_unique_users, $i); ?>><?php echo $i; ?></option>
+                        <?php endfor; ?>
+                    </select>
+                    <span style="font-size: 11px; color: #9ca3af;">(clusters need this many different people asking)</span>
+                </span>
                 <span style="margin: 0 10px;">|</span>
                 <span>Auto-analysis:
                     <label style="cursor: pointer; margin-left: 5px;">
@@ -1632,6 +1644,20 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
                     alert('Error: ' + (response.data || 'Failed to save setting'));
                     // Revert checkbox
                     $('#auto_analysis_toggle').prop('checked', isEnabled !== 'on');
+                }
+            });
+        });
+
+        // Ver 2.5.1: Save min unique users setting
+        $('#min_unique_users_select').on('change', function() {
+            const value = $(this).val();
+            $.post(ajaxurl, {
+                action: 'chatbot_save_min_unique_users',
+                value: value,
+                nonce: '<?php echo wp_create_nonce('chatbot_gap_analysis'); ?>'
+            }, function(response) {
+                if (!response.success) {
+                    alert('Error: ' + (response.data || 'Failed to save setting'));
                 }
             });
         });

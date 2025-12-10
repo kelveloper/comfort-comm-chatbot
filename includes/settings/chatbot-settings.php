@@ -83,7 +83,7 @@ function steven_bot_settings_page() {
 
     ?>
     <div id="steven-bot-settings" class="wrap">
-        <h1><span class="dashicons dashicons-format-chat" style="font-size: 25px;"></span> Steve-Bot</h1>
+        <h1><span class="dashicons dashicons-format-chat" style="font-size: 25px;"></span> Steven-Bot</h1>
 
        <script>
             window.onload = function() {
@@ -124,7 +124,7 @@ function steven_bot_settings_page() {
        <h2 class="nav-tab-wrapper">
             <a href="?page=steven-bot&tab=setup" class="nav-tab <?php echo $active_tab == 'setup' || $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Setup</a>
             <a href="?page=steven-bot&tab=kn_acquire" class="nav-tab <?php echo $active_tab == 'kn_acquire' ? 'nav-tab-active' : ''; ?>">Knowledge Base</a>
-            <a href="?page=steven-bot&tab=analytics_feedback" class="nav-tab <?php echo $active_tab == 'analytics_feedback' ? 'nav-tab-active' : ''; ?>">Analytics & Feedback</a>
+            <a href="?page=steven-bot&tab=analytics_feedback" class="nav-tab <?php echo $active_tab == 'analytics_feedback' ? 'nav-tab-active' : ''; ?>">Analytics</a>
             <a href="?page=steven-bot&tab=support" class="nav-tab <?php echo $active_tab == 'support' ? 'nav-tab-active' : ''; ?>">Support</a>
        </h2>
 
@@ -517,8 +517,8 @@ function steven_bot_settings_page() {
             }
 
             // Only show submit button for tabs that have settings to save
-            // Exclude: setup (has its own), analytics_feedback (read-only dashboard)
-            if ($active_tab !== 'setup' && $active_tab !== 'general' && $active_tab !== 'analytics_feedback') {
+            // Exclude: setup (has its own), analytics_feedback (read-only dashboard), kn_acquire (FAQs save via AJAX)
+            if ($active_tab !== 'setup' && $active_tab !== 'general' && $active_tab !== 'analytics_feedback' && $active_tab !== 'kn_acquire') {
                 submit_button('Save Settings');
             }
             ?>

@@ -1,6 +1,6 @@
 <?php
 /**
- * Steve-Bot - Settings - Analytics & Feedback (NEW Merged Version)
+ * Steven-Bot - Settings - Analytics & Feedback (NEW Merged Version)
  *
  * Merges Analytics and Reporting tabs with consistent styling from Analytics
  *

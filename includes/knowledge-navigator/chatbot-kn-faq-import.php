@@ -1,6 +1,6 @@
 <?php
 /**
- * Steve-Bot - Knowledge Base - FAQ Management
+ * Steven-Bot - Knowledge Base - FAQ Management
  *
  * This file handles FAQ management using Supabase vector database.
  * All FAQ CRUD operations go directly to Supabase - no local JSON storage.

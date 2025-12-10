@@ -224,8 +224,8 @@ function create_conversation_logging_table() {
 // Updated Ver 2.4.8: Uses Supabase only
 function append_message_to_conversation_log($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message) {
 
-    // Check if conversation logging is enabled
-    if (esc_attr(get_option('steven_bot_enable_conversation_logging')) !== 'On') {
+    // Check if conversation logging is enabled (default: On)
+    if (esc_attr(get_option('steven_bot_enable_conversation_logging', 'On')) !== 'On') {
         // Logging is disabled, so just return without doing anything
         return;
     }

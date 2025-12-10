@@ -1,6 +1,6 @@
 <?php
 /**
- * Steve-Bot - Supabase Database Settings
+ * Steven-Bot - Supabase Database Settings
  *
  * This file handles the Supabase/PostgreSQL connection settings UI.
  * Allows users to configure database connection from admin panel.
@@ -73,7 +73,7 @@ function chatbot_supabase_connection_section_callback() {
     ?>
     <div class="wrap">
         <p>Configure your Supabase database connection. You can find these values in your <a href="https://supabase.com/dashboard" target="_blank">Supabase Dashboard</a>.</p>
-        <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin: 15px 0;">
+        <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 15px 0; color: #0c5460;">
             <strong>How to get your credentials:</strong>
             <ol style="margin: 10px 0 0 20px;">
                 <li>Go to your <a href="https://supabase.com/dashboard" target="_blank">Supabase Dashboard</a></li>

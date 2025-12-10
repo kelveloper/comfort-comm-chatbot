@@ -132,8 +132,18 @@ function chatbot_run_gap_analysis($force = false, $single_batch = false) {
 /**
  * Save a gap cluster to Supabase (create or update)
  * Ver 2.5.0: Extracted for cleaner batch processing
+ * Ver 2.5.1: Added minimum unique users filter
  */
 function chatbot_save_gap_cluster($cluster) {
+    // Ver 2.5.1: Check minimum unique users requirement
+    $min_unique_users = intval(get_option('chatbot_gap_min_unique_users', 3));
+    $unique_user_count = isset($cluster['unique_user_count']) ? intval($cluster['unique_user_count']) : 0;
+
+    if ($unique_user_count < $min_unique_users) {
+        error_log("[Chatbot Gap Analysis] Cluster '{$cluster['name']}' skipped - only {$unique_user_count} unique users (need {$min_unique_users})");
+        return false;
+    }
+
     // Calculate priority score based on question count and recency
     $priority = chatbot_calculate_cluster_priority($cluster);
 
@@ -690,6 +700,20 @@ Example:
             }
         }
 
+        // Ver 2.5.1: Count unique users for this cluster
+        $unique_users = [];
+        foreach ($cluster_data['question_numbers'] as $num) {
+            $idx = $num - 1;
+            if (isset($questions[$idx])) {
+                // Use session_id as unique identifier (works for both logged-in and anonymous users)
+                $user_key = $questions[$idx]['session_id'] ?? $questions[$idx]['user_id'] ?? null;
+                if ($user_key) {
+                    $unique_users[$user_key] = true;
+                }
+            }
+        }
+        $unique_user_count = count($unique_users);
+
         if (count($question_ids) >= 2) {
             $cluster = [
                 'name' => $cluster_data['name'],
@@ -698,7 +722,8 @@ Example:
                 'question_ids' => $question_ids,
                 'sample_questions' => array_slice($sample_questions, 0, 5), // Keep up to 5 samples
                 'sample_contexts' => array_slice($sample_contexts, 0, 5), // Ver 2.5.0: Keep matching contexts
-                'action_type' => $cluster_data['action_type'] ?? 'create'
+                'action_type' => $cluster_data['action_type'] ?? 'create',
+                'unique_user_count' => $unique_user_count // Ver 2.5.1: Track unique users
             ];
 
             // Add action-specific data
@@ -1120,6 +1145,32 @@ function chatbot_ajax_toggle_auto_analysis() {
     ]);
 }
 add_action('wp_ajax_chatbot_toggle_auto_analysis', 'chatbot_ajax_toggle_auto_analysis');
+
+// AJAX: Save min unique users setting - Ver 2.5.1
+function chatbot_ajax_save_min_unique_users() {
+    check_ajax_referer('chatbot_gap_analysis', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Unauthorized');
+    }
+
+    $value = isset($_POST['value']) ? intval($_POST['value']) : 3;
+
+    // Validate range (1-10)
+    if ($value < 1 || $value > 10) {
+        wp_send_json_error('Invalid value - must be between 1 and 10');
+    }
+
+    update_option('chatbot_gap_min_unique_users', $value);
+
+    error_log("[Chatbot Gap Analysis] Min unique users set to: " . $value);
+
+    wp_send_json_success([
+        'message' => 'Setting saved',
+        'value' => $value
+    ]);
+}
+add_action('wp_ajax_chatbot_save_min_unique_users', 'chatbot_ajax_save_min_unique_users');
 
 // AJAX: Analyze Last 4 Conversations - Ver 2.4.2
 function chatbot_ajax_analyze_last_10_gaps() {

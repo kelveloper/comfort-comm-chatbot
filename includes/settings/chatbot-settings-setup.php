@@ -1,6 +1,6 @@
 <?php
 /**
- * Steve-Bot - Setup/Onboarding Settings
+ * Steven-Bot - Setup/Onboarding Settings
  *
  * This file handles the unified setup page with AI Platform selection,
  * API key configuration, and database connection - all with inline testing.
@@ -282,58 +282,23 @@ function chatbot_setup_page_content() {
             cursor: not-allowed;
         }
 
-        /* Sticky save reminder bar */
-        .save-reminder-bar {
-            position: sticky;
-            top: 32px; /* Below WP admin bar */
-            z-index: 100;
-            background: linear-gradient(135deg, #0073aa 0%, #005a87 100%);
-            color: #fff;
-            padding: 12px 20px;
-            margin: -15px -15px 20px -15px;
-            display: none;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        }
-        .save-reminder-bar.visible {
-            display: flex;
-        }
-        .save-reminder-bar .reminder-text {
-            font-size: 14px;
-            font-weight: 500;
-        }
-        .save-reminder-bar .save-now-btn {
-            background: #fff;
-            color: #0073aa;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 4px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 13px;
-        }
-        .save-reminder-bar .save-now-btn:hover {
-            background: #f0f0f0;
-        }
-
         .info-box {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
             padding: 15px;
             border-radius: 5px;
             margin: 15px 0;
+            color: #0c5460;
+        }
+        .info-box.warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
         }
         .info-box ol {
             margin: 10px 0 0 20px;
         }
     </style>
-
-    <!-- Sticky Save Reminder Bar -->
-    <div class="save-reminder-bar" id="save-reminder-bar">
-        <span class="reminder-text">✓ Test passed! Click <strong>Save Settings</strong> to apply your changes.</span>
-        <button type="button" class="save-now-btn" onclick="document.getElementById('setup-save-btn').click(); document.getElementById('setup-save-btn').scrollIntoView({behavior: 'smooth'});">Save Settings Now</button>
-    </div>
 
     <!-- AI Platform Section -->
     <div class="setup-section" id="ai-section">
@@ -475,7 +440,7 @@ function chatbot_setup_page_content() {
 
         <!-- SQL Setup section (shown when tables are missing) -->
         <div id="sql-setup-container" style="display: none; margin-top: 20px;">
-            <div class="info-box" style="background: #fff3cd; border-color: #ffc107;">
+            <div class="info-box warning">
                 <strong>⚠️ Missing Tables Detected</strong>
                 <p>Some required tables don't exist in your Supabase database. Follow these steps:</p>
                 <ol>
@@ -549,7 +514,7 @@ function chatbot_setup_page_content() {
 
             // Show warning about re-embedding FAQs
             if (!$('#platform-switch-warning').length) {
-                $('#ai-section').append('<div id="platform-switch-warning" class="info-box" style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; margin-top: 15px; border-radius: 4px;"><strong>⚠️ Important:</strong> After switching platforms and saving, go to the <strong>Database</strong> tab and click <strong>"Migrate FAQs"</strong> to re-generate embeddings with the new AI platform. This ensures accurate FAQ matching.</div>');
+                $('#ai-section').append('<div id="platform-switch-warning" class="info-box warning"><strong>⚠️ Important:</strong> After switching platforms and saving, go to the <strong>Database</strong> tab and click <strong>"Migrate FAQs"</strong> to re-generate embeddings with the new AI platform. This ensures accurate FAQ matching.</div>');
             }
         });
 
@@ -798,27 +763,19 @@ function chatbot_setup_page_content() {
         function updateSaveButton() {
             var $btn = $('#setup-save-btn');
             var $status = $('#validation-status');
-            var $saveReminder = $('#save-reminder-bar');
 
             if (aiTestPassed && dbTestPassed) {
                 $btn.prop('disabled', false);
                 $status.html('<span class="status-icon success">✓</span> All connections verified - ready to save');
-                // Show sticky save reminder
-                $saveReminder.addClass('visible');
             } else if (aiTestPassed || dbTestPassed) {
                 $btn.prop('disabled', false);
                 var missing = [];
                 if (!aiTestPassed) missing.push('AI API');
                 if (!dbTestPassed) missing.push('Database');
                 $status.html('<span class="status-icon pending">●</span> Test ' + missing.join(' and ') + ' connection');
-                // Show sticky save reminder if AI test passed (most important)
-                if (aiTestPassed) {
-                    $saveReminder.addClass('visible');
-                }
             } else {
                 $btn.prop('disabled', false);
                 $status.html('<span class="status-icon pending">●</span> Test your connections before saving');
-                $saveReminder.removeClass('visible');
             }
         }
 

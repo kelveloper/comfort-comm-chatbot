@@ -35,12 +35,12 @@ function chatbot_vector_check_status() {
     $config = function_exists('chatbot_supabase_get_config') ? chatbot_supabase_get_config() : [];
 
     if (empty($config['project_url']) && empty($config['db_host'])) {
-        $status['errors'][] = 'Supabase not configured. Go to Steve-Bot → Database to configure.';
+        $status['errors'][] = 'Supabase not configured. Go to Steven-Bot → Setup to configure.';
         return $status;
     }
 
     if (empty($config['anon_key'])) {
-        $status['errors'][] = 'Supabase Anon Key not configured. Go to Steve-Bot → Database to configure.';
+        $status['errors'][] = 'Supabase Anon Key not configured. Go to Steven-Bot → Setup to configure.';
         return $status;
     }
     $status['configured'] = true;

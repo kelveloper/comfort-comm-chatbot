@@ -61,37 +61,33 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
         delete_transient('steven_bot_context_history');
     }
 
-    // OFF-TOPIC FILTER - Block questions unrelated to telecommunications - Ver 2.4.4
-    $off_topic_keywords = [
-        // Cryptocurrency
-        'bitcoin', 'crypto', 'cryptocurrency', 'ethereum', 'blockchain', 'nft', 'dogecoin',
-        // Finance (non-telecom)
-        'stock', 'stocks', 'forex', 'trading', 'investment', 'invest in',
-        // Weather
-        'weather', 'forecast', 'temperature', 'rain', 'snow', 'sunny',
-        // Sports
-        'football', 'basketball', 'baseball', 'soccer', 'nfl', 'nba', 'super bowl', 'world cup',
-        // Politics
-        'president', 'election', 'vote', 'congress', 'senate', 'political',
-        // Religion
-        'god', 'jesus', 'allah', 'buddha', 'bible', 'quran', 'church', 'mosque', 'temple',
-        // Entertainment
-        'movie', 'actor', 'actress', 'celebrity', 'netflix', 'spotify',
-        // General knowledge (that's clearly not telecom)
-        'recipe', 'cooking', 'restaurant', 'hotel', 'flight', 'vacation',
-        // Health
-        'doctor', 'hospital', 'medicine', 'sick', 'disease', 'covid',
-        // Education (non-telecom)
-        'homework', 'essay', 'school assignment', 'university application',
-    ];
-
-    foreach ($off_topic_keywords as $keyword) {
-        if (strpos($message_lower, $keyword) !== false) {
-            error_log('🚫 OFF-TOPIC QUESTION BLOCKED: ' . $message . ' (keyword: ' . $keyword . ')');
-            return "I'm here to help with internet, phone, and TV services from Comfort Comm. " .
-                   "For questions about other topics, I'd recommend searching online. " .
-                   "How can I assist you with your telecommunications needs today? " .
-                   "Call us at (347) 519-9999 for personalized help!";
+    // ENHANCED OFF-TOPIC FILTER - Keyword check + AI classification - Ver 2.5.0
+    // Uses chatbot_enhanced_off_topic_check() from chatbot-guardrails.php
+    if (function_exists('chatbot_enhanced_off_topic_check')) {
+        $off_topic_result = chatbot_enhanced_off_topic_check($message, 'gemini');
+        if ($off_topic_result && isset($off_topic_result['response'])) {
+            error_log('🚫 OFF-TOPIC BLOCKED: ' . $message . ' (reason: ' . ($off_topic_result['reason'] ?? 'unknown') . ')');
+            return $off_topic_result['response'];
+        }
+    } else {
+        // Fallback to basic keyword filter if guardrails not loaded
+        $off_topic_keywords = [
+            'bitcoin', 'crypto', 'cryptocurrency', 'ethereum', 'blockchain', 'nft',
+            'stock', 'stocks', 'forex', 'trading', 'investment',
+            'weather', 'forecast', 'temperature',
+            'football', 'basketball', 'baseball', 'soccer', 'nfl', 'nba',
+            'president', 'election', 'political',
+            'recipe', 'cooking', 'restaurant', 'hotel', 'flight',
+            'doctor', 'hospital', 'medicine', 'covid',
+            'homework', 'essay', 'school assignment',
+        ];
+        foreach ($off_topic_keywords as $keyword) {
+            if (strpos($message_lower, $keyword) !== false) {
+                error_log('🚫 OFF-TOPIC BLOCKED (fallback): ' . $message);
+                return "I'm here to help with internet, phone, and TV services from Comfort Comm. " .
+                       "For questions about other topics, I'd recommend searching online. " .
+                       "How can I assist you with your telecommunications needs today?";
+            }
         }
     }
 
@@ -356,12 +352,23 @@ CRITICAL: If asked about a carrier NOT on this list (Mint Mobile, Cricket, Metro
 - Use the phone number (347) 519-9999 for complex questions or when escalation is needed
 - Do NOT repeatedly introduce yourself or say "Hi there! I am Steven" - just answer the question directly
 
+**OFF-TOPIC HANDLING:**
+If someone asks about topics completely unrelated to telecommunications (like math homework, recipes, cryptocurrency, sports scores, medical advice, etc.), politely redirect them by saying you are here to help with internet, TV, and phone services, and suggest they search online for that question.
+
+However, DO answer questions about:
+- Finding/comparing providers or carriers
+- Switching services
+- General questions about how internet/TV/phone services work
+- Any question that could reasonably relate to our services
+
+When in doubt, try to help - only redirect for clearly unrelated topics.
+
 **NEVER DO THESE:**
 - Never claim partnerships with carriers not on our list
 - Never make up prices or plan details
 - Never access personal/billing information
 - Never process payments
-- If unsure, say "I do not have that specific information, but our team can help - call (347) 519-9999"
+- If unsure about telecom info, say "I do not have that specific information, but our team can help - call (347) 519-9999"
 
 **ESCALATE TO PHONE FOR:**
 - Billing/account questions
