@@ -694,21 +694,21 @@
     width: 20px;
 }
 
-/* Updated Ver 2.4.9 - Match website blue #1F7CEC */
+/* Updated Ver 2.5.2 - Blue with cute robot icon */
 #chatgpt-open-btn {
     transition: width 0.5s ease, height 0.5s ease, transform 0.3s ease, box-shadow 0.3s ease;
     position: fixed;
     bottom: 2%;
     right: 2%;
-    background-color: #0D3C74;
+    background: #60a5fa;
     border: none;
     cursor: pointer;
-    padding: 15px;
+    padding: 6px;
     float: right;
-    box-shadow: 0 4px 12px rgba(13, 60, 116, 0.4);
+    box-shadow: 0 4px 15px rgba(96, 165, 250, 0.4);
     border-radius: 50%;
-    width: 55px;
-    height: 55px;
+    width: 56px;
+    height: 56px;
     z-index: 100;
     font: inherit !important;
     display: flex;
@@ -718,9 +718,9 @@
 }
 
 #chatgpt-open-btn:hover {
-    background-color: #1F7CEC;
+    background: #93c5fd;
     transform: scale(1.1);
-    box-shadow: 0 6px 20px rgba(31, 124, 236, 0.5);
+    box-shadow: 0 6px 20px rgba(96, 165, 250, 0.5);
     animation: none;
 }
 
@@ -728,12 +728,20 @@
 @keyframes chatIconPulse {
     0%, 100% {
         transform: scale(1);
-        box-shadow: 0 4px 12px rgba(13, 60, 116, 0.4);
+        box-shadow: 0 4px 15px rgba(96, 165, 250, 0.4);
     }
     50% {
-        transform: scale(1.08);
-        box-shadow: 0 6px 18px rgba(31, 124, 236, 0.6);
+        transform: scale(1.05);
+        box-shadow: 0 6px 18px rgba(96, 165, 250, 0.6);
     }
+}
+
+/* Ver 2.5.2 - Cute robot icon styling */
+#chatgpt-open-btn .chatbot-open-icon,
+#chatgpt-open-btn img {
+    width: 44px !important;
+    height: 44px !important;
+    object-fit: contain;
 }
 
 

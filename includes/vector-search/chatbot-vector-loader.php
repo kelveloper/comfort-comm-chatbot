@@ -32,10 +32,7 @@ function chatbot_vector_init() {
         return;
     }
 
-    // Log that vector search is available
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('[Chatbot] Vector search is available and enabled');
-    }
+    // Log removed - was too noisy (runs on every page load)
 }
 add_action('plugins_loaded', 'chatbot_vector_init', 20);
 

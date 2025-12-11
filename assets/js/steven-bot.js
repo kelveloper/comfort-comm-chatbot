@@ -247,9 +247,8 @@ window.resetAllLocks = resetAllLocks;
 
     plugins_url = kchat_settings['plugins_url'];
 
-    // Get an open icon for the chatbot - Ver 1.8.6
-    // chatbotopenicon = plugins_url + 'assets/icons/' + 'chat_FILL0_wght400_GRAD0_opsz24.png';
-    const chatbotopeniconUrl = kchat_settings.steven_bot_appearance_open_icon || plugins_url + 'assets/icons/' + 'chat_FILL0_wght400_GRAD0_opsz24.png';
+    // Get an open icon for the chatbot - Ver 2.5.2 - Changed to cute robot icon
+    const chatbotopeniconUrl = kchat_settings.steven_bot_appearance_open_icon || plugins_url + 'assets/icons/' + 'robot-chat.svg';
     // Sanitize the open icon URL to prevent XSS
     const sanitizedOpenIcon = DOMPurify.sanitize(chatbotopeniconUrl, {ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i});
     chatbotopenicon = $('<img>')
@@ -257,8 +256,8 @@ window.resetAllLocks = resetAllLocks;
     .attr('class', 'chatbot-open-icon')
     .attr('src', sanitizedOpenIcon)
     .attr('decoding', 'async')
-    .attr('width', '24')
-    .attr('height', '24');
+    .attr('width', '28')
+    .attr('height', '28');
 
     // Get a collapse icon for the chatbot - Ver 1.8.6
     // chatbotcollapseicon = plugins_url + 'assets/icons/' + 'close_FILL0_wght400_GRAD0_opsz24.png';
