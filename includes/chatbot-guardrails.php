@@ -27,12 +27,22 @@ if (!defined('WPINC')) {
 function chatbot_preprocess_message($message, $user_id = null, $page_id = null, $session_id = null, $preferred_api = 'openai') {
     $message_lower = strtolower(trim($message));
 
-    // GREETING DETECTION - Mark for fresh start (no old conversation context)
+    // GREETING DETECTION - Fast response without hitting AI API
     $cleaned_for_greeting = trim(preg_replace('/\s+/', ' ', $message_lower));
-    $is_new_conversation_greeting = preg_match('/^(hi|hello|hey|good\s*(morning|afternoon|evening)|greetings)\s*[!.,]?\s*$/i', $cleaned_for_greeting);
-    if ($is_new_conversation_greeting) {
-        error_log('[Chatbot Guardrails] Greeting detected - clearing conversation history');
+    $is_simple_greeting = preg_match('/^(hi|hello|hey|yo|sup|hiya|howdy)\s*[!.,]?\s*$/i', $cleaned_for_greeting);
+    $is_time_greeting = preg_match('/^good\s*(morning|afternoon|evening|day)\s*[!.,]?\s*$/i', $cleaned_for_greeting);
+
+    if ($is_simple_greeting || $is_time_greeting) {
+        error_log('[Chatbot Guardrails] Simple greeting detected - returning fast response');
+        // Clear old conversation context for fresh start
         delete_transient('steven_bot_context_history');
+
+        // Return instant greeting response without hitting AI
+        return array(
+            'handled' => true,
+            'response' => 'Hello! How can I assist you today?',
+            'reason' => 'greeting'
+        );
     }
 
     // ENHANCED OFF-TOPIC FILTER - Keyword check + AI classification - Ver 2.5.0

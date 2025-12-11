@@ -71,14 +71,18 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
     // PRE-PROCESSING RULES - Guaranteed escalations (no AI needed, $0 cost) - Ver 2.3.7
     $message_lower = strtolower($message);
 
-    // GREETING DETECTION - Mark for fresh start (no old conversation context) - Ver 2.4.9
-    // When user says hi/hello/hey, they likely want to start a new conversation
+    // GREETING DETECTION - Fast response without hitting AI API - Ver 2.5.2
+    // Simple greetings return instantly without API call ($0 cost, ~0ms response time)
     $cleaned_for_greeting = trim(preg_replace('/\s+/', ' ', $message_lower));
-    $is_new_conversation_greeting = preg_match('/^(hi|hello|hey|good\s*(morning|afternoon|evening)|greetings)\s*[!.,]?\s*$/i', $cleaned_for_greeting);
-    if ($is_new_conversation_greeting) {
-        error_log('@@@ CHATBOT: Greeting detected - will skip conversation history for fresh start @@@');
+    $is_simple_greeting = preg_match('/^(hi|hello|hey|yo|sup|hiya|howdy)\s*[!.,]?\s*$/i', $cleaned_for_greeting);
+    $is_time_greeting = preg_match('/^good\s*(morning|afternoon|evening|day)\s*[!.,]?\s*$/i', $cleaned_for_greeting);
+
+    if ($is_simple_greeting || $is_time_greeting) {
+        error_log('[Gemini API] Simple greeting detected - returning fast response');
         // Clear transient history so it starts fresh
         delete_transient('steven_bot_context_history');
+        // Return instantly without hitting API
+        return 'Hello! How can I assist you today?';
     }
 
     // ENHANCED OFF-TOPIC FILTER - Keyword check + AI classification - Ver 2.5.0
