@@ -222,7 +222,8 @@ function create_conversation_logging_table() {
 
 // Append message to conversation log in the database - Ver 1.7.6
 // Updated Ver 2.4.8: Uses Supabase only
-function append_message_to_conversation_log($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message) {
+// Updated Ver 2.5.2: Added faq_confidence parameter for RCT analytics
+function append_message_to_conversation_log($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message, $faq_confidence = null) {
 
     // Check if conversation logging is enabled (default: On)
     if (esc_attr(get_option('steven_bot_enable_conversation_logging', 'On')) !== 'On') {
@@ -249,7 +250,8 @@ function append_message_to_conversation_log($session_id, $user_id, $page_id, $us
             $assistant_id,
             $assistant_name,
             $message,
-            0 // Default sentiment score
+            0, // Default sentiment score
+            $faq_confidence // Ver 2.5.2: FAQ confidence for RCT
         );
     }
 

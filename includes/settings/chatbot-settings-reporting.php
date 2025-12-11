@@ -1184,7 +1184,7 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
                     <button type="button" id="gap-cluster-next" class="button button-small">Next &raquo;</button>
                 </div>
             </div>
-            <p style="margin: 0 0 20px 0; font-size: 13px; color: #6b7280; padding: 12px; background-color: #f9fafb; border-left: 3px solid #3b82f6; border-radius: 4px;">
+            <p style="margin: 0 0 20px 0; font-size: 13px; color: #6b7280;">
                 <b>Human Review Required:</b> AI has analyzed similar questions and suggested FAQ entries below. Review and manually add to your knowledge base.
             </p>
 
@@ -1220,39 +1220,50 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
                     </div>
                 </div>
 
-                <!-- Sample Questions (show 1 with context if available, otherwise show up to 3) -->
+                <!-- Sample Question (show first one with all previous Q&A) -->
                 <div style="margin-bottom: 12px;">
-                    <div style="font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 6px;">Sample Questions:</div>
+                    <div style="font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 6px;">Sample Question:</div>
                     <?php
-                    // Find a question with context to highlight, or show first few without
-                    $question_with_context_idx = null;
+                    // Find first question with context, or just use first question
+                    $display_question = $sample_questions[0] ?? '';
+                    $display_context = '';
                     foreach ($sample_contexts as $idx => $ctx) {
                         if (!empty($ctx)) {
-                            $question_with_context_idx = $idx;
+                            $display_question = $sample_questions[$idx] ?? $display_question;
+                            $display_context = $ctx;
                             break;
                         }
                     }
+
+                    // Parse context to show Q&A pairs separately
+                    $qa_pairs = [];
+                    if (!empty($display_context)) {
+                        // Context format: "Q1: question | A1: answer | Q2: question | A2: answer"
+                        preg_match_all('/Q\d+:\s*([^|]+)\s*\|\s*A\d+:\s*([^|Q]+)/i', $display_context, $matches, PREG_SET_ORDER);
+                        foreach ($matches as $match) {
+                            $qa_pairs[] = [
+                                'q' => trim($match[1]),
+                                'a' => trim($match[2])
+                            ];
+                        }
+                    }
                     ?>
-                    <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #374151; line-height: 1.5;">
-                        <?php if ($question_with_context_idx !== null && isset($sample_questions[$question_with_context_idx])) :
-                            // Show the question with context
-                            $question = $sample_questions[$question_with_context_idx];
-                            $context = $sample_contexts[$question_with_context_idx];
-                        ?>
-                        <li style="margin-bottom: 6px;">
-                            <?php echo esc_html($question); ?>
-                            <div style="font-size: 11px; color: #9ca3af; margin-top: 4px; padding: 6px 10px; background: #f3f4f6; border-radius: 4px;">
-                                <span style="font-weight: 500; color: #6b7280;">Previous conversation:</span><br>
-                                <?php echo esc_html(substr($context, 0, 200)); ?><?php echo strlen($context) > 200 ? '...' : ''; ?>
+                    <div style="padding: 10px; background: #f9fafb; border-radius: 6px; border-left: 2px solid #d1d5db;">
+                        <div style="font-size: 13px; color: #374151; font-weight: 500;">
+                            <?php echo esc_html($display_question); ?>
+                        </div>
+                        <?php if (!empty($qa_pairs)) : ?>
+                        <div style="font-size: 12px; color: #6b7280; margin-top: 10px;">
+                            <span style="font-weight: 600; color: #9ca3af;">Previous conversation:</span>
+                            <?php foreach ($qa_pairs as $pair) : ?>
+                            <div style="margin-top: 8px; padding-left: 12px; border-left: 2px solid #e5e7eb;">
+                                <div style="color: #374151;"><strong>Q:</strong> <?php echo esc_html($pair['q']); ?></div>
+                                <div style="color: #6b7280; margin-top: 2px;"><strong>A:</strong> <?php echo esc_html($pair['a']); ?></div>
                             </div>
-                        </li>
-                        <?php else :
-                            // No context available, show up to 3 questions
-                            foreach (array_slice($sample_questions, 0, 3) as $question) : ?>
-                        <li style="margin-bottom: 3px;"><?php echo esc_html($question); ?></li>
-                        <?php endforeach;
-                        endif; ?>
-                    </ul>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
 
                 <?php if ($is_improve) :
@@ -1345,10 +1356,18 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
             <?php endforeach; ?>
             </div><!-- end gap-cluster-container -->
 
+            <!-- Ver 2.5.2: Bottom pagination controls -->
+            <div id="gap-cluster-pagination-bottom" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                <button type="button" id="gap-cluster-prev-bottom" class="button button-small" disabled>&laquo; Prev</button>
+                <span id="gap-cluster-page-info-bottom" style="font-size: 12px; color: #6b7280; min-width: 80px; text-align: center;">Page 1 of 1</span>
+                <button type="button" id="gap-cluster-next-bottom" class="button button-small">Next &raquo;</button>
+            </div>
+
             <!-- Ver 2.5.0: Gap cluster pagination JavaScript -->
+            <!-- Ver 2.5.2: Changed from 5 to 3 per page -->
             <script>
             (function() {
-                const perPage = 5;
+                const perPage = 3;
                 let currentPage = 1;
                 const items = document.querySelectorAll('.gap-cluster-item');
                 const totalItems = items.length;
@@ -1366,14 +1385,19 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
                         items[i].style.display = 'block';
                     }
 
-                    // Update page info
-                    document.getElementById('gap-cluster-page-info').textContent = 'Page ' + currentPage + ' of ' + totalPages;
+                    // Update page info (top and bottom)
+                    const pageText = 'Page ' + currentPage + ' of ' + totalPages;
+                    document.getElementById('gap-cluster-page-info').textContent = pageText;
+                    document.getElementById('gap-cluster-page-info-bottom').textContent = pageText;
 
-                    // Update button states
+                    // Update button states (top and bottom)
                     document.getElementById('gap-cluster-prev').disabled = currentPage <= 1;
                     document.getElementById('gap-cluster-next').disabled = currentPage >= totalPages;
+                    document.getElementById('gap-cluster-prev-bottom').disabled = currentPage <= 1;
+                    document.getElementById('gap-cluster-next-bottom').disabled = currentPage >= totalPages;
                 }
 
+                // Top pagination
                 document.getElementById('gap-cluster-prev').addEventListener('click', function() {
                     if (currentPage > 1) {
                         currentPage--;
@@ -1385,6 +1409,23 @@ function steven_bot_gap_analysis_callback($selected_period = null) {
                     if (currentPage < totalPages) {
                         currentPage++;
                         updateGapPagination();
+                    }
+                });
+
+                // Bottom pagination
+                document.getElementById('gap-cluster-prev-bottom').addEventListener('click', function() {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        updateGapPagination();
+                        document.getElementById('gap-cluster-container').scrollIntoView({ behavior: 'smooth' });
+                    }
+                });
+
+                document.getElementById('gap-cluster-next-bottom').addEventListener('click', function() {
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        updateGapPagination();
+                        document.getElementById('gap-cluster-container').scrollIntoView({ behavior: 'smooth' });
                     }
                 });
 

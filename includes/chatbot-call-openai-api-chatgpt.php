@@ -59,9 +59,10 @@ function steven_bot_call_api($api_key, $message, $user_id = null, $page_id = nul
     }
 
     // SMART FAQ SEARCH - Ver 2.5.0
+    // Ver 2.5.2: Pass session_id for RCT analytics tracking
     $faq_context = '';
     if (function_exists('chatbot_smart_faq_search')) {
-        $faq_result = chatbot_smart_faq_search($message);
+        $faq_result = chatbot_smart_faq_search($message, $session_id, $user_id, $page_id);
         if ($faq_result['skip_ai'] && !empty($faq_result['direct_response'])) {
             error_log('[OpenAI ChatGPT] Returning FAQ direct response (high confidence)');
             return $faq_result['direct_response'];

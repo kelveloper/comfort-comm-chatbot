@@ -557,8 +557,10 @@ function chatbot_vector_faq_search($query, $return_score = false, $session_id = 
         chatbot_track_faq_usage($result['match']['id'], $result['score']);
     }
 
-    // Log gap questions for low confidence matches (< 0.6)
-    if ($result['score'] < 0.6) {
+    // Log gap questions for low confidence matches (< 0.65)
+    // Ver 2.5.2: Changed from 0.6 to 0.65 to match AI tier system
+    // At 60-64%, AI ignores KB anyway, so log as gap to improve FAQs
+    if ($result['score'] < 0.65) {
         if (function_exists('chatbot_log_gap_question')) {
             chatbot_log_gap_question(
                 $query,
@@ -970,7 +972,8 @@ function chatbot_vector_context_aware_search($query, $return_score = false, $ses
     }
 
     // Log gap questions for low confidence matches - include context (Ver 2.5.0)
-    if ($result['score'] < 0.6) {
+    // Ver 2.5.2: Changed from 0.6 to 0.65 to match AI tier system
+    if ($result['score'] < 0.65) {
         if (function_exists('chatbot_log_gap_question')) {
             chatbot_log_gap_question(
                 $query,

@@ -237,6 +237,11 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
             $match_type = $faq_result['match_type'] ?? 'vector';
             $faq_match = $faq_result['match'];
 
+            // Ver 2.5.2: Store FAQ confidence for RCT analytics
+            // This will be picked up when logging the conversation response
+            set_transient('chatbot_last_faq_confidence_' . $session_id, $score, 60);
+            error_log('CHATBOT RCT DEBUG: Set transient chatbot_last_faq_confidence_' . $session_id . ' = ' . $score);
+
             // Log the FAQ match with confidence
             prod_trace('NOTICE', sprintf(
                 'FAQ match found: score=%.2f confidence=%s type=%s question="%s"%s',
@@ -269,6 +274,8 @@ function chatbot_call_gemini_api($api_key, $message, $user_id = null, $page_id =
             }
         } else {
             prod_trace('NOTICE', 'No FAQ match found - using full AI processing');
+            // Ver 2.5.2: Clear any previous confidence score
+            delete_transient('chatbot_last_faq_confidence_' . $session_id);
         }
     }
 

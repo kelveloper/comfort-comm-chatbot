@@ -27,8 +27,8 @@ function chatbot_should_use_supabase_db() {
 /**
  * Log conversation message to Supabase
  */
-function chatbot_db_log_conversation($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message, $sentiment_score = null) {
-    return chatbot_supabase_log_conversation($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message, $sentiment_score);
+function chatbot_db_log_conversation($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message, $sentiment_score = null, $faq_confidence = null) {
+    return chatbot_supabase_log_conversation($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message, $sentiment_score, $faq_confidence);
 }
 
 /**

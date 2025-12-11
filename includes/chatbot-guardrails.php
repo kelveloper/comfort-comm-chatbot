@@ -254,6 +254,16 @@ function chatbot_smart_faq_search($message, $session_id = null, $user_id = null,
 
     error_log('[Chatbot Guardrails] FAQ match: score=' . round($score * 100) . '% confidence=' . $confidence);
 
+    // Ver 2.5.2: Store FAQ confidence for RCT analytics
+    // Get session_id from global if not passed
+    if (empty($session_id)) {
+        global $session_id;
+    }
+    if (!empty($session_id)) {
+        set_transient('chatbot_last_faq_confidence_' . $session_id, $score, 60);
+        error_log('CHATBOT RCT DEBUG: [guardrails] Set transient for session ' . $session_id . ' = ' . $score);
+    }
+
     // TIER 1: Very High Confidence (80%+) - Return FAQ directly, NO AI CALL
     if ($confidence === 'very_high') {
         error_log('[Chatbot Guardrails] VERY HIGH confidence - returning FAQ directly');

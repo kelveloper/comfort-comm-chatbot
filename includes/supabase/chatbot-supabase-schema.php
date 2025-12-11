@@ -62,7 +62,8 @@ function chatbot_supabase_get_schema() {
                     assistant_name VARCHAR(255),
                     message_text TEXT NOT NULL,
                     interaction_time TIMESTAMPTZ DEFAULT NOW(),
-                    sentiment_score DECIMAL(5,4)
+                    sentiment_score DECIMAL(5,4),
+                    faq_confidence DECIMAL(5,4) DEFAULT NULL
                 );
             ",
             'indexes' => [

@@ -70,13 +70,18 @@ CREATE TABLE IF NOT EXISTS chatbot_conversations (
     assistant_name VARCHAR(255),
     message_text TEXT NOT NULL,
     sentiment_score FLOAT,
+    faq_confidence DECIMAL(5,4) DEFAULT NULL,  -- FAQ match confidence score for RCT analytics (Ver 2.5.2)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Migration: Add faq_confidence column if table already exists (Ver 2.5.2)
+ALTER TABLE chatbot_conversations ADD COLUMN IF NOT EXISTS faq_confidence DECIMAL(5,4) DEFAULT NULL;
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_conversations_session_id ON chatbot_conversations(session_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON chatbot_conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_interaction_time ON chatbot_conversations(interaction_time);
+CREATE INDEX IF NOT EXISTS idx_conversations_faq_confidence ON chatbot_conversations(faq_confidence);
 
 -- Enable RLS (Row Level Security)
 ALTER TABLE chatbot_conversations ENABLE ROW LEVEL SECURITY;

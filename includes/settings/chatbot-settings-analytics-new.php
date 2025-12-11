@@ -74,6 +74,11 @@ function chatbot_analytics_new_page() {
         ? chatbot_supabase_get_deflection_stats($selected_period)
         : array('deflection_rate' => 0, 'kb_percentage' => 0, 'ai_percentage' => 0, 'total_questions' => 0);
 
+    // Ver 2.5.2: Get confidence tier breakdown
+    $tier_stats = function_exists('chatbot_supabase_get_confidence_tier_stats')
+        ? chatbot_supabase_get_confidence_tier_stats()
+        : array('tiers' => [], 'total_hits' => 0, 'total_faqs' => 0);
+
     // Ver 2.5.0: Get top FAQ questions
     $top_faqs = function_exists('chatbot_supabase_get_top_faqs_with_details')
         ? chatbot_supabase_get_top_faqs_with_details(5)
@@ -340,6 +345,34 @@ function chatbot_analytics_new_page() {
         </div>
 
         <div class="analytics-section">
+            <!-- Top 5 FAQ Questions - Full Width at Top -->
+            <div class="stat-box" style="margin-bottom: 20px;">
+                <h3 style="font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 15px;">Top 5 Most Asked Questions</h3>
+                <?php if (empty($top_faqs)): ?>
+                    <p style="color: #9ca3af; font-size: 13px;">No FAQ usage data yet. Questions will appear here as users interact with the chatbot.</p>
+                <?php else: ?>
+                    <?php
+                    $max_hits = !empty($top_faqs) ? max(array_column($top_faqs, 'hit_count')) : 1;
+                    foreach ($top_faqs as $index => $faq):
+                        $bar_width = $max_hits > 0 ? ($faq['hit_count'] / $max_hits) * 100 : 0;
+                        $question_short = strlen($faq['question']) > 60 ? substr($faq['question'], 0, 60) . '...' : $faq['question'];
+                    ?>
+                    <div style="margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                            <span style="font-size: 13px; color: #374151;" title="<?php echo esc_attr($faq['question']); ?>">
+                                <?php echo ($index + 1) . '. ' . esc_html($question_short); ?>
+                            </span>
+                            <span style="font-size: 12px; font-weight: 600; color: #2271b1;"><?php echo number_format($faq['hit_count']); ?></span>
+                        </div>
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+                            <div style="background: #2271b1; height: 100%; width: <?php echo $bar_width; ?>%; border-radius: 4px;"></div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- Deflection Rate and RCT side by side -->
             <div class="stats-grid">
                 <!-- Deflection Rate -->
                 <div class="stat-box" style="text-align: center; border-left: 4px solid #10b981;">
@@ -348,200 +381,100 @@ function chatbot_analytics_new_page() {
                         <?php echo $deflection_stats['deflection_rate']; ?>%
                     </p>
                     <p style="font-size: 12px; color: #6b7280; margin: 5px 0 0 0;">
-                        Questions answered from Knowledge Base
+                        Questions successfully answered by Knowledge Base
                     </p>
                     <p style="font-size: 11px; color: #9ca3af; margin: 3px 0 0 0;">
-                        <?php echo number_format($deflection_stats['kb_answered']); ?> of <?php echo number_format($deflection_stats['total_questions']); ?> questions
+                        <?php echo number_format($deflection_stats['kb_answered']); ?> KB answered, <?php echo number_format($deflection_stats['ai_fallback']); ?> needed full AI
+                    </p>
+                    <p style="font-size: 11px; color: #6b7280; margin: 3px 0 0 0; font-weight: 600;">
+                        Total: <?php echo number_format($deflection_stats['total_questions']); ?> questions
+                    </p>
+                    <p style="font-size: 10px; color: #b0b0b0; margin: 5px 0 0 0; font-style: italic;">
+                        Only counts Tier 1-3 matches (65%+ confidence)
                     </p>
                 </div>
 
-                <!-- KB vs AI Usage Pie Chart -->
+                <!-- Response Confidence Tiers (RCT) - Donut Chart -->
                 <div class="stat-box">
-                    <h3 style="font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 15px;">Knowledge Base vs AI Fallback</h3>
-                    <div style="display: flex; align-items: center; justify-content: space-around;">
-                        <div style="position: relative; width: 120px; height: 120px;">
-                            <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
-                                <!-- Background circle -->
-                                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" stroke-width="3"/>
-                                <!-- KB portion (green) -->
-                                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" stroke-width="3"
-                                    stroke-dasharray="<?php echo $deflection_stats['kb_percentage']; ?> <?php echo 100 - $deflection_stats['kb_percentage']; ?>"
-                                    stroke-linecap="round"/>
-                            </svg>
-                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
-                                <span style="font-size: 18px; font-weight: bold; color: #10b981;"><?php echo $deflection_stats['kb_percentage']; ?>%</span>
-                            </div>
-                        </div>
-                        <div style="text-align: left;">
-                            <div style="margin-bottom: 8px;">
-                                <span style="display: inline-block; width: 12px; height: 12px; background: #10b981; border-radius: 2px; margin-right: 8px;"></span>
-                                <span style="font-size: 13px;">Knowledge Base: <?php echo $deflection_stats['kb_percentage']; ?>%</span>
-                            </div>
-                            <div>
-                                <span style="display: inline-block; width: 12px; height: 12px; background: #f59e0b; border-radius: 2px; margin-right: 8px;"></span>
-                                <span style="font-size: 13px;">AI Fallback: <?php echo $deflection_stats['ai_percentage']; ?>%</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Top 5 FAQ Questions -->
-                <div class="stat-box" style="grid-column: span 2;">
-                    <h3 style="font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 15px;">Top 5 Most Asked Questions</h3>
-                    <?php if (empty($top_faqs)): ?>
-                        <p style="color: #9ca3af; font-size: 13px;">No FAQ usage data yet. Questions will appear here as users interact with the chatbot.</p>
+                    <h3 style="font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 15px;">Response Confidence Tiers (RCT)</h3>
+                    <?php if (empty($tier_stats['tiers']) || $tier_stats['total_hits'] == 0): ?>
+                        <p style="color: #9ca3af; font-size: 13px;">No data yet. Stats will appear as users interact with the chatbot.</p>
                     <?php else: ?>
                         <?php
-                        $max_hits = !empty($top_faqs) ? max(array_column($top_faqs, 'hit_count')) : 1;
-                        foreach ($top_faqs as $index => $faq):
-                            $bar_width = $max_hits > 0 ? ($faq['hit_count'] / $max_hits) * 100 : 0;
-                            $question_short = strlen($faq['question']) > 60 ? substr($faq['question'], 0, 60) . '...' : $faq['question'];
+                        // Calculate cumulative percentages for donut segments
+                        $tiers_ordered = ['very_high', 'high', 'medium', 'none'];
+                        $cumulative = 0;
+                        $segments = [];
+                        foreach ($tiers_ordered as $key) {
+                            $tier = $tier_stats['tiers'][$key];
+                            $segments[$key] = [
+                                'start' => $cumulative,
+                                'percentage' => $tier['percentage'],
+                                'color' => $tier['color']
+                            ];
+                            $cumulative += $tier['percentage'];
+                        }
                         ?>
-                        <div style="margin-bottom: 10px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
-                                <span style="font-size: 13px; color: #374151;" title="<?php echo esc_attr($faq['question']); ?>">
-                                    <?php echo ($index + 1) . '. ' . esc_html($question_short); ?>
-                                </span>
-                                <span style="font-size: 12px; font-weight: 600; color: #2271b1;"><?php echo number_format($faq['hit_count']); ?></span>
+                        <div style="display: flex; align-items: center; gap: 20px;">
+                            <!-- Donut Chart -->
+                            <div style="position: relative; width: 140px; height: 140px; flex-shrink: 0;">
+                                <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                                    <?php
+                                    $offset = 0;
+                                    $tier_num = 1;
+                                    foreach ($tiers_ordered as $key):
+                                        $tier = $tier_stats['tiers'][$key];
+                                        if ($tier['percentage'] > 0):
+                                    ?>
+                                    <circle cx="18" cy="18" r="12" fill="none" stroke="<?php echo $tier['color']; ?>" stroke-width="6"
+                                        stroke-dasharray="<?php echo $tier['percentage'] * 0.754; ?> <?php echo 75.4 - ($tier['percentage'] * 0.754); ?>"
+                                        stroke-dashoffset="<?php echo -$offset * 0.754; ?>"
+                                        style="transition: stroke-dasharray 0.3s;"/>
+                                    <?php
+                                        $offset += $tier['percentage'];
+                                        endif;
+                                        $tier_num++;
+                                    endforeach;
+                                    ?>
+                                </svg>
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                                    <span style="font-size: 20px; font-weight: bold; color: #1d2327;"><?php echo number_format($tier_stats['total_hits']); ?></span>
+                                    <span style="display: block; font-size: 10px; color: #6b7280;">matches</span>
+                                </div>
                             </div>
-                            <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
-                                <div style="background: #2271b1; height: 100%; width: <?php echo $bar_width; ?>%; border-radius: 4px;"></div>
+
+                            <!-- Legend with Tier Numbers -->
+                            <div style="flex: 1;">
+                                <?php
+                                $tier_num = 1;
+                                foreach ($tiers_ordered as $key):
+                                    $tier = $tier_stats['tiers'][$key];
+                                ?>
+                                <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: <?php echo $tier['color']; ?>; color: #fff; border-radius: 50%; font-size: 10px; font-weight: bold; margin-right: 8px;"><?php echo $tier_num; ?></span>
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="font-size: 11px; font-weight: 600; color: #374151;"><?php echo $tier['label']; ?></span>
+                                            <span style="font-size: 11px; color: #6b7280;"><?php echo number_format($tier['hits']); ?> (<?php echo $tier['percentage']; ?>%)</span>
+                                        </div>
+                                        <span style="font-size: 9px; color: #9ca3af;"><?php echo $tier['range']; ?> · <?php echo $tier['desc']; ?></span>
+                                    </div>
+                                </div>
+                                <?php
+                                $tier_num++;
+                                endforeach;
+                                ?>
                             </div>
                         </div>
-                        <?php endforeach; ?>
+                        <p style="font-size: 10px; color: #6b7280; margin-top: 12px; border-top: 1px solid #e5e7eb; padding-top: 8px;">
+                            <?php echo number_format($tier_stats['total_hits']); ?> questions with FAQ matches · Higher tiers = better KB coverage
+                        </p>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
 
-        <!-- Conversation Statistics -->
-        <div class="section-header">
-            <h2>Conversation Statistics</h2>
-            <p class="section-description">Key metrics about your chatbot's conversations and user interactions</p>
-        </div>
-
-        <div class="analytics-section">
-            <h3>Overview</h3>
-            <div class="stats-grid">
-                <div class="stat-box">
-                    <h3>Total Conversations</h3>
-                    <div class="comparison-row">
-                        <div class="current-period">
-                            <span class="period-label"><?php echo esc_html($time_based_counts['current_period_label'] ?? 'This Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($time_based_counts['current']['total'] ?? 0); ?></p>
-                        </div>
-                        <div class="trend-indicator">
-                            <?php
-                            $current = $time_based_counts['current']['total'] ?? 0;
-                            $previous = $time_based_counts['previous']['total'] ?? 0;
-                            if ($current > $previous) {
-                                $percent_change = $previous > 0 ? (($current - $previous) / $previous) * 100 : 0;
-                                echo '<span class="trend-up">⬆</span><span class="percent-change">+' . number_format($percent_change, 1) . '%</span>';
-                            } elseif ($current < $previous) {
-                                $percent_change = $previous > 0 ? (($previous - $current) / $previous) * 100 : 0;
-                                echo '<span class="trend-down">⬇</span><span class="percent-change">-' . number_format($percent_change, 1) . '%</span>';
-                            }
-                            ?>
-                        </div>
-                        <div class="previous-period">
-                            <span class="period-label"><?php echo esc_html($time_based_counts['previous_period_label'] ?? 'Last Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($time_based_counts['previous']['total'] ?? 0); ?></p>
-                        </div>
-                    </div>
-                </div>
-                <div class="stat-box">
-                    <h3>Unique Visitors</h3>
-                    <div class="comparison-row">
-                        <div class="current-period">
-                            <span class="period-label"><?php echo esc_html($time_based_counts['current_period_label'] ?? 'This Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($time_based_counts['current']['unique_visitors'] ?? 0); ?></p>
-                        </div>
-                        <div class="trend-indicator">
-                            <?php
-                            $current = $time_based_counts['current']['unique_visitors'] ?? 0;
-                            $previous = $time_based_counts['previous']['unique_visitors'] ?? 0;
-                            if ($current > $previous) {
-                                $percent_change = $previous > 0 ? (($current - $previous) / $previous) * 100 : 0;
-                                echo '<span class="trend-up">⬆</span><span class="percent-change">+' . number_format($percent_change, 1) . '%</span>';
-                            } elseif ($current < $previous) {
-                                $percent_change = $previous > 0 ? (($previous - $current) / $previous) * 100 : 0;
-                                echo '<span class="trend-down">⬇</span><span class="percent-change">-' . number_format($percent_change, 1) . '%</span>';
-                            }
-                            ?>
-                        </div>
-                        <div class="previous-period">
-                            <span class="period-label"><?php echo esc_html($time_based_counts['previous_period_label'] ?? 'Last Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($time_based_counts['previous']['unique_visitors'] ?? 0); ?></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Message Statistics -->
-        <div class="section-header">
-            <h2>Message Statistics</h2>
-            <p class="section-description">Breakdown of messages between visitors and chatbot</p>
-        </div>
-
-        <div class="analytics-section">
-            <div class="stats-grid">
-                <div class="stat-box">
-                    <h3>Total Messages</h3>
-                    <div class="comparison-row">
-                        <div class="current-period">
-                            <span class="period-label"><?php echo esc_html($message_stats['current_period_label'] ?? 'This Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($message_stats['current']['total_messages'] ?? 0); ?></p>
-                        </div>
-                        <div class="trend-indicator">
-                            <?php
-                            $current = $message_stats['current']['total_messages'] ?? 0;
-                            $previous = $message_stats['previous']['total_messages'] ?? 0;
-                            if ($current > $previous) {
-                                $percent_change = $previous > 0 ? (($current - $previous) / $previous) * 100 : 0;
-                                echo '<span class="trend-up">⬆</span><span class="percent-change">+' . number_format($percent_change, 1) . '%</span>';
-                            } elseif ($current < $previous) {
-                                $percent_change = $previous > 0 ? (($previous - $current) / $previous) * 100 : 0;
-                                echo '<span class="trend-down">⬇</span><span class="percent-change">-' . number_format($percent_change, 1) . '%</span>';
-                            }
-                            ?>
-                        </div>
-                        <div class="previous-period">
-                            <span class="period-label"><?php echo esc_html($message_stats['previous_period_label'] ?? 'Last Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($message_stats['previous']['total_messages'] ?? 0); ?></p>
-                        </div>
-                    </div>
-                </div>
-                <div class="stat-box">
-                    <h3>Visitor Messages</h3>
-                    <div class="comparison-row">
-                        <div class="current-period">
-                            <span class="period-label"><?php echo esc_html($message_stats['current_period_label'] ?? 'This Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($message_stats['current']['visitor_messages'] ?? 0); ?></p>
-                        </div>
-                        <div class="trend-indicator">
-                            <?php
-                            $current = $message_stats['current']['visitor_messages'] ?? 0;
-                            $previous = $message_stats['previous']['visitor_messages'] ?? 0;
-                            if ($current > $previous) {
-                                $percent_change = $previous > 0 ? (($current - $previous) / $previous) * 100 : 0;
-                                echo '<span class="trend-up">⬆</span><span class="percent-change">+' . number_format($percent_change, 1) . '%</span>';
-                            } elseif ($current < $previous) {
-                                $percent_change = $previous > 0 ? (($previous - $current) / $previous) * 100 : 0;
-                                echo '<span class="trend-down">⬇</span><span class="percent-change">-' . number_format($percent_change, 1) . '%</span>';
-                            }
-                            ?>
-                        </div>
-                        <div class="previous-period">
-                            <span class="period-label"><?php echo esc_html($message_stats['previous_period_label'] ?? 'Last Period'); ?></span>
-                            <p class="stat-value"><?php echo number_format($message_stats['previous']['visitor_messages'] ?? 0); ?></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Net Promoter Score (NPS) - Ver 2.5.0 (Replaces CSAT) -->
+        <!-- Net Promoter Score (NPS) - Ver 2.5.0 -->
         <div class="section-header">
             <h2>Net Promoter Score (NPS)</h2>
             <p class="section-description">Industry-standard metric: "How likely are you to recommend this chatbot?" (0-10 scale)</p>

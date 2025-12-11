@@ -161,7 +161,7 @@ function chatbot_supabase_request($endpoint, $method = 'GET', $data = null, $que
 /**
  * Append message to conversation log
  */
-function chatbot_supabase_log_conversation($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message, $sentiment_score = null) {
+function chatbot_supabase_log_conversation($session_id, $user_id, $page_id, $user_type, $thread_id, $assistant_id, $assistant_name, $message, $sentiment_score = null, $faq_confidence = null) {
     $data = [
         'session_id' => $session_id,
         'user_id' => (string)$user_id,
@@ -176,6 +176,11 @@ function chatbot_supabase_log_conversation($session_id, $user_id, $page_id, $use
 
     if ($sentiment_score !== null) {
         $data['sentiment_score'] = $sentiment_score;
+    }
+
+    // Ver 2.5.2: Store FAQ confidence score for RCT analytics
+    if ($faq_confidence !== null) {
+        $data['faq_confidence'] = $faq_confidence;
     }
 
     $result = chatbot_supabase_request('chatbot_conversations', 'POST', $data);
@@ -1059,6 +1064,85 @@ function chatbot_supabase_track_faq_usage($faq_id, $confidence_score) {
 }
 
 /**
+ * Get confidence tier breakdown stats
+ * Ver 2.5.2: Shows distribution across 5 confidence tiers
+ *
+ * Tiers based on vector search thresholds:
+ * - Very High (85%+): FAQ returned directly, no AI call
+ * - High (75-84%): Minimal AI processing
+ * - Medium (65-74%): AI with FAQ context
+ * - Low (50-64%): AI handles, FAQ as hint
+ * - None (<50%): Full AI response, no FAQ match
+ *
+ * Ver 2.5.2: Now queries individual conversations with faq_confidence for accurate per-question tracking
+ */
+function chatbot_supabase_get_confidence_tier_stats() {
+    // Ver 2.5.2: Two-source approach for accurate RCT stats
+    // - Tier 1-3 (KB answered): From chatbot_conversations.faq_confidence >= 0.65
+    // - Gap tier (AI helped): From chatbot_gap_questions with quality_score >= 0.5
+
+    // Get KB-answered questions (Tier 1-3: confidence >= 65%)
+    $kb_params = [
+        'select' => 'faq_confidence',
+        'user_type' => 'eq.Chatbot',
+        'faq_confidence' => 'gte.0.65', // Only >= 65% (KB actually used)
+        'limit' => 10000
+    ];
+    $kb_result = chatbot_supabase_request('chatbot_conversations', 'GET', null, $kb_params);
+    $kb_conversations = $kb_result['success'] ? ($kb_result['data'] ?? []) : [];
+
+    // Get gap questions count (quality questions where AI helped)
+    $gap_params = [
+        'select' => 'id',
+        'quality_score' => 'gte.0.5', // Only quality questions, not spam
+        'is_resolved' => 'eq.false',
+        'limit' => 10000
+    ];
+    $gap_result = chatbot_supabase_request('chatbot_gap_questions', 'GET', null, $gap_params);
+    $gap_questions = $gap_result['success'] ? ($gap_result['data'] ?? []) : [];
+    $gap_count = count($gap_questions);
+
+    // Response Confidence Tiers (RCT)
+    $tiers = [
+        'very_high' => ['count' => 0, 'hits' => 0, 'label' => 'Very High', 'range' => '85%+', 'color' => '#10b981', 'desc' => 'KB only, no AI call'],
+        'high' => ['count' => 0, 'hits' => 0, 'label' => 'High', 'range' => '75-84%', 'color' => '#22c55e', 'desc' => 'AI rephrases KB answer'],
+        'medium' => ['count' => 0, 'hits' => 0, 'label' => 'Medium', 'range' => '65-74%', 'color' => '#eab308', 'desc' => 'AI uses KB as reference'],
+        'none' => ['count' => 0, 'hits' => $gap_count, 'label' => 'Gap', 'range' => '<65%', 'color' => '#ef4444', 'desc' => 'Full AI (quality questions)']
+    ];
+
+    // Count KB-answered by tier
+    foreach ($kb_conversations as $conv) {
+        $confidence = floatval($conv['faq_confidence'] ?? 0);
+
+        if ($confidence >= 0.85) {
+            $tiers['very_high']['count']++;
+            $tiers['very_high']['hits']++;
+        } elseif ($confidence >= 0.75) {
+            $tiers['high']['count']++;
+            $tiers['high']['hits']++;
+        } elseif ($confidence >= 0.65) {
+            $tiers['medium']['count']++;
+            $tiers['medium']['hits']++;
+        }
+        // < 65% not counted here - comes from gap_questions table
+    }
+
+    // Total = KB answered + quality gap questions
+    $total_questions = $tiers['very_high']['hits'] + $tiers['high']['hits'] + $tiers['medium']['hits'] + $gap_count;
+
+    // Calculate percentages
+    foreach ($tiers as $key => &$tier) {
+        $tier['percentage'] = $total_questions > 0 ? round(($tier['hits'] / $total_questions) * 100, 1) : 0;
+    }
+
+    return [
+        'tiers' => $tiers,
+        'total_hits' => $total_questions,
+        'total_faqs' => $total_questions
+    ];
+}
+
+/**
  * Get FAQ usage stats
  */
 function chatbot_supabase_get_faq_usage($limit = 100) {
@@ -1114,92 +1198,47 @@ function chatbot_supabase_get_top_faqs_with_details($limit = 5) {
 
 /**
  * Get deflection rate and KB vs AI usage stats
- * Ver 2.5.0: For dashboard metrics
+ * Ver 2.5.2: Aligned with RCT - uses same two-source approach
  *
- * Deflection = questions answered from KB (high confidence) without needing human/AI fallback
+ * KB Answered = Individual conversations with faq_confidence >= 65%
+ * AI Fallback = Quality gap questions (quality_score >= 0.5)
+ * Deflection Rate = KB Answered / (KB Answered + AI Fallback)
  */
 function chatbot_supabase_get_deflection_stats($period = 'Week') {
-    // Calculate date range based on period
-    $now = new DateTime('now', new DateTimeZone('UTC'));
-
-    switch ($period) {
-        case 'Today':
-            $start_date = $now->format('Y-m-d') . 'T00:00:00Z';
-            break;
-        case 'Week':
-            $start_date = $now->modify('-7 days')->format('Y-m-d') . 'T00:00:00Z';
-            break;
-        case 'Month':
-            $start_date = $now->modify('-30 days')->format('Y-m-d') . 'T00:00:00Z';
-            break;
-        case 'Quarter':
-            $start_date = $now->modify('-90 days')->format('Y-m-d') . 'T00:00:00Z';
-            break;
-        case 'Year':
-            $start_date = $now->modify('-365 days')->format('Y-m-d') . 'T00:00:00Z';
-            break;
-        default:
-            $start_date = $now->modify('-7 days')->format('Y-m-d') . 'T00:00:00Z';
-    }
-
-    $base_url = chatbot_supabase_get_url();
-    $anon_key = chatbot_supabase_get_anon_key();
-
-    if (!$base_url || !$anon_key) {
-        return [
-            'total_questions' => 0,
-            'kb_answered' => 0,
-            'ai_fallback' => 0,
-            'deflection_rate' => 0,
-            'kb_percentage' => 0,
-            'ai_percentage' => 0
-        ];
-    }
-
-    // Get conversations in period - visitor messages only
-    $url = $base_url . '/chatbot_conversations?user_type=eq.Visitor&interaction_time=gte.' . urlencode($start_date) . '&select=confidence_score';
-
-    $headers = [
-        'apikey: ' . $anon_key,
-        'Authorization: Bearer ' . $anon_key
+    $default_return = [
+        'total_questions' => 0,
+        'kb_answered' => 0,
+        'ai_fallback' => 0,
+        'deflection_rate' => 0,
+        'kb_percentage' => 0,
+        'ai_percentage' => 0
     ];
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    // 1. Get KB-answered questions (individual conversations with faq_confidence >= 65%)
+    // This matches RCT Tier 1-3 exactly
+    $kb_params = [
+        'select' => 'id',
+        'user_type' => 'eq.Chatbot',
+        'faq_confidence' => 'gte.0.65',
+        'limit' => 10000
+    ];
+    $kb_result = chatbot_supabase_request('chatbot_conversations', 'GET', null, $kb_params);
+    $kb_conversations = $kb_result['success'] ? ($kb_result['data'] ?? []) : [];
+    $kb_answered = count($kb_conversations);
 
-    $response = curl_exec($ch);
-    curl_close($ch);
+    // 2. Get quality gap questions count (same as RCT Gap tier)
+    $gap_params = [
+        'select' => 'id',
+        'quality_score' => 'gte.0.5',
+        'is_resolved' => 'eq.false',
+        'limit' => 10000
+    ];
+    $gap_result = chatbot_supabase_request('chatbot_gap_questions', 'GET', null, $gap_params);
+    $gap_questions = $gap_result['success'] ? ($gap_result['data'] ?? []) : [];
+    $ai_fallback = count($gap_questions);
 
-    $data = json_decode($response, true);
-
-    if (!is_array($data)) {
-        return [
-            'total_questions' => 0,
-            'kb_answered' => 0,
-            'ai_fallback' => 0,
-            'deflection_rate' => 0,
-            'kb_percentage' => 0,
-            'ai_percentage' => 0
-        ];
-    }
-
-    $total = count($data);
-    $kb_answered = 0;
-    $ai_fallback = 0;
-
-    foreach ($data as $conv) {
-        $confidence = floatval($conv['confidence_score'] ?? 0);
-        // High confidence (>= 0.6) = answered from KB
-        // Low confidence (< 0.6) = AI fallback was used
-        if ($confidence >= 0.6) {
-            $kb_answered++;
-        } else {
-            $ai_fallback++;
-        }
-    }
-
+    // 3. Calculate deflection rate
+    $total = $kb_answered + $ai_fallback;
     $deflection_rate = $total > 0 ? round(($kb_answered / $total) * 100, 1) : 0;
     $kb_percentage = $total > 0 ? round(($kb_answered / $total) * 100, 1) : 0;
     $ai_percentage = $total > 0 ? round(($ai_fallback / $total) * 100, 1) : 0;

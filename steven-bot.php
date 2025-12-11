@@ -1649,8 +1649,18 @@ function steven_bot_process_queued_message($message_data) {
         }
     }
 
-    // Log the response
-    append_message_to_conversation_log($session_id, $user_id, $page_id, 'Chatbot', $thread_id, $assistant_id, null, $response);
+    // Ver 2.5.2: Get FAQ confidence from transient for RCT analytics
+    $faq_confidence = get_transient('chatbot_last_faq_confidence_' . $session_id);
+    error_log('CHATBOT RCT DEBUG: Get transient chatbot_last_faq_confidence_' . $session_id . ' = ' . ($faq_confidence !== false ? $faq_confidence : 'FALSE'));
+    if ($faq_confidence !== false) {
+        delete_transient('chatbot_last_faq_confidence_' . $session_id);
+    } else {
+        $faq_confidence = null;
+    }
+    error_log('CHATBOT RCT DEBUG: Final faq_confidence = ' . ($faq_confidence !== null ? $faq_confidence : 'NULL'));
+
+    // Log the response with FAQ confidence for RCT analytics
+    append_message_to_conversation_log($session_id, $user_id, $page_id, 'Chatbot', $thread_id, $assistant_id, null, $response, $faq_confidence);
 
     return $response;
 }
@@ -2323,7 +2333,15 @@ function steven_bot_send_message() {
         // back_trace( 'NOTICE', '$response ' . print_r($response,true));
         $thread_id = get_steven_bot_threads($user_id, $session_id, $page_id, $assistant_id);
         // back_trace( 'NOTICE', '$thread_id ' . $thread_id);
-        append_message_to_conversation_log($session_id, $user_id, $page_id, 'Chatbot', $thread_id, $assistant_id, null, $response);
+
+        // Ver 2.5.2: Get FAQ confidence from transient for RCT analytics
+        $faq_confidence = get_transient('chatbot_last_faq_confidence_' . $session_id);
+        if ($faq_confidence !== false) {
+            delete_transient('chatbot_last_faq_confidence_' . $session_id);
+        } else {
+            $faq_confidence = null;
+        }
+        append_message_to_conversation_log($session_id, $user_id, $page_id, 'Chatbot', $thread_id, $assistant_id, null, $response, $faq_confidence);
 
         // Clean (erase) the output buffer - Ver 1.6.8
         // Check if output buffering is active before attempting to clean it
@@ -2606,7 +2624,17 @@ function steven_bot_send_message() {
         // back_trace( 'NOTICE', '$response ' . print_r($response,true));
         $thread_id = get_steven_bot_threads($user_id, $session_id, $page_id, $assistant_id);
         // back_trace( 'NOTICE', '$thread_id ' . $thread_id);
-        append_message_to_conversation_log($session_id, $user_id, $page_id, 'Chatbot', $thread_id, $assistant_id, null, $response);
+
+        // Ver 2.5.2: Get FAQ confidence from transient for RCT analytics
+        $faq_confidence = get_transient('chatbot_last_faq_confidence_' . $session_id);
+        error_log('CHATBOT RCT DEBUG: [path3] Get transient chatbot_last_faq_confidence_' . $session_id . ' = ' . ($faq_confidence !== false ? $faq_confidence : 'FALSE'));
+        if ($faq_confidence !== false) {
+            delete_transient('chatbot_last_faq_confidence_' . $session_id);
+        } else {
+            $faq_confidence = null;
+        }
+        error_log('CHATBOT RCT DEBUG: [path3] Final faq_confidence = ' . ($faq_confidence !== null ? $faq_confidence : 'NULL'));
+        append_message_to_conversation_log($session_id, $user_id, $page_id, 'Chatbot', $thread_id, $assistant_id, null, $response, $faq_confidence);
 
         // DIAG - Diagnostics
         // back_trace( 'NOTICE', 'Check for links and images in response before returning');
