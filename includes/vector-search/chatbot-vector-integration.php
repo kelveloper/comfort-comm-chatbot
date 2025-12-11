@@ -278,13 +278,15 @@ function chatbot_vector_add_admin_actions() {
         return;
     }
 
-    // Determine message
+    // Determine message - different wording for first-time vs. platform change
     if ($never_migrated) {
-        $title = "⚠️ Migration Required";
-        $message = "You have <strong>{$faq_count} FAQs</strong> that need embeddings generated with <strong>{$current_platform}</strong>.";
+        $title = "Setup Required";
+        $message = "You have <strong>{$faq_count} FAQs</strong> that need embeddings generated with <strong>{$current_platform}</strong> to enable semantic search.";
+        $button_text = "Generate Embeddings";
     } else {
-        $title = "⚠️ Re-migration Required";
-        $message = "Embeddings: <strong>{$embedding_platform}</strong> → Now using: <strong>{$current_platform}</strong>";
+        $title = "Re-sync Required";
+        $message = "AI platform changed: <strong>{$embedding_platform}</strong> → <strong>{$current_platform}</strong>. Embeddings need to be regenerated.";
+        $button_text = "Regenerate Embeddings";
     }
     ?>
     <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px;">
@@ -301,7 +303,7 @@ function chatbot_vector_add_admin_actions() {
         <input type="hidden" id="chatbot-vector-clear-existing" value="0">
         <?php endif; ?>
         <button type="button" id="chatbot-vector-migrate-btn" class="button button-primary">
-            Migrate FAQs Now
+            <?php echo $button_text; ?>
         </button>
         <span id="chatbot-vector-migrate-status" style="margin-left: 10px;"></span>
     </div>

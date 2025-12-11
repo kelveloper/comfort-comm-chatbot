@@ -218,20 +218,15 @@ function steven_bot_faq_import_section_callback() {
 
     // Check if Supabase is configured (check admin settings first, then wp-config.php)
     $supabase_configured = function_exists('chatbot_supabase_is_configured') ? chatbot_supabase_is_configured() : (defined('CHATBOT_PG_HOST') && defined('CHATBOT_SUPABASE_ANON_KEY'));
-
-    // Ver 2.5.0: Show Vector Database Management section (migration, platform warning)
-    if (function_exists('chatbot_vector_add_admin_actions')) {
-        chatbot_vector_add_admin_actions();
-    }
     ?>
     </form><!-- Close parent settings form to prevent nesting -->
 
     <div class="wrap">
         <?php if ($supabase_configured): ?>
-        <p>Manage your FAQ entries. The chatbot uses AI-powered semantic vector search to match questions naturally.</p>
+        <p>Manage your FAQ entries. The chatbot uses semantic search to match questions naturally.</p>
         <?php else: ?>
         <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
-            <strong>Vector Database:</strong> Not configured
+            <strong>Database:</strong> Not configured
             <span style="color: #721c24;"> - Go to Steven-Bot → Setup and enter your Supabase URL and Anon Key</span>
         </div>
         <?php endif; ?>

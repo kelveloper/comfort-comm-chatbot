@@ -2,7 +2,7 @@
 /*
  * Plugin Name: Steven-Bot
  * Description: AI-powered FAQ chatbot with semantic search. Uses Supabase vector search to match customer questions with your knowledge base, with Gemini/OpenAI fallback.
- * Version:     2.5.1
+ * Version:     2.5.11
  * Requires PHP: 7.4
  * Requires at least: 5.8
  * Author:      kelveloper

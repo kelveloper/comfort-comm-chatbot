@@ -1902,12 +1902,15 @@ window.resetAllLocks = resetAllLocks;
                     // console.log('Chatbot: botResponse is null/empty - not appending message');
                 }
                 scrollToLastBotResponse();
-                
+
                 // Re-enable the button if this is not a queued response OR if it's a "still working" message
                 // For queued responses, keep the button disabled until queue processing is complete
                 // For "still working" messages, the button should be re-enabled immediately
                 const isQueuedForButton = ajaxResponse && ajaxResponse.data && typeof ajaxResponse.data === 'object' && ajaxResponse.data.queued;
-                if (ajaxResponse && (!isQueuedForButton || isStillWorkingMessage)) {
+                if (!ajaxResponse) {
+                    // Error occurred (no response) - always re-enable the button
+                    submitButton.prop('disabled', false);
+                } else if (!isQueuedForButton || isStillWorkingMessage) {
                     submitButton.prop('disabled', false);
                 } else if (isQueuedForButton) {
                     // For queued responses, poll the queue status and re-enable when empty
