@@ -389,8 +389,9 @@ function chatbot_supabase_get_config() {
         $config['db_password'] = chatbot_supabase_decrypt_password($encrypted_password);
     }
 
-    // Fall back to wp-config.php constants
-    if (empty($config['db_host']) && defined('CHATBOT_PG_HOST')) {
+    // Fall back to wp-config.php constants ONLY if admin options are not set
+    // Admin settings always take priority over constants
+    if (empty($config['project_url']) && defined('CHATBOT_PG_HOST')) {
         $config['db_host'] = CHATBOT_PG_HOST;
         $config['project_url'] = 'https://' . str_replace('db.', '', CHATBOT_PG_HOST);
     }
@@ -403,15 +404,16 @@ function chatbot_supabase_get_config() {
         $config['db_password'] = CHATBOT_PG_PASSWORD;
     }
 
-    if (defined('CHATBOT_PG_PORT')) {
+    // Only use constant fallbacks if not already derived from project_url
+    if (empty($config['db_port']) && defined('CHATBOT_PG_PORT')) {
         $config['db_port'] = CHATBOT_PG_PORT;
     }
 
-    if (defined('CHATBOT_PG_DATABASE')) {
+    if (empty($config['db_name']) && defined('CHATBOT_PG_DATABASE')) {
         $config['db_name'] = CHATBOT_PG_DATABASE;
     }
 
-    if (defined('CHATBOT_PG_USER')) {
+    if (empty($config['db_user']) && defined('CHATBOT_PG_USER')) {
         $config['db_user'] = CHATBOT_PG_USER;
     }
 
